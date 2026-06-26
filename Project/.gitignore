@@ -1,0 +1,8 @@
+# Never commit secrets or state
+.env
+*.tfstate
+*.tfstate.*
+.terraform/
+# .terraform.lock.hcl is intentionally committed (pins provider versions/hashes).
+*.pem
+*.key

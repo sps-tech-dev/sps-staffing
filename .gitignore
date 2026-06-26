@@ -1,0 +1,62 @@
+# ─────────────────────────────────────────────────────────────────
+# SPS Staffing — root .gitignore
+# Secrets, state, and large reference material must NEVER be committed.
+# ─────────────────────────────────────────────────────────────────
+
+# ── Secrets / credentials (merged from Project/.gitignore) ──────────
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+# Local credential / secrets documents (live only on disk, never in git)
+All Keys and Passwords.docx
+*.docx
+*.xlsx
+~$*
+.aws/
+credentials
+
+# ── Terraform ──────────────────────────────────────────────────────
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+.terraform/
+crash.log
+crash.*.log
+*.tfvars
+*.tfvars.json
+override.tf
+override.tf.json
+# .terraform.lock.hcl is intentionally COMMITTED (pins provider versions/hashes
+# for reproducible `terraform init`). Do not ignore it.
+
+# ── Reference material (excluded from the repo) ────────────────────
+Context/
+
+# ── Python ─────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+build/
+dist/
+
+# ── Node (frontend, future) ────────────────────────────────────────
+node_modules/
+
+# ── macOS / editor ─────────────────────────────────────────────────
+.DS_Store
+*.swp
+*~
+.idea/
+.vscode/
