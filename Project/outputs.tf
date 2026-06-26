@@ -100,6 +100,13 @@ output "s3_bucket_arn" {
   value       = aws_s3_bucket.storage.arn
 }
 
+# ── CI/CD ────────────────────────────────────────────────────────
+
+output "gha_deploy_role_arn" {
+  description = "ARN of the GitHub Actions OIDC deploy role (dev, develop branch)"
+  value       = aws_iam_role.gha_deploy.arn
+}
+
 # ── ACM DNS validation — ADD THIS CNAME AT GODADDY ───────────────
 # (Values are known only after the certificate is created.)
 

@@ -339,6 +339,20 @@ bottom of the dated sections. Updated at the end of **every** session.
 
 ---
 
+### Git branches + GitHub OIDC deploy role (planned, awaiting apply) 🟡
+- **`develop` branch** created from `main` (both at `7b39811`) and pushed → tracking `origin/develop`. Branching model recorded in DECISIONS (develop→dev, main→prod). ⚠️ Default branch must be set to `develop` manually in the GitHub web UI (not a CLI action).
+- **`oidc.tf`** (Terraform): GitHub Actions OIDC for keyless CI/CD deploys to dev:
+  - `aws_iam_openid_connect_provider.github` — `token.actions.githubusercontent.com`, aud `sts.amazonaws.com`, GitHub thumbprints, `Vertical=shared`.
+  - `aws_iam_role.sps-shared-dev-gha-deploy` — trust scoped to **`sub = repo:sps-tech-dev/sps-staffing:ref:refs/heads/develop`** (only this repo's develop branch) + aud `sts.amazonaws.com`.
+  - Least-privilege deploy policy: ECR auth (`*`, unscopable) + push/pull scoped to the backend repo ARN; `ecs:RegisterTaskDefinition`/`DescribeTaskDefinition` (`*`, unscopable) + `UpdateService`/`DescribeServices` scoped to the service + `RunTask` (migrate family, cluster-conditioned) + `DescribeTasks` (cluster tasks); `iam:PassRole` ONLY the exec+task roles (condition `iam:PassedToService=ecs-tasks.amazonaws.com`); CloudWatch Logs read on the backend+migrate groups. **No admin, no Secrets Manager write.**
+  - Output `gha_deploy_role_arn`.
+- `terraform fmt`/`validate` clean; `terraform plan` = **3 to add, 0 to change, 0 to destroy** (OIDC provider + role + role policy; **no destroys**).
+- **Applied — 3 added, 0 changed, 0 destroyed** (`terraform plan` after = "No changes").
+  - **`gha_deploy_role_arn = arn:aws:iam::412058343855:role/sps-shared-dev-gha-deploy`**
+  - OIDC provider + least-privilege deploy role live; trust scoped to `repo:sps-tech-dev/sps-staffing:ref:refs/heads/develop`.
+- (Stage 4 = the GitHub Actions workflow that assumes this role on pushes to `develop`.)
+- **Status:** ✅ Applied.
+
 ## Pending / next steps
 - [ ] **DKIM CNAMEs** for Microsoft 365 (email migration not fully complete).
 - [ ] **Backend lockfile migration** — switch to `use_lockfile = true`, then delete the `sps-staffing-tflock` DynamoDB table.
