@@ -1,0 +1,189 @@
+name: deploy-dev
+
+# Dev CI/CD: build → push → register task defs → deploy → migrate → health check.
+# Auth is keyless via the OIDC role sps-shared-dev-gha-deploy (trust scoped to
+# THIS repo's develop branch only). No stored AWS keys.
+#
+# Branching model (see docs/DECISIONS.md): develop → dev (this workflow, auto
+# migrations). main → prod later (gated migrations — see extension point below).
+
+on:
+  push:
+    branches: [develop]
+  workflow_dispatch:
+
+# OIDC requires id-token: write; checkout needs contents: read.
+permissions:
+  id-token: write
+  contents: read
+
+# One deploy per branch at a time. Queue (do NOT cancel) so an in-flight ECS
+# rollout / migration is never interrupted mid-way.
+concurrency:
+  group: deploy-dev-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: ap-south-1
+  AWS_ROLE_ARN: arn:aws:iam::412058343855:role/sps-shared-dev-gha-deploy
+  ECR_REPOSITORY: sps-shared-dev-backend
+  ECS_CLUSTER: sps-shared-dev-cluster
+  ECS_SERVICE: sps-shared-dev-backend
+  BACKEND_TASKDEF: sps-shared-dev-backend
+  MIGRATE_TASKDEF: sps-shared-dev-migrate
+  BACKEND_CONTAINER: backend
+  MIGRATE_CONTAINER: migrate
+  MIGRATE_LOG_GROUP: /ecs/sps-shared-dev-migrate
+  HEALTH_BASE: https://dev-api.spstechnosoft.com
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      # a. Checkout
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # b. AWS creds via OIDC (no stored keys)
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # c. ECR login (exposes steps.ecr.outputs.registry)
+      - name: Login to Amazon ECR
+        id: ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      # d. Build the ARM64 image (ECS task is ARM64; runners are x86 → QEMU+buildx
+      #    cross-build). Tag with the immutable git SHA + a moving develop-latest.
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Build and push ARM64 image
+        id: build
+        env:
+          REGISTRY: ${{ steps.ecr.outputs.registry }}
+        run: |
+          set -euo pipefail
+          IMAGE_SHA="$REGISTRY/$ECR_REPOSITORY:${{ github.sha }}"
+          IMAGE_LATEST="$REGISTRY/$ECR_REPOSITORY:develop-latest"
+          docker buildx build \
+            --platform linux/arm64 \
+            -t "$IMAGE_SHA" -t "$IMAGE_LATEST" \
+            --push backend
+          echo "image_sha=$IMAGE_SHA" >> "$GITHUB_OUTPUT"
+
+      # e. Register NEW task-def revisions by fetching the LIVE task defs and
+      #    swapping ONLY the image. This preserves every existing setting
+      #    (ARM64 runtime_platform, env, Secrets Manager `secrets`, exec/task
+      #    roles, log config, cpu/mem) with zero drift and no hardcoded secrets.
+      - name: Register backend task definition
+        id: backend_td
+        env:
+          IMAGE_SHA: ${{ steps.build.outputs.image_sha }}
+        run: |
+          set -euo pipefail
+          aws ecs describe-task-definition --task-definition "$BACKEND_TASKDEF" \
+            --query 'taskDefinition' --output json > live-backend.json
+          jq --arg IMG "$IMAGE_SHA" --arg C "$BACKEND_CONTAINER" '
+            (.containerDefinitions[] | select(.name==$C) | .image) = $IMG
+            | del(.taskDefinitionArn,.revision,.status,.requiresAttributes,
+                  .compatibilities,.registeredAt,.registeredBy,.deregisteredAt)
+          ' live-backend.json > new-backend.json
+          ARN=$(aws ecs register-task-definition --cli-input-json file://new-backend.json \
+            --query 'taskDefinition.taskDefinitionArn' --output text)
+          echo "Registered backend: $ARN"
+          echo "arn=$ARN" >> "$GITHUB_OUTPUT"
+
+      - name: Register migrate task definition
+        id: migrate_td
+        env:
+          IMAGE_SHA: ${{ steps.build.outputs.image_sha }}
+        run: |
+          set -euo pipefail
+          aws ecs describe-task-definition --task-definition "$MIGRATE_TASKDEF" \
+            --query 'taskDefinition' --output json > live-migrate.json
+          jq --arg IMG "$IMAGE_SHA" --arg C "$MIGRATE_CONTAINER" '
+            (.containerDefinitions[] | select(.name==$C) | .image) = $IMG
+            | del(.taskDefinitionArn,.revision,.status,.requiresAttributes,
+                  .compatibilities,.registeredAt,.registeredBy,.deregisteredAt)
+          ' live-migrate.json > new-migrate.json
+          ARN=$(aws ecs register-task-definition --cli-input-json file://new-migrate.json \
+            --query 'taskDefinition.taskDefinitionArn' --output text)
+          echo "Registered migrate: $ARN"
+          echo "arn=$ARN" >> "$GITHUB_OUTPUT"
+
+      # f. Migrations FIRST (expand/contract ordering). DEV = AUTOMATIC (Option 1):
+      #    always `alembic upgrade head` (idempotent). Running migrations BEFORE the
+      #    service rollout guarantees new code never starts against a not-yet-applied
+      #    schema. Reuses the service's CURRENT network config (private-app subnets +
+      #    ecs SG, no public IP) so no ec2:Describe* perms are needed. On non-zero
+      #    exit the job fails HERE and the service is NOT updated.
+      #
+      #    ┌─ EXTENSION POINT (UAT/Prod = Option 2, GATED — NOT IMPLEMENTED) ──┐
+      #    │ For uat/prod (which don't exist yet), migrations should run as a   │
+      #    │ SEPARATE job targeting a GitHub `environment:` with required       │
+      #    │ reviewers, triggered from main / a release tag — e.g.:             │
+      #    │   migrate-prod:                                                    │
+      #    │     environment: prod        # required-reviewers gate in GH UI    │
+      #    │     if: startsWith(github.ref, 'refs/tags/v')                      │
+      #    │     ...run the prod migrate task only after manual approval...     │
+      #    │ Do NOT enable until prod infra + environment exist.                │
+      #    └────────────────────────────────────────────────────────────────────┘
+      - name: Run DB migrations (dev, automatic)
+        env:
+          MIGRATE_REV: ${{ steps.migrate_td.outputs.arn }}
+        run: |
+          set -euo pipefail
+          NETCFG=$(aws ecs describe-services --cluster "$ECS_CLUSTER" --services "$ECS_SERVICE" \
+            --query 'services[0].networkConfiguration' --output json)
+          TASK_ARN=$(aws ecs run-task --cluster "$ECS_CLUSTER" \
+            --task-definition "$MIGRATE_REV" --launch-type FARGATE \
+            --network-configuration "$NETCFG" \
+            --query 'tasks[0].taskArn' --output text)
+          echo "Migration task: $TASK_ARN"
+          aws ecs wait tasks-stopped --cluster "$ECS_CLUSTER" --tasks "$TASK_ARN"
+          EXIT=$(aws ecs describe-tasks --cluster "$ECS_CLUSTER" --tasks "$TASK_ARN" \
+            --query 'tasks[0].containers[0].exitCode' --output text)
+          TASK_ID="${TASK_ARN##*/}"
+          echo "=== migration logs ==="
+          aws logs get-log-events --log-group-name "$MIGRATE_LOG_GROUP" \
+            --log-stream-name "migrate/migrate/$TASK_ID" \
+            --query 'events[*].message' --output text 2>/dev/null || echo "(logs not yet available)"
+          echo "migration exitCode=$EXIT"
+          [ "$EXIT" = "0" ] || { echo "MIGRATION FAILED — service NOT updated"; exit 1; }
+
+      # g. Deploy: ONLY after migrations succeed — point the service at the new
+      #    revision and WAIT for stability. Fails loudly if it doesn't stabilize.
+      - name: Deploy service and wait for stable
+        env:
+          BACKEND_REV: ${{ steps.backend_td.outputs.arn }}
+        run: |
+          set -euo pipefail
+          aws ecs update-service --cluster "$ECS_CLUSTER" --service "$ECS_SERVICE" \
+            --task-definition "$BACKEND_REV" >/dev/null
+          echo "Waiting for service to stabilize..."
+          aws ecs wait services-stable --cluster "$ECS_CLUSTER" --services "$ECS_SERVICE"
+          echo "Service is stable on $BACKEND_REV"
+
+      # h. Post-deploy health check (fail the job if not healthy).
+      - name: Health check
+        run: |
+          set -euo pipefail
+          ok=""
+          for i in $(seq 1 10); do
+            HZ=$(curl -s -o /dev/null -w "%{http_code}" "$HEALTH_BASE/healthz" || echo 000)
+            RZ=$(curl -s -o /tmp/rz.txt -w "%{http_code}" "$HEALTH_BASE/readyz" || echo 000)
+            echo "attempt $i: /healthz=$HZ /readyz=$RZ"
+            if [ "$HZ" = "200" ] && [ "$RZ" = "200" ] \
+               && grep -q '"db":"ok"' /tmp/rz.txt && grep -q '"redis":"ok"' /tmp/rz.txt; then
+              ok="yes"; break
+            fi
+            sleep 10
+          done
+          echo "--- /readyz body ---"; cat /tmp/rz.txt || true; echo
+          [ "$ok" = "yes" ] || { echo "HEALTH CHECK FAILED"; exit 1; }
+          echo "Deploy healthy ✓"

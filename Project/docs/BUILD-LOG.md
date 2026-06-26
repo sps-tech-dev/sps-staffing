@@ -353,6 +353,14 @@ bottom of the dated sections. Updated at the end of **every** session.
 - (Stage 4 = the GitHub Actions workflow that assumes this role on pushes to `develop`.)
 - **Status:** ✅ Applied.
 
+### CI/CD dev pipeline — `.github/workflows/deploy-dev.yml` (written, not yet tested) 🟡
+- Wrote the dev deploy workflow (repo root `.github/workflows/`). Trigger: push to `develop` + `workflow_dispatch`. Permissions `id-token: write` + `contents: read`. Concurrency: per-branch, queue (no cancel).
+- Steps: checkout → OIDC creds (`sps-shared-dev-gha-deploy`, no stored keys) → ECR login → **buildx ARM64** image (QEMU cross-build), tags `${sha}` + `develop-latest`, push → **register backend + migrate task-def revisions by fetch-and-modify of the LIVE task defs** (swap image only — preserves ARM64 runtime_platform, env, Secrets Manager `secrets`, exec/task roles, log config; zero drift, no hardcoded secrets) → **run migrate task FIRST** (`alembic upgrade head`, expand/contract — reuses the service's own network config so no `ec2:Describe*` needed; checks exit 0, tails CloudWatch; service NOT updated if it fails) → **then** `update-service` + `wait services-stable` (fails loudly) → health-check `/healthz` + `/readyz` (db:ok/redis:ok).
+- Migration policy: dev = automatic; **UAT/prod gated migrations stubbed as a commented extension point** (GitHub `environment:` + required reviewers), not implemented (those envs don't exist).
+- **Validated with `actionlint` (docker) — clean, exit 0**; YAML parses (1 job, 11 steps).
+- ⚠️ **Not committed/pushed.** The first push of this file to `develop` will trigger a REAL deploy — held for review.
+- **Status:** 🟡 Written & lint-clean; awaiting review, then commit to `develop` (which triggers the first live run).
+
 ## Pending / next steps
 - [ ] **DKIM CNAMEs** for Microsoft 365 (email migration not fully complete).
 - [ ] **Backend lockfile migration** — switch to `use_lockfile = true`, then delete the `sps-staffing-tflock` DynamoDB table.
