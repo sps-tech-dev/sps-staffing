@@ -9,6 +9,8 @@ from .routers import me as me_router
 from .routers import staffing as staffing_router
 from .routers import employee as employee_router
 from .routers import admin as admin_router
+from .routers import ai as ai_router
+from .routers import privacy as privacy_router
 
 app = FastAPI(title="SPS Technosoft API", version="0.1.0")
 
@@ -22,6 +24,8 @@ app.include_router(me_router.router, prefix="/api/me", tags=["me"])
 app.include_router(staffing_router.router, prefix="/api", tags=["staffing"])
 app.include_router(employee_router.router, prefix="/api/employee", tags=["employee"])
 app.include_router(admin_router.router, prefix="/api/admin", tags=["admin"])
+app.include_router(ai_router.router, prefix="/api/ai", tags=["ai"])
+app.include_router(privacy_router.router, prefix="/api/privacy", tags=["privacy"])
 
 
 # ── Canonical error envelope (Master Architecture Part 31) ───────

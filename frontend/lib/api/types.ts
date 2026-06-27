@@ -40,3 +40,15 @@ export interface AuditRow {
   id: number; action: string; entity: string; entity_id: string | null;
   actor_id: string | null; ts: string | null;
 }
+
+// F6 — feature flags + DPDP self-service
+export interface FeatureFlags { ai: boolean; }
+export interface ConsentState {
+  policy_version: string;
+  notices: Record<string, string>;
+  purposes: Record<string, boolean>;
+}
+export interface DpdpRequestRow { id: string; kind: string; status: string; created_at: string | null; }
+export interface AiSummary {
+  candidate_id: string; stub: boolean; summary: string; highlights: string[]; disclaimer: string;
+}

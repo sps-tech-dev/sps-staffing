@@ -428,7 +428,20 @@ bottom of the dated sections. Updated at the end of **every** session.
 - **Verified locally:** typecheck/lint/build clean; runtime smoke (`next start`) confirms `/` renders **en** by default and **hi** under `NEXT_LOCALE=hi` cookie. Frontend still not deployed (no hosting — STOP-4); frontend-only commit skips the backend pipeline (`paths-ignore`).
 - **Status:** ✅ F5 done (frontend verified locally).
 
+### F6 — AI feature flags + DPDP self-service (applied) ✅
+- **Feature flags** (`app/features.py`): non-GA features OFF by default; `require_feature("ai")` → **404 when off** (probe-proof, not 403). `FEATURE_AI` env flag (default false). `GET /api/me/features` exposes resolved flags to the client.
+- **AI** (`/api/ai/candidate-summary/{id}`): flag-gated, tenant-scoped, **deterministic stub** (no model call yet). Frontend `AiInsightsCard` self-gates (renders nothing when off) — mounted on the employer pipeline.
+- **DPDP self-service** (`/api/privacy/*`): consent ledger (append-only `GET`/`POST /consent`), `POST /export` (account + linked candidates + applications bundle; records request), `POST /erase` (**records a `pending` request only — no deletion executed**), `GET /requests`. Idempotency-Key + audit on writes. Frontend `/privacy-rights` page (consent toggles, JSON export download, erasure-with-confirm, history).
+- **Migration `0005`** (`shared.consents` + `shared.dpdp_requests`; CHECKs, FKs, indexes) — **STOP-1 honored**: DDL shown + approved before RDS apply. Local up→down→up + idempotency clean.
+- **STOP-3 honored:** consent notices stubbed `[LEGAL COPY TBD]` + draft banner; `policy_version='2026-06-stub'`. No legal prose invented.
+- **PII blocker:** Slices 6 & F6 added **no** candidate PII-write path (admin GET-only/masked; F6 writes only consent/dpdp rows; export omits phone/pan). The pre-existing staffing `POST /api/candidates` plaintext-PII path is unchanged and the encryption blocker remains OPEN/tracked.
+- **Tests: 52 pass** (44 + feature-gate 404/200/auth + DPDP consent/export/erasure). typecheck/lint/build clean. Runtime smoke: all new routes 401 unauth.
+- **Status:** ✅ F6 done (backend deployed + RDS-live; frontend verified locally).
+
 ## Pending / next steps
+- [ ] **DPDP export should include the principal's own PII** (phone/pan) once app-layer encryption lands (currently omitted).
+- [ ] **Erasure execution** — build the reviewed cascade/redaction that fulfils a `pending` erasure request (mechanism records only today).
+- [ ] **Real DPDP/consent legal copy** — replace `[LEGAL COPY TBD]` + bump `policy_version` before any real-user launch (STOP-3).
 - [ ] **Marketing SSG-per-locale (SEO)** — move marketing under `app/[locale]/` with `hreflang` when SEO demands it (currently cookie-based, dynamically rendered).
 - [ ] **DKIM CNAMEs** for Microsoft 365 (email migration not fully complete).
 - [ ] **audit_logs INSERT-only DB role** — enforce append-only at the DB (revoke UPDATE/DELETE); currently convention-only in app code.

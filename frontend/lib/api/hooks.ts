@@ -2,8 +2,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "./client";
 import type {
-  AdminCandidate, AdminClient, AdminJobRow, AuditRow, CandidateOverview, EmployeeOverview,
-  EmployerOverview, Job, JobPipeline, Paginated, PipelineRow,
+  AdminCandidate, AdminClient, AdminJobRow, AiSummary, AuditRow, CandidateOverview,
+  ConsentState, DpdpRequestRow, EmployeeOverview, EmployerOverview, FeatureFlags,
+  Job, JobPipeline, Paginated, PipelineRow,
 } from "./types";
 
 const PAGE = 20;
@@ -55,6 +56,73 @@ export function useAdminAuditLogs(offset = 0) {
   return useQuery({
     queryKey: ["admin", "audit", offset],
     queryFn: () => api<Paginated<AuditRow>>(`/admin/audit-logs${qs(offset, 50)}`),
+    retry: false,
+  });
+}
+
+// ── F6: feature flags + DPDP self-service ───────────────────────
+/** Feature flags for this user — gates client widgets (e.g. AI). */
+export function useFeatures() {
+  return useQuery({
+    queryKey: ["me", "features"],
+    queryFn: () => api<{ features: FeatureFlags }>("/me/features"),
+    retry: false,
+  });
+}
+
+/** AI candidate summary — gated server-side (404 when flag off). `enabled`
+ *  should be the resolved feature flag so we don't fire a request that 404s. */
+export function useAiCandidateSummary(candidateId: string | null, enabled: boolean) {
+  return useQuery({
+    queryKey: ["ai", "candidate-summary", candidateId],
+    queryFn: () => api<AiSummary>(`/ai/candidate-summary/${candidateId}`),
+    enabled: enabled && !!candidateId,
+    retry: false,
+  });
+}
+
+/** Current DPDP consent state for the logged-in user. */
+export function useConsent() {
+  return useQuery({
+    queryKey: ["privacy", "consent"],
+    queryFn: () => api<ConsentState>("/privacy/consent"),
+    retry: false,
+  });
+}
+
+/** Record a consent grant/withdraw; refreshes consent state. */
+export function useSetConsent() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { purpose: string; granted: boolean }) =>
+      api("/privacy/consent", { method: "POST", body: JSON.stringify(body) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["privacy", "consent"] }),
+  });
+}
+
+/** Export the principal's data (returns the bundle inline); refreshes history. */
+export function useExportData() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api<{ request_id: string; data: unknown }>("/privacy/export", { method: "POST" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["privacy", "requests"] }),
+  });
+}
+
+/** Request erasure (records a pending request); refreshes history. */
+export function useRequestErasure() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () => api<DpdpRequestRow>("/privacy/erase", { method: "POST" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["privacy", "requests"] }),
+  });
+}
+
+/** The principal's DPDP request history (export/erasure). */
+export function useDpdpRequests() {
+  return useQuery({
+    queryKey: ["privacy", "requests"],
+    queryFn: () => api<{ items: DpdpRequestRow[] }>("/privacy/requests"),
     retry: false,
   });
 }

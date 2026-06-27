@@ -8,6 +8,7 @@ import { SectionCard } from "@/components/kit/section-card";
 import { EmptyState } from "@/components/kit/empty-state";
 import { Skeleton } from "@/components/kit/skeleton";
 import { useJobs, useJobPipeline, useChangeStage } from "@/lib/api/hooks";
+import { AiInsightsCard } from "@/components/ai/ai-insights-card";
 import type { PipelineRow } from "@/lib/api/types";
 import { KanbanSquare } from "lucide-react";
 
@@ -50,6 +51,7 @@ export default function PipelinePage() {
   useEffect(() => { if (!jobId && jobs && jobs.length) setJobId(jobs[0].id); }, [jobs, jobId]);
 
   const { data: pipe, isLoading } = useJobPipeline(jobId);
+  const firstCandidateId = pipe ? (Object.values(pipe.stages).flat()[0]?.candidate_id ?? null) : null;
   const changeStage = useChangeStage(jobId);
   const [error, setError] = useState<string | null>(null);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }), useSensor(KeyboardSensor));
@@ -77,6 +79,9 @@ export default function PipelinePage() {
           </select>
         )}
       </SectionCard>
+
+      {/* F6: gated AI widget — renders only when the `ai` flag is on (off by default). */}
+      <AiInsightsCard candidateId={firstCandidateId} />
 
       {error && <p role="alert" className="mt-4 rounded-lg bg-[#FEF2F2] px-3 py-2 text-sm text-[#DC2626]">{error}</p>}
 

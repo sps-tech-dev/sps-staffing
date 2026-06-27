@@ -26,6 +26,10 @@ class Settings(BaseSettings):
     cookie_secure: bool = False         # COOKIE_SECURE — true in prod (HTTPS only)
     storage_bucket: str = "sps-technosoft-dev-storage"
 
+    # Feature flags (F6). Non-GA features default OFF; gated routes 404 when off
+    # (see app/features.py). AI assistive widgets are not GA — off in dev.
+    feature_ai: bool = False            # FEATURE_AI
+
     @property
     def database_url(self) -> str:
         return (f"postgresql+psycopg://{self.db_user}:{self.db_password}"

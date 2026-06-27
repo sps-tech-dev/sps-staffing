@@ -60,3 +60,4 @@ node_modules/
 *~
 .idea/
 .vscode/
+frontend/tsconfig.tsbuildinfo

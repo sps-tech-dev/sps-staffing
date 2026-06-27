@@ -121,6 +121,65 @@ class TenantSubscription(Base):
     )
 
 
+class Consent(Base):
+    # DPDP consent ledger (F6): APPEND-ONLY event log — each grant/withdraw is a
+    # new row; the current state for a (subject, purpose) is the latest by created_at.
+    __tablename__ = "consents"
+    __table_args__ = (
+        sa.CheckConstraint(
+            "purpose IN ('data_processing','marketing','cookies')", name="ck_consents_purpose"
+        ),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), sa.ForeignKey(f"{SCHEMA}.tenants.id"), nullable=False
+    )
+    subject_user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), sa.ForeignKey(f"{SCHEMA}.users.id"), nullable=False
+    )
+    purpose: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    granted: Mapped[bool] = mapped_column(sa.Boolean, nullable=False)
+    # Which version of the (currently STUBBED) consent notice the subject acted on.
+    policy_version: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+    )
+
+
+class DpdpRequest(Base):
+    # DPDP data-principal rights (F6): export / erasure requests. The mechanism is
+    # recorded here; fulfilment (export bundle / erasure execution) is tracked by
+    # status. Tenant-scoped.
+    __tablename__ = "dpdp_requests"
+    __table_args__ = (
+        sa.CheckConstraint("kind IN ('export','erasure')", name="ck_dpdp_requests_kind"),
+        sa.CheckConstraint(
+            "status IN ('pending','processing','completed','rejected')",
+            name="ck_dpdp_requests_status",
+        ),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), sa.ForeignKey(f"{SCHEMA}.tenants.id"), nullable=False
+    )
+    subject_user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), sa.ForeignKey(f"{SCHEMA}.users.id"), nullable=False
+    )
+    kind: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    status: Mapped[str] = mapped_column(sa.Text, nullable=False, server_default=sa.text("'pending'"))
+    detail: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+    )
+    completed_at: Mapped[datetime.datetime | None] = mapped_column(
+        sa.DateTime(timezone=True), nullable=True
+    )
+
+
 class AuditLog(Base):
     # EXCEPTION (decision B): bigserial PK, append-only, no mixin/soft-delete.
     __tablename__ = "audit_logs"
