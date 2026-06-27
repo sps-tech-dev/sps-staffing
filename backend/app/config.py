@@ -21,6 +21,9 @@ class Settings(BaseSettings):
 
     jwt_access_secret: str = "change-me-access"
     jwt_refresh_secret: str = "change-me-refresh"
+    access_ttl_seconds: int = 900       # 15 min
+    refresh_ttl_seconds: int = 604800   # 7 days
+    cookie_secure: bool = False         # COOKIE_SECURE — true in prod (HTTPS only)
     storage_bucket: str = "sps-technosoft-dev-storage"
 
     @property

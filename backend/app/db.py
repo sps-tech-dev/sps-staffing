@@ -12,6 +12,7 @@ from .config import settings
 
 _engine = None
 _redis = None
+_sessionmaker = None
 
 
 def get_engine():
@@ -43,6 +44,24 @@ def get_redis():
             socket_timeout=3,
         )
     return _redis
+
+
+def get_sessionmaker():
+    """Lazy SQLAlchemy sessionmaker bound to the engine (no connection at import)."""
+    global _sessionmaker
+    if _sessionmaker is None:
+        from sqlalchemy.orm import sessionmaker
+        _sessionmaker = sessionmaker(bind=get_engine(), expire_on_commit=False)
+    return _sessionmaker
+
+
+def get_db():
+    """FastAPI dependency: yields a session, always closed."""
+    db = get_sessionmaker()()
+    try:
+        yield db
+    finally:
+        db.close()
 
 
 def check_db() -> None:
