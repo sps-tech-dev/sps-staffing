@@ -390,10 +390,19 @@ bottom of the dated sections. Updated at the end of **every** session.
 - **Deployed to dev** (pipeline `28284446348` GREEN); smoke: `/api/me/overview` → 401 unauth, `/healthz` ok.
 - **Status:** ✅ Slice 2 done (local + deployed + tested).
 
+### Slice 3 — Staffing core (applied) ✅
+- **Migration 0004** (`staffing` schema): `clients`, `jobs`, `candidates`, `applications`. **Candidates tenant-scoped** (talent pool, no `business_unit_id`); clients/jobs/applications two-axis. Soft-delete, in-schema FKs, composite + GIN indexes, applications stage CHECK, `UNIQUE(job_id,candidate_id)`. `env.py` `include_schemas=True` so autogenerate sees non-default schemas. STOP-1 DDL approved; applied to dev RDS via the pipeline migrate step.
+- **Backend endpoints** (auth + tenant/STAFFING scoped, staff-role gated, Idempotency-Key honored): clients/candidates/jobs create+list; applications create + stage PATCH (Part 5 state machine → 409 on illegal transition); `GET /jobs/{id}/pipeline`; `GET /client-portal/overview` real read-model. Candidate fields validated (email/phone/PAN). `pan` plaintext — PII encryption tracked hard-blocker before registration.
+- **Frontend** (employer, role `client`): dashboard on the real overview; new Jobs (list+create) and Pipeline (applications-by-stage, read view) screens. Kanban drag-drop deferred to Slice 4.
+- **Tests: 40 pass** (+ cross-tenant **job** isolation, illegal-transition 409, candidate-role 403, create/list). typecheck + lint clean.
+- **Deployed** (pipeline `28285382909` GREEN). dev RDS verified: staffing tables present, `alembic=0004_staffing_core`, candidates has no business_unit_id; `/api/jobs` → 401 unauth, `/healthz` ok.
+- **Status:** ✅ Slice 3 done (local + deployed + RDS-verified).
+
 ## Pending / next steps
 - [ ] **DKIM CNAMEs** for Microsoft 365 (email migration not fully complete).
 - [ ] **Backend lockfile migration** — switch to `use_lockfile = true`, then delete the `sps-staffing-tflock` DynamoDB table.
 - [ ] **GST tax number** — add to AWS account tax settings.
+- [ ] **PII encryption (HARD BLOCKER)** — encrypt/tokenize `candidates.pan`/`phone` (+ future Aadhaar) at the app layer (Part 10) **before** the candidate-registration slice stores real PII. Plaintext columns now; no real data yet.
 - [ ] **Deployed-dev real login** (STOP-4) — JWT secret → Secrets Manager + ECS task-def `secrets` + execution-role IAM grant + `COOKIE_SECURE=true` + activate a dev user. Local loop does real logins meanwhile; revisit before any UAT/stakeholder demo on dev-api.
 - [ ] **audit_logs append-only enforcement** — create a restricted app DB role with INSERT-only grant on the audit tables (currently convention-only; structure is in place, grants deferred per decision B).
 - [x] **Security groups** — alb / ecs / rds / redis. ✅ Applied.
