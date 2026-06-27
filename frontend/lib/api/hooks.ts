@@ -1,7 +1,7 @@
 "use client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "./client";
-import type { CandidateOverview, EmployerOverview, Job, JobPipeline, PipelineRow } from "./types";
+import type { CandidateOverview, EmployeeOverview, EmployerOverview, Job, JobPipeline, PipelineRow } from "./types";
 
 /** Candidate overview — REAL read-model (Slice 2). Authenticated + tenant-scoped;
  *  errors surface so the page shows an error state (no silent mock fallback). */
@@ -18,6 +18,15 @@ export function useEmployerOverview() {
   return useQuery({
     queryKey: ["employer", "overview"],
     queryFn: () => api<EmployerOverview>("/client-portal/overview"),
+    retry: false,
+  });
+}
+
+/** Employee/recruiter SLA hub overview (Slice 5). */
+export function useEmployeeOverview() {
+  return useQuery({
+    queryKey: ["employee", "overview"],
+    queryFn: () => api<EmployeeOverview>("/employee/overview"),
     retry: false,
   });
 }

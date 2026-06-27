@@ -20,3 +20,11 @@ export interface JobPipeline {
   job: Job;
   stages: Record<string, PipelineRow[]>;
 }
+
+export interface QueueItem {
+  id: string; candidate: string; job: string; stage: string;
+  ageHours: number; sla: "ok" | "warning" | "breached"; slaTargetHours: number;
+}
+export interface EmployeeOverview {
+  open: number; breaching: number; breached: number; queue: QueueItem[];
+}
