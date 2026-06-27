@@ -369,6 +369,19 @@ bottom of the dated sections. Updated at the end of **every** session.
 - Package manager: **npm** (lockfile committed). Committed `13d8768` to `develop` (frontend only — no frontend deploy target in the pipeline yet; the push triggers an idempotent backend deploy run).
 - **Status:** ✅ Slice 0 done — scaffold version-controlled and runnable.
 
+### Slice 1 — Auth + tenancy spine (applied) ✅
+- **Backend** (`/api/auth/login,refresh,logout,me`): argon2 verify, HS256 JWT in httpOnly cookies (SameSite=Lax, host-only, Secure env-driven), Part 31 error envelope. **Tenant isolation: `tenant_id` from the verified JWT is authoritative**; `TenantScopedRepo.base_query` filters every read by it; `get_current_context` builds context from the token (BU from path/X-BU validated vs memberships). Shared validation (`app/validation.py`: email, 10-digit IN phone, PAN, name, password, pincode).
+- **Frontend**: `/login` (native form — Enter submits, Tab navigates, email autofocus) → posts via the same-origin Next proxy; role read from the JWT cookie in middleware (replaced `sps_session`); zod validators mirror the backend; minimal `/admin/dashboard` landing.
+- **Local loop** (`docker-compose.yml`: Postgres+Redis+backend, seeded via migrations 0001-0003 + founder password set locally): full integrated test green —
+  - bad email → **422**; bad creds → **401**; founder login → **200** + access/refresh cookies + role `admin` + home `/admin/dashboard`; `/me` → identity (tenant SPS001, 3 BUs owner); `/me` no cookie → **401**; refresh → **200**; logout → **200**.
+  - Proxy: login through Next → cookies bind to `localhost:3000`; `/admin/dashboard` allowed with cookie, **307 → /login** without.
+- **Tests: 34 pass** incl. the **cross-tenant leakage test** (tenant A context cannot read tenant B's users, and vice-versa) — the isolation proof — plus validation units and auth integration. `typecheck` + `lint` clean.
+- **Deployed to dev** (pipeline run `28279088830` GREEN) and smoke-tested: `/healthz`+`/readyz` ok, `/api/auth` failure paths return the correct envelopes. (Founder on dev RDS is still `invited`, so successful dev login awaits the JWT-secret wiring below.)
+- **Status:** ✅ Slice 1 done (local + deployed + tested).
+
+#### ⚠️ TRACKED must-do before enabling REAL login on dev (STOP-4 — new paid secret + IAM)
+- Move `JWT_ACCESS_SECRET`/`JWT_REFRESH_SECRET` into Secrets Manager + wire the ECS task-def `secrets` block + execution-role read (currently dev would use config defaults), and set `COOKIE_SECURE=true` on dev (HTTPS). Then activate a dev login user. Not done now — it creates a paid Secrets Manager secret + modifies IAM (STOP-4); awaiting approval. No tokens are minted on dev until then (founder is `invited`), so defaults are unexercised.
+
 ## Pending / next steps
 - [ ] **DKIM CNAMEs** for Microsoft 365 (email migration not fully complete).
 - [ ] **Backend lockfile migration** — switch to `use_lockfile = true`, then delete the `sps-staffing-tflock` DynamoDB table.
