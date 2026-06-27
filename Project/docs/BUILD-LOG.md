@@ -382,10 +382,19 @@ bottom of the dated sections. Updated at the end of **every** session.
 #### ⚠️ TRACKED must-do before enabling REAL login on dev (STOP-4 — new paid secret + IAM)
 - Move `JWT_ACCESS_SECRET`/`JWT_REFRESH_SECRET` into Secrets Manager + wire the ECS task-def `secrets` block + execution-role read (currently dev would use config defaults), and set `COOKIE_SECURE=true` on dev (HTTPS). Then activate a dev login user. Not done now — it creates a paid Secrets Manager secret + modifies IAM (STOP-4); awaiting approval. No tokens are minted on dev until then (founder is `invited`), so defaults are unexercised.
 
+### Slice 2 — Candidate dashboard on a real read-model (applied) ✅
+- **Backend:** `GET /api/me/overview` — authenticated + tenant/user-scoped (via `TenantScopedRepo`), returns the candidate's real overview. Counts are 0 / `recent` empty until staffing tables land (Slice 3); `profileComplete` derived from the user's real fields. `app/readmodels.py` + `app/routers/me.py`.
+- **Frontend:** candidate dashboard now consumes the real endpoint (mock fallback removed); added **loading / empty ("No applications yet") / error+retry** states.
+- **Local loop verified:** candidate user (role `candidate`) login → `/candidate`; `/me/overview` → `{applications:0,interviews:0,offers:0,profileComplete:100,recent:[]}` (real, scoped); 401 without auth; page renders through the Next proxy.
+- **Tests: 36 pass** (+ read-model auth/shape tests; isolation suite still green). typecheck + lint clean.
+- **Deployed to dev** (pipeline `28284446348` GREEN); smoke: `/api/me/overview` → 401 unauth, `/healthz` ok.
+- **Status:** ✅ Slice 2 done (local + deployed + tested).
+
 ## Pending / next steps
 - [ ] **DKIM CNAMEs** for Microsoft 365 (email migration not fully complete).
 - [ ] **Backend lockfile migration** — switch to `use_lockfile = true`, then delete the `sps-staffing-tflock` DynamoDB table.
 - [ ] **GST tax number** — add to AWS account tax settings.
+- [ ] **Deployed-dev real login** (STOP-4) — JWT secret → Secrets Manager + ECS task-def `secrets` + execution-role IAM grant + `COOKIE_SECURE=true` + activate a dev user. Local loop does real logins meanwhile; revisit before any UAT/stakeholder demo on dev-api.
 - [ ] **audit_logs append-only enforcement** — create a restricted app DB role with INSERT-only grant on the audit tables (currently convention-only; structure is in place, grants deferred per decision B).
 - [x] **Security groups** — alb / ecs / rds / redis. ✅ Applied.
 - [x] **RDS** (PostgreSQL) in private-data subnets. ✅ Applied.
