@@ -10,6 +10,9 @@ name: deploy-dev
 on:
   push:
     branches: [develop]
+    # Doc/markdown-only changes don't deploy. workflow_dispatch still allows
+    # manual deploys regardless of what changed.
+    paths-ignore: ['**.md', 'Project/docs/**']
   workflow_dispatch:
 
 # OIDC requires id-token: write; checkout needs contents: read.
