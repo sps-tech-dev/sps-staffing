@@ -5,6 +5,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from .config import settings
 from .routers import auth as auth_router
+from .routers import me as me_router
 
 app = FastAPI(title="SPS Technosoft API", version="0.1.0")
 
@@ -14,6 +15,7 @@ app = FastAPI(title="SPS Technosoft API", version="0.1.0")
 # cross-check is deferred until real tenant subdomains + CloudFront exist.
 
 app.include_router(auth_router.router, prefix="/api/auth", tags=["auth"])
+app.include_router(me_router.router, prefix="/api/me", tags=["me"])
 
 
 # ── Canonical error envelope (Master Architecture Part 31) ───────

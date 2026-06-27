@@ -3,14 +3,17 @@ import { useQuery } from "@tanstack/react-query";
 import { api } from "./client";
 import type { CandidateOverview, EmployerOverview } from "./types";
 
-/** Demo-safe: try the real read-model endpoint, fall back to mock so the starter
- *  runs with no backend. Delete the `.catch(() => MOCK)` when the API is live. */
+/** Candidate overview — REAL read-model (Slice 2). Authenticated + tenant-scoped;
+ *  errors surface so the page shows an error state (no silent mock fallback). */
 export function useCandidateOverview() {
   return useQuery({
     queryKey: ["candidate", "overview"],
-    queryFn: () => api<CandidateOverview>("/me/overview").catch(() => MOCK_CANDIDATE),
+    queryFn: () => api<CandidateOverview>("/me/overview"),
+    retry: false,
   });
 }
+
+/** Employer overview — still mock until its read-model lands (Slice 4). */
 export function useEmployerOverview() {
   return useQuery({
     queryKey: ["employer", "overview"],
@@ -18,15 +21,6 @@ export function useEmployerOverview() {
   });
 }
 
-const MOCK_CANDIDATE: CandidateOverview = {
-  applications: 7, interviews: 2, offers: 1, profileComplete: 80,
-  recent: [
-    { id: "1", job: "PySpark Data Engineer", status: "interview", updatedAt: "2026-06-22" },
-    { id: "2", job: "Senior Python Developer", status: "screening", updatedAt: "2026-06-20" },
-    { id: "3", job: "AWS Solutions Architect", status: "applied", updatedAt: "2026-06-18" },
-    { id: "4", job: "Backend Engineer", status: "rejected", updatedAt: "2026-06-15" },
-  ],
-};
 const MOCK_EMPLOYER: EmployerOverview = {
   openJobs: 12, inPipeline: 48, interviews: 9, placements: 5,
   funnel: [
