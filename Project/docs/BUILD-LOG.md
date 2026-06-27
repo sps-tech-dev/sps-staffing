@@ -362,6 +362,13 @@ bottom of the dated sections. Updated at the end of **every** session.
 - **First run GREEN** ✅ — run ID **28258336432** (`https://github.com/sps-tech-dev/sps-staffing/actions/runs/28258336432`). All steps passed: keyless OIDC auth (`sps-shared-dev-gha-deploy`), ARM64 buildx build + ECR push, fetch-and-modify task-def registration, **expand/contract migrate-before-deploy** (`alembic upgrade head` ran first — idempotent no-op, exit 0 — then service rolled + `wait services-stable`), and `/healthz` + `/readyz` health check.
 - **Status:** ✅ Tested — dev CI/CD pipeline live and green on push to `develop`.
 
+### Slice 0 — frontend scaffold landed (applied) ✅
+- Copied the F0 web-starter → `frontend/` (Next 15 · React 19 · TS · Tailwind v4 · TanStack Query): brand tokens, responsive AppShell, UI kit, typed API client, role middleware, feature flags, candidate/employer demo dashboards (mock data). Rejected the `spstechnosoft-platform` skeleton.
+- **Security:** Next 15.1.6 → **15.5.19**, React → **19.2.7** (cleared critical/high CVEs). `npm audit`: 0 critical / 0 high; 3 moderate remain (postcss build-time; **next-intl** — bump to v4 tracked for the i18n slice).
+- Flat ESLint config added; fixed 3 lint findings (`LucideIcon` type; 2 unused imports). **typecheck + lint exit 0**; `npm run dev` boots; `/` + `/candidate` + `/employer` render 200 (portal routes gated by role middleware via `sps_session` cookie).
+- Package manager: **npm** (lockfile committed). Committed `13d8768` to `develop` (frontend only — no frontend deploy target in the pipeline yet; the push triggers an idempotent backend deploy run).
+- **Status:** ✅ Slice 0 done — scaffold version-controlled and runnable.
+
 ## Pending / next steps
 - [ ] **DKIM CNAMEs** for Microsoft 365 (email migration not fully complete).
 - [ ] **Backend lockfile migration** — switch to `use_lockfile = true`, then delete the `sps-staffing-tflock` DynamoDB table.

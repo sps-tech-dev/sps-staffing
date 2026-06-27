@@ -109,3 +109,10 @@ Discovery surfaced internal inconsistencies in the architecture spec. Resolved a
   - Keyless: assumes `sps-shared-dev-gha-deploy` (no stored AWS keys). The migrate run-task reuses the **service's own network config** (private-app subnets + ecs SG) so the role needs no `ec2:Describe*`.
 - **Why:** Dev iterates fast (auto-migrate is safe given idempotent, additive migrations + DB-independent boot); prod must never auto-migrate without human approval.
 - **Would change if:** prod/uat stand up (implement the gated job + environments); or migrations become non-idempotent/destructive (add expand-contract gating even in dev).
+
+### 2026-06-27 — Frontend: adopt the web-starter as `frontend/` (monorepo); npm; security baseline
+- **Decision:** The frontend is the `spstechnosoft-web-starter` (Next 15 · React 19 · TS · Tailwind v4 · TanStack Query), landed as **`frontend/`** in this monorepo alongside `Project/` (infra) + `backend/` (app) — one repo, one pipeline. The separate `spstechnosoft-platform/` skeleton is **rejected** (assumes a different infra/backend layout than our proven `Project/`+`backend/`).
+- **Package manager: npm** (the starter ships `package-lock.json`; pnpm not installed on the build machine). `package-lock.json` committed for reproducibility.
+- **Security baseline:** Next pinned to **15.5.19** (patched) + React **19.2.7** — clears the critical/high Next CVEs (middleware/auth-bypass, dev-server origin, SSRF, RCE flight-protocol). Flat ESLint config added; `next lint` is deprecated (migrate to `eslint .` CLI before any Next 16 move).
+- **Deferred security item (TRACKED, not optional):** `next-intl` has a moderate open-redirect + prototype-pollution advisory; **must bump to `next-intl@4+` when the i18n slice (F5) is built** — do not ship i18n on the vulnerable version.
+- **Would change if:** we adopt pnpm (regenerate lockfile); or split the monorepo when team size warrants.
