@@ -14,7 +14,7 @@ import uuid
 
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, declared_attr, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column
 
 # Canonical business-unit values (decision A): TEXT enum, not a PG enum, not uuid.
 BUSINESS_UNITS: tuple[str, ...] = ("STAFFING", "ACADEMY", "CONSULTING")
@@ -38,12 +38,35 @@ class TimestampMixin:
     )
 
 
-class TwoAxisMixin(TimestampMixin):
-    """Two-axis partitioning for vertical/business tables (decision A).
+def bu_check(table_name: str) -> sa.CheckConstraint:
+    """Reusable business_unit_id CHECK for a vertical table's __table_args__."""
+    return sa.CheckConstraint(
+        business_unit_check("business_unit_id"), name=f"ck_{table_name}_business_unit"
+    )
 
-    NOTE: vertical tables live in staffing/academy/consulting schemas, so each
-    subclass sets its own schema. If a subclass overrides __table_args__, it must
-    re-include the business_unit CHECK (use business_unit_check()).
+
+class TenantScopedMixin(TimestampMixin):
+    """Tenant-scoped (NO business_unit) — for tenant-level entities like the
+    candidate talent pool, which is considerable across verticals. Vertical
+    ownership of an interaction lives on the linking row (e.g. an application's
+    business_unit_id), never hard-baked on the person. Scoping = tenant_id only.
+    """
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, server_default=sa.text("gen_random_uuid()")
+    )
+    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    deleted_at: Mapped[datetime.datetime | None] = mapped_column(
+        sa.DateTime(timezone=True), nullable=True
+    )
+
+
+class TwoAxisMixin(TimestampMixin):
+    """Two-axis partitioning columns for vertical/business tables (decision A).
+
+    Provides id / tenant_id / business_unit_id / created_at / updated_at /
+    deleted_at. Each vertical table defines its own __table_args__ (its schema +
+    constraints + indexes) and includes bu_check(<table>) for the BU CHECK.
     """
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -54,12 +77,3 @@ class TwoAxisMixin(TimestampMixin):
     deleted_at: Mapped[datetime.datetime | None] = mapped_column(
         sa.DateTime(timezone=True), nullable=True
     )
-
-    @declared_attr.directive
-    def __table_args__(cls):  # noqa: N805
-        return (
-            sa.CheckConstraint(
-                business_unit_check("business_unit_id"),
-                name=f"ck_{cls.__tablename__}_business_unit",
-            ),
-        )

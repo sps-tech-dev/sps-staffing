@@ -7,3 +7,16 @@ export interface EmployerOverview {
   funnel: { label: string; value: number }[];
   pipeline: { id: string; candidate: string; job: string; stage: string }[];
 }
+
+export interface Job {
+  id: string; title: string; client_id: string | null; status: string;
+  skills: string[] | null; min_exp: number | null; max_exp: number | null;
+}
+export interface PipelineRow {
+  id: string; job_id: string; candidate_id: string; stage: string;
+  candidate: { id: string; full_name: string; email: string | null };
+}
+export interface JobPipeline {
+  job: Job;
+  stages: Record<string, PipelineRow[]>;
+}

@@ -18,7 +18,8 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")
 
 from app.config import settings  # noqa: E402
 from app.base import Base  # noqa: E402
-from app import models  # noqa: E402,F401  (registers spine tables on Base.metadata)
+from app import models  # noqa: E402,F401  (registers shared spine on Base.metadata)
+from app import models_staffing  # noqa: E402,F401  (registers staffing tables)
 
 config = context.config
 if config.config_file_name is not None:
@@ -60,6 +61,7 @@ def run_migrations_online() -> None:
             connection=connection,
             target_metadata=target_metadata,
             version_table_schema=VERSION_SCHEMA,
+            include_schemas=True,  # reflect shared/staffing/... so existing tables aren't re-proposed
         )
         with context.begin_transaction():
             context.run_migrations()

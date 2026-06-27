@@ -6,6 +6,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from .config import settings
 from .routers import auth as auth_router
 from .routers import me as me_router
+from .routers import staffing as staffing_router
 
 app = FastAPI(title="SPS Technosoft API", version="0.1.0")
 
@@ -16,6 +17,7 @@ app = FastAPI(title="SPS Technosoft API", version="0.1.0")
 
 app.include_router(auth_router.router, prefix="/api/auth", tags=["auth"])
 app.include_router(me_router.router, prefix="/api/me", tags=["me"])
+app.include_router(staffing_router.router, prefix="/api", tags=["staffing"])
 
 
 # ── Canonical error envelope (Master Architecture Part 31) ───────
