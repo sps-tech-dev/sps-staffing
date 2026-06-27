@@ -1,0 +1,39 @@
+@import "tailwindcss";
+
+@theme {
+  --color-sps-blue: #1B5FE8;
+  --color-sps-navy: #0D1B3E;
+  --color-sps-gold: #E8A020;
+  --color-sps-sky:  #5B8FFF;
+  --color-sps-slate:#6B7A9E;
+  --color-page:     #F5F7FA;
+  --color-card:     #FFFFFF;
+  --color-cardline: #EAEEF3;
+  --color-sidebar:  #0A162E;
+  --color-sidebar2: #0F1E3D;
+  --color-ink:      #1C2740;
+  --color-muted:    #6B7689;
+  --font-sans: var(--font-dm-sans);
+  --font-display: var(--font-sora);
+  --font-mono: var(--font-dm-mono);
+}
+
+:root {
+  /* functional status pairs (bg / fg) — ported from the existing portal */
+  --st-applied-bg:#EFF6FF;  --st-applied-fg:#2563EB;
+  --st-screening-bg:#FFFBEB;--st-screening-fg:#D97706;
+  --st-interview-bg:#EFF6FF;--st-interview-fg:#2563EB;
+  --st-selected-bg:#F0FDF4; --st-selected-fg:#16A34A;
+  --st-rejected-bg:#FEF2F2; --st-rejected-fg:#DC2626;
+  --st-neutral-bg:#F9FAFB;  --st-neutral-fg:#6B7280;
+}
+
+* { box-sizing: border-box; }
+html, body { padding: 0; margin: 0; }
+body {
+  background: var(--color-page);
+  color: var(--color-ink);
+  font-family: var(--font-sans), -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+h1,h2,h3,h4 { font-family: var(--font-display), sans-serif; }

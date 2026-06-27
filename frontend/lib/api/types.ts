@@ -1,0 +1,9 @@
+export interface CandidateOverview {
+  applications: number; interviews: number; offers: number; profileComplete: number;
+  recent: { id: string; job: string; status: string; updatedAt: string }[];
+}
+export interface EmployerOverview {
+  openJobs: number; inPipeline: number; interviews: number; placements: number;
+  funnel: { label: string; value: number }[];
+  pipeline: { id: string; candidate: string; job: string; stage: string }[];
+}
