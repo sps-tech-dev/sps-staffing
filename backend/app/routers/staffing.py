@@ -12,6 +12,7 @@ from pydantic import BaseModel, field_validator
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from ..audit import write_audit
 from ..context import RequestContext
 from ..db import get_db
 from ..deps import get_current_context
@@ -169,7 +170,9 @@ def create_job(body: JobIn, ctx: RequestContext = Depends(get_current_context),
         return c
     obj = Job(tenant_id=_tid(ctx), business_unit_id=BU, title=body.title, client_id=body.client_id,
               jd_text=body.jd_text, skills=body.skills, min_exp=body.min_exp, max_exp=body.max_exp)
-    db.add(obj); db.commit(); db.refresh(obj)
+    db.add(obj); db.flush()
+    write_audit(db, ctx, "job.create", "job", obj.id, after={"title": obj.title})
+    db.commit(); db.refresh(obj)
     res = _job_dict(obj); store(str(ctx.tenant_id), idempotency_key, res); return res
 
 
@@ -222,7 +225,10 @@ def create_application(body: ApplicationIn, ctx: RequestContext = Depends(get_cu
     obj = Application(tenant_id=_tid(ctx), business_unit_id=BU, job_id=body.job_id,
                       candidate_id=body.candidate_id, stage="sourced",
                       owner_id=uuid.UUID(str(ctx.user_id)) if ctx.user_id else None)
-    db.add(obj); db.commit(); db.refresh(obj)
+    db.add(obj); db.flush()
+    write_audit(db, ctx, "application.create", "application", obj.id,
+                after={"job_id": str(body.job_id), "candidate_id": str(body.candidate_id), "stage": "sourced"})
+    db.commit(); db.refresh(obj)
     res = _app_dict(obj); store(str(ctx.tenant_id), idempotency_key, res); return res
 
 
@@ -239,7 +245,9 @@ def change_stage(app_id: uuid.UUID, body: StageIn, ctx: RequestContext = Depends
     if body.stage not in TRANSITIONS[app.stage]:
         raise HTTPException(status_code=409,
                             detail={"code": "ILLEGAL_TRANSITION", "message": f"Cannot move {app.stage} → {body.stage}"})
+    before = {"stage": app.stage}
     app.stage = body.stage
+    write_audit(db, ctx, "application.stage_change", "application", app.id, before=before, after={"stage": body.stage})
     db.commit()
     return _app_dict(app)
 

@@ -28,3 +28,15 @@ export interface QueueItem {
 export interface EmployeeOverview {
   open: number; breaching: number; breached: number; queue: QueueItem[];
 }
+
+export interface Paginated<T> { items: T[]; total: number; limit: number; offset: number; }
+export interface AdminCandidate {
+  id: string; full_name: string; email: string | null; phone: string | null;
+  skills: string[] | null; total_exp: number | null; created_at: string | null;
+}
+export interface AdminClient { id: string; name: string; industry: string | null; status: string; }
+export interface AdminJobRow { id: string; title: string; status: string; }
+export interface AuditRow {
+  id: number; action: string; entity: string; entity_id: string | null;
+  actor_id: string | null; ts: string | null;
+}

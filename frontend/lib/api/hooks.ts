@@ -1,7 +1,14 @@
 "use client";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "./client";
-import type { CandidateOverview, EmployeeOverview, EmployerOverview, Job, JobPipeline, PipelineRow } from "./types";
+import type {
+  AdminCandidate, AdminClient, AdminJobRow, AuditRow, CandidateOverview, EmployeeOverview,
+  EmployerOverview, Job, JobPipeline, Paginated, PipelineRow,
+} from "./types";
+
+const PAGE = 20;
+const qs = (offset: number, limit: number, q?: string) =>
+  `?limit=${limit}&offset=${offset}` + (q ? `&q=${encodeURIComponent(q)}` : "");
 
 /** Candidate overview — REAL read-model (Slice 2). Authenticated + tenant-scoped;
  *  errors surface so the page shows an error state (no silent mock fallback). */
@@ -18,6 +25,36 @@ export function useEmployerOverview() {
   return useQuery({
     queryKey: ["employer", "overview"],
     queryFn: () => api<EmployerOverview>("/client-portal/overview"),
+    retry: false,
+  });
+}
+
+/** Admin console lists (Slice 6) — paginated, admin-gated. */
+export function useAdminCandidates(offset = 0, q = "") {
+  return useQuery({
+    queryKey: ["admin", "candidates", offset, q],
+    queryFn: () => api<Paginated<AdminCandidate>>(`/admin/candidates${qs(offset, PAGE, q)}`),
+    retry: false,
+  });
+}
+export function useAdminClients(offset = 0) {
+  return useQuery({
+    queryKey: ["admin", "clients", offset],
+    queryFn: () => api<Paginated<AdminClient>>(`/admin/clients${qs(offset, PAGE)}`),
+    retry: false,
+  });
+}
+export function useAdminJobs(offset = 0) {
+  return useQuery({
+    queryKey: ["admin", "jobs", offset],
+    queryFn: () => api<Paginated<AdminJobRow>>(`/admin/jobs${qs(offset, PAGE)}`),
+    retry: false,
+  });
+}
+export function useAdminAuditLogs(offset = 0) {
+  return useQuery({
+    queryKey: ["admin", "audit", offset],
+    queryFn: () => api<Paginated<AuditRow>>(`/admin/audit-logs${qs(offset, 50)}`),
     retry: false,
   });
 }
