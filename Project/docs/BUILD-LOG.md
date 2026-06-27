@@ -398,6 +398,20 @@ bottom of the dated sections. Updated at the end of **every** session.
 - **Deployed** (pipeline `28285382909` GREEN). dev RDS verified: staffing tables present, `alembic=0004_staffing_core`, candidates has no business_unit_id; `/api/jobs` → 401 unauth, `/healthz` ok.
 - **Status:** ✅ Slice 3 done (local + deployed + RDS-verified).
 
+### Slice 4 — Employer kanban (drag-drop pipeline) (done) ✅
+- Pipeline page → **@dnd-kit kanban**: drag a candidate card between stage columns; **optimistic** board move via `useChangeStage` (cache move + rollback), reverts on server **409 illegal transition** with an inline message, reconciles on settle. PointerSensor + **KeyboardSensor** (accessible). Responsive (scroll-x columns on mobile, 7-col on xl). Wired to existing `PATCH /applications/{id}/stage`.
+- **No backend change.** typecheck + lint clean; **prod build compiles** the kanban (10 static pages).
+- CI: added `frontend/**` to `paths-ignore` — frontend has no deploy target yet, so frontend-only commits no longer trigger backend redeploys. (This commit touched the workflow → ran pipeline `28285804972` GREEN, a backend no-op redeploy.)
+- **Note:** the frontend is **not deployed anywhere** (no frontend hosting yet — CloudFront/ACM is future STOP-4 infra); Slice 4 is verified locally (build + endpoint tests). Deferred-dev-frontend remains tracked.
+- **Status:** ✅ Slice 4 done (committed `0b147f0`; frontend verified locally).
+
+### Slice 5 — Recruiter SLA hub (applied) ✅
+- **Backend:** `GET /api/employee/overview` — auth, tenant + STAFFING scoped, staff-role gated. Active-stage application queue (oldest-first) with per-item **SLA** (ok/warning/breached vs a 24h target from time since last stage change) + open/breaching/breached counts.
+- **Frontend:** `(portal)/employee` SLA hub — KPI strip + requisition queue (stage pill, age, SLA chip); loading/empty/error states; responsive.
+- **Tests: 42 pass** (+ staff-only 403, queue+SLA shape). typecheck/lint/build clean.
+- **Deployed** (pipeline `28286123358` GREEN); `/api/employee/overview` → 401 unauth, `/healthz` ok.
+- **Status:** ✅ Slice 5 done (backend deployed + RDS-live; frontend verified locally).
+
 ## Pending / next steps
 - [ ] **DKIM CNAMEs** for Microsoft 365 (email migration not fully complete).
 - [ ] **Backend lockfile migration** — switch to `use_lockfile = true`, then delete the `sps-staffing-tflock` DynamoDB table.
