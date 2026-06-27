@@ -412,8 +412,17 @@ bottom of the dated sections. Updated at the end of **every** session.
 - **Deployed** (pipeline `28286123358` GREEN); `/api/employee/overview` → 401 unauth, `/healthz` ok.
 - **Status:** ✅ Slice 5 done (backend deployed + RDS-live; frontend verified locally).
 
+### Slice 6 — Admin console (applied) ✅
+- **Backend:** `/api/admin/{candidates,clients,jobs,audit-logs}` — paginated, tenant-scoped, **ADMIN-gated** (owner/super_admin/admin; stricter than the staff gate). Candidate `phone` **masked** in list view (`•••••1234`). Audit trail via `write_audit()` on `job.create` / `application.create` / `application.stage_change` (written inside the mutation tx). **Append-only is convention-only** — the restricted INSERT-only DB role remains a tracked pending item (NOT DB-enforced yet).
+- **Frontend:** `@tanstack/react-table` generic `AdminTable` (sortable, responsive overflow, paginated, loading/empty/error) → `(admin)/admin/{candidates(search),clients,jobs,audit-logs}` pages, role `admin`.
+- **PII:** admin console is **read-only for candidates** (no create/edit), so no PII write here — the PII-encryption hard blocker fires at the **candidate-registration** slice, not Slice 6.
+- **Tests: 44 pass** (+ admin-only 403, paginated shape, audit trail populated for the 3 actions). typecheck/lint/prod build clean.
+- **Deployed** (pipeline `28292962248` GREEN; no new migration — 0004 already live); `/api/admin/{audit-logs,jobs}` → 401 unauth, `/healthz` ok.
+- **Status:** ✅ Slice 6 done (committed `617c030`; backend deployed + RDS-live; frontend verified locally).
+
 ## Pending / next steps
 - [ ] **DKIM CNAMEs** for Microsoft 365 (email migration not fully complete).
+- [ ] **audit_logs INSERT-only DB role** — enforce append-only at the DB (revoke UPDATE/DELETE); currently convention-only in app code.
 - [ ] **Backend lockfile migration** — switch to `use_lockfile = true`, then delete the `sps-staffing-tflock` DynamoDB table.
 - [ ] **GST tax number** — add to AWS account tax settings.
 - [ ] **PII encryption (HARD BLOCKER)** — encrypt/tokenize `candidates.pan`/`phone` (+ future Aadhaar) at the app layer (Part 10) **before** the candidate-registration slice stores real PII. Plaintext columns now; no real data yet.
