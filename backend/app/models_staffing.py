@@ -14,6 +14,7 @@ from sqlalchemy.dialects.postgresql import ARRAY, CITEXT, TSVECTOR, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .base import Base
+from .crypto import EncryptedStr
 from .mixins import TenantScopedMixin, TwoAxisMixin, bu_check
 
 SCHEMA = "staffing"
@@ -67,12 +68,28 @@ class Candidate(TenantScopedMixin, Base):
         sa.Index("ix_candidates_tenant", "tenant_id"),
         sa.Index("ix_candidates_search", "search_doc", postgresql_using="gin"),
         sa.Index("ix_candidates_skills", "skills", postgresql_using="gin"),
+        # Blind-index uniques enforce Part 19 dedup (one person per tenant) WITHOUT
+        # storing plaintext. NULL bidx (no value supplied) is exempt by SQL NULL
+        # semantics, so candidates without a phone/pan don't collide.
+        sa.UniqueConstraint("tenant_id", "phone_bidx", name="uq_candidates_tenant_phone_bidx"),
+        sa.UniqueConstraint("tenant_id", "pan_bidx", name="uq_candidates_tenant_pan_bidx"),
         {"schema": SCHEMA},
     )
     full_name: Mapped[str] = mapped_column(sa.Text, nullable=False)
-    email: Mapped[str | None] = mapped_column(CITEXT)
+    email: Mapped[str | None] = mapped_column(CITEXT)  # lookup/login/dedup anchor — kept CITEXT (DECISIONS)
+    # PII (Part 10): encrypted at rest via app-layer envelope encryption; the *_bidx
+    # columns are deterministic HMAC blind indexes for exact-match/dedup.
+    # `deferred=True` ⇒ ordinary `select(Candidate)` loads do NOT fetch/decrypt the
+    # ciphertext; it is decrypted only on explicit attribute access (the privileged,
+    # audited reveal path), so list/queue endpoints never bulk-decrypt PII.
+    phone_enc: Mapped[str | None] = mapped_column(EncryptedStr, deferred=True)
+    phone_bidx: Mapped[bytes | None] = mapped_column(sa.LargeBinary)
+    pan_enc: Mapped[str | None] = mapped_column(EncryptedStr, deferred=True)
+    pan_bidx: Mapped[bytes | None] = mapped_column(sa.LargeBinary)
+    # Plaintext columns retained during expand/contract; dropped in the contract
+    # migration once all code reads/writes the encrypted columns.
     phone: Mapped[str | None] = mapped_column(sa.Text)
-    pan: Mapped[str | None] = mapped_column(sa.Text)  # PII — app-layer validated; encrypt later (Part 10)
+    pan: Mapped[str | None] = mapped_column(sa.Text)
     skills: Mapped[list[str] | None] = mapped_column(ARRAY(sa.Text))
     total_exp: Mapped[float | None] = mapped_column(sa.Numeric)
     resume_s3_key: Mapped[str | None] = mapped_column(sa.Text)

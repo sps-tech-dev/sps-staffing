@@ -49,7 +49,10 @@ def candidates(q: str | None = Query(default=None), limit: int = Query(20, le=10
     cnt = select(func.count()).select_from(Candidate).where(*where)
     return _page(db, base, cnt, limit, offset, lambda r: {
         "id": str(r[0].id), "full_name": r[0].full_name, "email": r[0].email,
-        "phone": _mask_phone(r[0].phone), "skills": r[0].skills,
+        # PII: phone is encrypted (Part 10) + deferred. Show only PRESENCE (masked)
+        # via the non-sensitive blind index — no decryption in the list. A full
+        # reveal is a separate privileged, audited path.
+        "phone": "••••••" if r[0].phone_bidx is not None else None, "skills": r[0].skills,
         "total_exp": float(r[0].total_exp) if r[0].total_exp is not None else None,
         "created_at": r[0].created_at.isoformat() if r[0].created_at else None,
     })
@@ -91,11 +94,3 @@ def audit_logs(limit: int = Query(50, le=200), offset: int = 0,
         "entity_id": str(r[0].entity_id) if r[0].entity_id else None,
         "actor_id": str(r[0].actor_id) if r[0].actor_id else None,
         "ts": r[0].ts.isoformat() if r[0].ts else None})
-
-
-def _mask_phone(p: str | None) -> str | None:
-    # PII is masked in admin list views (full value only via a future detail view
-    # once field-level encryption lands — see PII blocker).
-    if not p:
-        return p
-    return f"•••••{p[-4:]}" if len(p) >= 4 else "•••"

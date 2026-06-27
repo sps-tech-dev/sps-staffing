@@ -30,6 +30,17 @@ class Settings(BaseSettings):
     # (see app/features.py). AI assistive widgets are not GA — off in dev.
     feature_ai: bool = False            # FEATURE_AI
 
+    # PII field encryption (Part 10). Envelope encryption + blind index.
+    #   - PII_KMS_KEY_ID set  -> KMS mode (GenerateDataKey/Decrypt on the CMK).
+    #   - PII_KMS_KEY_ID empty -> LOCAL mode (fixed dev key; NOT for prod) so the
+    #     local loop + tests run without AWS.
+    #   - PII_INDEX_KEY: HMAC-SHA256 key for blind indexes (deterministic exact
+    #     match / dedup). In prod injected from Secrets Manager; separate from the
+    #     encryption key on purpose.
+    pii_kms_key_id: str = ""            # PII_KMS_KEY_ID (CMK id/arn/alias)
+    pii_index_key: str = ""            # PII_INDEX_KEY  (base64 or raw)
+    pii_local_dek: str = ""            # PII_LOCAL_DEK  (base64; local mode only)
+
     @property
     def database_url(self) -> str:
         return (f"postgresql+psycopg://{self.db_user}:{self.db_password}"

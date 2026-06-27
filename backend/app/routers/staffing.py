@@ -10,10 +10,12 @@ import uuid
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from pydantic import BaseModel, field_validator
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from ..audit import write_audit
 from ..context import RequestContext
+from ..crypto import blind_index
 from ..db import get_db
 from ..deps import get_current_context
 from ..idempotency import get_cached, store
@@ -145,9 +147,24 @@ def create_candidate(body: CandidateIn, ctx: RequestContext = Depends(get_curren
     _require_staff(ctx)
     if (c := get_cached(str(ctx.tenant_id), idempotency_key)):
         return c
-    obj = Candidate(tenant_id=_tid(ctx), full_name=body.full_name, email=body.email, phone=body.phone,
-                    pan=body.pan, skills=body.skills, total_exp=body.total_exp)
-    db.add(obj); db.commit(); db.refresh(obj)
+    # PII (Part 10): phone/pan are encrypted at rest (EncryptedStr) + carry a
+    # deterministic blind index for dedup. We do NOT write the legacy plaintext
+    # columns anymore (dropped in the contract migration). A bidx unique violation
+    # = Part 19 duplicate (same person already in this tenant's pool).
+    obj = Candidate(tenant_id=_tid(ctx), full_name=body.full_name, email=body.email,
+                    phone_enc=body.phone, pan_enc=body.pan,
+                    phone_bidx=blind_index(body.phone), pan_bidx=blind_index(body.pan),
+                    skills=body.skills, total_exp=body.total_exp)
+    db.add(obj)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail={
+            "code": "DUPLICATE_CANDIDATE",
+            "message": "A candidate with this phone or PAN already exists in your talent pool",
+        })
+    db.refresh(obj)
     res = _cand_dict(obj); store(str(ctx.tenant_id), idempotency_key, res); return res
 
 

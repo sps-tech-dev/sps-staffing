@@ -40,10 +40,13 @@ resource "aws_ecs_task_definition" "migrate" {
         { name = "DB_HOST", value = aws_db_instance.main.address },
         { name = "DB_PORT", value = "5432" },
         { name = "DB_NAME", value = var.db_name },
+        # PII keys so the 0007 backfill encrypts in the SAME mode the app uses.
+        { name = "PII_KMS_KEY_ID", value = aws_kms_key.pii.arn },
       ]
       secrets = [
         { name = "DB_USER", valueFrom = "${aws_secretsmanager_secret.rds_credentials.arn}:username::" },
         { name = "DB_PASSWORD", valueFrom = "${aws_secretsmanager_secret.rds_credentials.arn}:password::" },
+        { name = "PII_INDEX_KEY", valueFrom = "${aws_secretsmanager_secret.pii_index_key.arn}:index_key::" },
       ]
       logConfiguration = {
         logDriver = "awslogs"

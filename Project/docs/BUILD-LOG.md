@@ -438,7 +438,17 @@ bottom of the dated sections. Updated at the end of **every** session.
 - **Tests: 52 pass** (44 + feature-gate 404/200/auth + DPDP consent/export/erasure). typecheck/lint/build clean. Runtime smoke: all new routes 401 unauth.
 - **Status:** ✅ F6 done (backend deployed + RDS-live; frontend verified locally).
 
+### PII encryption — deploy 1: expand + backfill + cutover (Part 10) ✅
+- **STOP-2 design** chosen with the user: app-layer **envelope encryption** (AES-256-GCM, DEK from KMS CMK `alias/sps-pii-dev`) for **PAN + phone**; **deterministic blind index** (`*_bidx` = HMAC-SHA256, separate Secrets Manager key) for dedup/exact-match; **email stays CITEXT**. See DECISIONS.
+- **App:** `app/crypto.py` (envelope encrypt/decrypt, blind_index, `EncryptedStr` TypeDecorator). Candidate `phone_enc`/`pan_enc` are **`deferred`** (lists/queues never bulk-decrypt; decryption = explicit privileged access). `POST /api/candidates` now writes ciphertext + bidx and 409s on duplicate (Part 19); admin list masks via `*_bidx` presence (no decrypt).
+- **Migrations:** `0006` expand (add `*_enc`/`*_bidx`), `0007` backfill + dedup uniques. Local up→down→up + idempotency clean; ciphertext verified plaintext-free; **57 tests pass** (+ crypto round-trip, ciphertext-at-rest, dedup 409, masked admin list).
+- **Infra (STOP-4, applied):** `Project/pii.tf` — KMS CMK (rotation on) + `alias/sps-pii-dev`, `sps-shared-dev-pii-index-key` secret, IAM (task: GenerateDataKey+Decrypt on the CMK + GetSecretValue on the index secret; execution: GetSecretValue). Backend + migrate task defs wired `PII_KMS_KEY_ID` + `PII_INDEX_KEY`. `terraform apply` ran BEFORE the push (CI fetches the live task def). STOP-1 DDL shown + approved.
+- **Key mode:** KMS in the deployed app/migrate tasks; LOCAL fixed-key for the local loop/tests (no AWS).
+- **Deploy 2 (pending):** `0008` contract migration to drop the legacy plaintext `phone`/`pan` columns — written only after deploy 1 verified.
+- **Status:** ✅ deploy 1 — app layer encrypted; plaintext columns retained until contract.
+
 ## Pending / next steps
+- [ ] **PII encryption deploy 2 (contract)** — `0008` drop plaintext `candidates.phone`/`pan` after deploy 1 is verified live.
 - [ ] **DPDP export should include the principal's own PII** (phone/pan) once app-layer encryption lands (currently omitted).
 - [ ] **Erasure execution** — build the reviewed cascade/redaction that fulfils a `pending` erasure request (mechanism records only today).
 - [ ] **Real DPDP/consent legal copy** — replace `[LEGAL COPY TBD]` + bump `policy_version` before any real-user launch (STOP-3).

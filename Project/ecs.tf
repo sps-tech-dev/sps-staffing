@@ -130,6 +130,8 @@ resource "aws_ecs_task_definition" "backend" {
         { name = "REDIS_HOST", value = aws_elasticache_replication_group.main.primary_endpoint_address },
         { name = "REDIS_PORT", value = "6379" },
         { name = "S3_BUCKET", value = aws_s3_bucket.storage.bucket },
+        # PII envelope encryption: non-secret CMK id (key material stays in KMS).
+        { name = "PII_KMS_KEY_ID", value = aws_kms_key.pii.arn },
       ]
       # Secrets injected from Secrets Manager (never plaintext in the task def).
       # The secret stores JSON {username, password, host, port, dbname}; map the
@@ -137,6 +139,7 @@ resource "aws_ecs_task_definition" "backend" {
       secrets = [
         { name = "DB_USER", valueFrom = "${aws_secretsmanager_secret.rds_credentials.arn}:username::" },
         { name = "DB_PASSWORD", valueFrom = "${aws_secretsmanager_secret.rds_credentials.arn}:password::" },
+        { name = "PII_INDEX_KEY", valueFrom = "${aws_secretsmanager_secret.pii_index_key.arn}:index_key::" },
       ]
       logConfiguration = {
         logDriver = "awslogs"
