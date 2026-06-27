@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { readSessionFromCookie, HOME_FOR, type Role } from "@/lib/auth/session";
+import { readSessionFromCookie, type Role } from "@/lib/auth/session";
 
 // Unified login page (Slice 1). Role-specific login screens (/admin/login etc.)
 // arrive in later slices; for now everyone authenticates at /login.

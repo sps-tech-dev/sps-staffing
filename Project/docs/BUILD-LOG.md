@@ -420,7 +420,16 @@ bottom of the dated sections. Updated at the end of **every** session.
 - **Deployed** (pipeline `28292962248` GREEN; no new migration — 0004 already live); `/api/admin/{audit-logs,jobs}` → 401 unauth, `/healthz` ok.
 - **Status:** ✅ Slice 6 done (committed `617c030`; backend deployed + RDS-live; frontend verified locally).
 
+### F5 — Marketing site + i18n (next-intl@4 bump) ✅
+- **Security bump (mandatory):** `next-intl 3.26 → 4.13.0` — clears **both** prior advisories (open-redirect `<4.9.1`; prototype-pollution via `experimental.messages.precompile`). Also bumped direct `postcss → 8.5.15`. Remaining 2 moderate audit findings are **Next's vendored postcss** (latest Next 15.5.19; only "fixable" by a next@9 downgrade) — accepted/documented (build-time CSS, no attacker input).
+- **i18n:** next-intl@4 **without locale routing** — `NEXT_LOCALE` cookie (`en` default, `hi`) resolved in `i18n/request.ts`; **scoped to the `(marketing)` route group** (own `layout.tsx` + `NextIntlClientProvider`); portal/admin untouched. `messages/{en,hi}.json`. `lang={locale}` on the marketing wrapper. See DECISIONS for the routing-vs-cookie fork (SSG-per-locale deferred → marketing renders `ƒ` dynamic, all app pages stay static).
+- **Marketing site:** expanded `(marketing)/page.tsx` into a real landing page (hero, services/verticals trio, stats, CTA) + nav with **LocaleSwitcher** (client; sets cookie + `router.refresh()`) + footer — all translated. Responsive.
+- **Tooling:** `next lint` → `eslint .` (flat config; `next lint` removed in Next 16). Fixed a pre-existing unused-import lint warning in `middleware.ts`.
+- **Verified locally:** typecheck/lint/build clean; runtime smoke (`next start`) confirms `/` renders **en** by default and **hi** under `NEXT_LOCALE=hi` cookie. Frontend still not deployed (no hosting — STOP-4); frontend-only commit skips the backend pipeline (`paths-ignore`).
+- **Status:** ✅ F5 done (frontend verified locally).
+
 ## Pending / next steps
+- [ ] **Marketing SSG-per-locale (SEO)** — move marketing under `app/[locale]/` with `hreflang` when SEO demands it (currently cookie-based, dynamically rendered).
 - [ ] **DKIM CNAMEs** for Microsoft 365 (email migration not fully complete).
 - [ ] **audit_logs INSERT-only DB role** — enforce append-only at the DB (revoke UPDATE/DELETE); currently convention-only in app code.
 - [ ] **Backend lockfile migration** — switch to `use_lockfile = true`, then delete the `sps-staffing-tflock` DynamoDB table.

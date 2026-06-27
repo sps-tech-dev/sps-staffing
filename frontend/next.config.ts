@@ -1,4 +1,8 @@
 import type { NextConfig } from "next";
+import createNextIntlPlugin from "next-intl/plugin";
+
+const withNextIntl = createNextIntlPlugin();
+
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   // Proxy /api to the FastAPI backend during dev (set API_URL in .env.local)
@@ -7,4 +11,4 @@ const nextConfig: NextConfig = {
     return [{ source: "/api/:path*", destination: `${api}/api/:path*` }];
   },
 };
-export default nextConfig;
+export default withNextIntl(nextConfig);

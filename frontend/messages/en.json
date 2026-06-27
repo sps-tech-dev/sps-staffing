@@ -1,0 +1,48 @@
+{
+  "nav": {
+    "services": "Services",
+    "verticals": "Verticals",
+    "contact": "Contact",
+    "login": "Login"
+  },
+  "hero": {
+    "eyebrow": "Staffing & Recruitment · IT Services · Training & EdTech",
+    "title1": "SPS",
+    "title2": "Technosoft",
+    "subtitle": "One platform to source talent, run delivery, and upskill teams — built for staffing firms, IT services, and academies.",
+    "ctaCandidate": "Candidate Login",
+    "ctaEmployer": "Employer Login",
+    "ctaDemo": "View Demo Dashboard"
+  },
+  "services": {
+    "title": "What we do",
+    "subtitle": "Three connected verticals on one talent pool.",
+    "staffing": {
+      "name": "Staffing & Recruitment",
+      "desc": "Source, screen, and place candidates with a kanban pipeline, SLA-tracked requisitions, and a shared talent pool."
+    },
+    "it": {
+      "name": "IT Services & Consulting",
+      "desc": "Stand up delivery teams and consulting engagements with the same vetted bench and audit-ready operations."
+    },
+    "academy": {
+      "name": "Training & EdTech",
+      "desc": "Upskill learners and convert academy graduates into placement-ready candidates across the platform."
+    }
+  },
+  "stats": {
+    "title": "Built to scale with you",
+    "placements": "Placements made",
+    "clients": "Active clients",
+    "trained": "Learners trained"
+  },
+  "cta": {
+    "title": "Ready to get started?",
+    "subtitle": "Sign in to your portal or explore the demo dashboard.",
+    "button": "Get started"
+  },
+  "footer": {
+    "tagline": "Staffing & Recruitment · IT Services · Training & EdTech",
+    "rights": "All rights reserved."
+  }
+}
