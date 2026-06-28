@@ -177,3 +177,26 @@ Discovery surfaced internal inconsistencies in the architecture spec. Resolved a
 - **Consent legal copy (STOP-3):** notices are the stubbed `[LEGAL COPY TBD]` from privacy.py, surfaced at the point of collection with `policy_version`. **Registration cannot take real candidates until the wording is real.**
 - **Frontend:** `/register` multi-step wizard (RHF + zod `registrationSchema`, per-step `trigger()`, Enter advances/submits, autofocus per step), hCaptcha widget, consent checkboxes. Added deps `@hookform/resolvers`, `@hcaptcha/react-hcaptcha` (0 new high/critical; React 19 OK).
 - **Follow-up:** rate-limiting the public endpoint (Redis) is a recommended hardening, not yet built.
+
+### 2026-06-28 — Append-only audit/consent via a least-privilege app DB role (STOP-4, applied)
+- **Decision:** the backend connects as a dedicated non-owner role **`sps_app`** (not the RDS
+  master). `sps_app` has `SELECT/INSERT/UPDATE/DELETE` on business tables but only
+  `SELECT/INSERT` on `shared.audit_logs` + `shared.consents` (UPDATE/DELETE revoked) → append-only
+  is **DB-enforced**, not convention. Owners bypass GRANT/REVOKE, so a non-owner role is required.
+- **Separation:** the **migrate** task keeps the **master** credential (it runs DDL); tests/maintenance
+  use master too, so cleanup of those ledgers still works. Default privileges grant `sps_app` DML on
+  FUTURE tables created by the master (per-append-only table is REVOKE'd as added).
+- **Infra (`Project/appdb.tf`):** `random_password` + Secrets Manager `sps-shared-dev-app-db`
+  (`{username:"sps_app",password}`); execution role injects `DB_USER`/`DB_PASSWORD` into the BACKEND
+  task def; task role can read the secret (bootstrap). The role + grants are provisioned by an
+  idempotent one-off ECS bootstrap (`backend/scripts/bootstrap_app_role.py`, run as master, password
+  read from the secret via boto3).
+- **Staged apply (zero image regression):** (1) `terraform apply -target` the secret+IAM; (2) bootstrap
+  task creates the role; (3) full `terraform apply -var backend_image_tag=<LIVE SHA>` switches the
+  backend task def to `sps_app` (pinning the live image avoids the stale-`var` regression — see PENDING C3).
+  Rollback = repoint the backend service to the prior task-def revision (master).
+- **Verified on dev RDS:** app runs as `sps_app` (registration 200 → INSERT candidate+consent+audit OK;
+  /readyz db:ok) AND a probe confirms UPDATE/DELETE denied on audit_logs+consents. Why a real op (not
+  just the probe): catches grant gaps the standalone probe can't.
+- **Trigger to revisit:** if a new append-only table is added, REVOKE UPDATE/DELETE on it from `sps_app`
+  in the bootstrap; if `sps_app` ever needs new privileges, update the bootstrap (idempotent, re-runnable).

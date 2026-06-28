@@ -59,14 +59,7 @@ Last refreshed: 2026-06-28.
 - **Blocks:** a complete DPDP right-to-access export.
 - **Trigger:** pick up any time (low risk) — decrypt + include in the export bundle.
 
-### B3. audit_logs / consents append-only enforcement (IN PROGRESS — see Part 2 of this work)
-- **What:** append-only is currently CONVENTION-ONLY in app code. Needs DB-level
-  enforcement so the app cannot UPDATE/DELETE `shared.audit_logs` / `shared.consents`.
-- **Why deferred (historically):** app connects as the RDS master (owner bypasses grants);
-  a least-privilege app role + credential wiring was needed first.
-- **Blocks:** tamper-proof audit/consent guarantee.
-- **Trigger:** being addressed now (least-privilege INSERT-only app DB role; STOP-4 for the
-  new DB credential). Update/resolve this entry when applied.
+### B3. audit_logs / consents append-only enforcement — ✅ RESOLVED (see Resolved section)
 
 ---
 
@@ -89,7 +82,16 @@ Last refreshed: 2026-06-28.
 - **Blocks:** per-locale SEO indexing of the marketing site.
 - **Trigger:** when SEO/marketing demands per-locale static pages.
 
-### C3. Backend Terraform lockfile migration
+### C3. Terraform `backend_image_tag` decoupled from CI-deployed image (landmine)
+- **What:** CI deploys images by git-SHA tag *outside* Terraform; `var.backend_image_tag`
+  default lags. A plain `terraform apply` (no `-var`) would **regress the running image**
+  to the stale default. Current applies pin `-var "backend_image_tag=<live SHA>"` to avoid it.
+- **Why deferred:** pre-existing decoupling; full fix is a design choice.
+- **Blocks:** safe `terraform apply` without remembering the `-var`.
+- **Trigger:** decide a fix — e.g. a data source for the live image, `lifecycle ignore_changes`
+  on the image, or always pin via CI. Until then, ALWAYS pin `-var backend_image_tag=<live>`.
+
+### C4. Backend Terraform lockfile migration
 - **What:** switch to `use_lockfile = true`, then delete the `sps-staffing-tflock` DynamoDB table.
 - **Why deferred:** housekeeping.
 - **Blocks:** nothing functional; removes a legacy lock table.
@@ -144,6 +146,13 @@ Last refreshed: 2026-06-28.
 ---
 
 ## Resolved (kept for history)
+- **audit_logs / consents append-only enforcement** — RESOLVED 2026-06-28: the backend now
+  connects as a least-privilege role **`sps_app`** (Secrets Manager `sps-shared-dev-app-db`,
+  wired in `appdb.tf`) with full DML on business tables but only SELECT/INSERT on
+  `shared.audit_logs` + `shared.consents` → append-only is **DB-enforced**. Migrate task
+  stays on master (DDL). Verified on dev RDS: app works as `sps_app` (registration 200,
+  /readyz ok) AND UPDATE/DELETE denied on both ledgers. Role provisioned via the idempotent
+  one-off bootstrap (`backend/scripts/bootstrap_app_role.py`).
 - **PII encryption (was a HARD BLOCKER)** — RESOLVED 2026-06-28: PAN/phone KMS-encrypted
   (`alias/sps-pii-dev`) + HMAC blind index; expand/contract migrations 0006–0008 live;
   verified on dev RDS+KMS. Real-PII candidate write paths now permitted.

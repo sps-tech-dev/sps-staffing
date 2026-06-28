@@ -134,11 +134,12 @@ resource "aws_ecs_task_definition" "backend" {
         { name = "PII_KMS_KEY_ID", value = aws_kms_key.pii.arn },
       ]
       # Secrets injected from Secrets Manager (never plaintext in the task def).
-      # The secret stores JSON {username, password, host, port, dbname}; map the
-      # username/password keys to env vars via the arn:json-key syntax.
+      # The BACKEND connects as the least-privilege `sps_app` role (app-db secret)
+      # → append-only DB-enforced on audit_logs/consents. The MIGRATE task keeps
+      # the master rds_credentials secret (it runs DDL) — see migrate.tf.
       secrets = [
-        { name = "DB_USER", valueFrom = "${aws_secretsmanager_secret.rds_credentials.arn}:username::" },
-        { name = "DB_PASSWORD", valueFrom = "${aws_secretsmanager_secret.rds_credentials.arn}:password::" },
+        { name = "DB_USER", valueFrom = "${aws_secretsmanager_secret.app_db.arn}:username::" },
+        { name = "DB_PASSWORD", valueFrom = "${aws_secretsmanager_secret.app_db.arn}:password::" },
         { name = "PII_INDEX_KEY", valueFrom = "${aws_secretsmanager_secret.pii_index_key.arn}:index_key::" },
       ]
       logConfiguration = {

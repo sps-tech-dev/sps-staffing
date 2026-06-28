@@ -462,6 +462,14 @@ bottom of the dated sections. Updated at the end of **every** session.
 - **LIVE-VERIFIED on dev RDS + KMS** over real HTTP: valid → 200 registered (encrypted write via KMS), duplicate phone → 409 (blind-index dedup), gates 400/422; probe rows cleaned up.
 - **Status:** ✅ deployed + RDS-live + live-verified. Real signups blocked until STOP-3 (consent wording) + STOP-4 (hCaptcha keys) are resolved.
 
+### Append-only enforcement — least-privilege app DB role (applied, RDS-live) ✅
+- **What:** backend now connects as **`sps_app`** (non-owner) — full DML on business tables, only SELECT/INSERT on `shared.audit_logs` + `shared.consents` → **append-only is DB-enforced**, not convention. Migrate task stays on **master** (DDL); tests/maintenance use master too.
+- **Infra (`Project/appdb.tf`, STOP-4 approved):** `random_password` + Secrets Manager `sps-shared-dev-app-db`; exec role injects `DB_USER`/`DB_PASSWORD` into the backend task def; task role reads it for bootstrap. Role+grants provisioned by an idempotent one-off ECS bootstrap (`backend/scripts/bootstrap_app_role.py`).
+- **Staged apply (no image regression):** secret+IAM (`-target`) → bootstrap role → full apply with `-var backend_image_tag=<live SHA>` switching backend→`sps_app`. Grant model verified locally first.
+- **LIVE-VERIFIED on dev RDS:** service stable; `/readyz` db:ok; **real registration → 200** (INSERT candidate+consent+audit as `sps_app`, the e2e check a probe alone could miss); dedup 409; a probe confirms **UPDATE/DELETE denied** on both ledgers. Probe row cleaned up.
+- **Rollback path (confirmed clean):** repoint backend service to the prior task-def revision (`:23`, master).
+- **Status:** ✅ deployed + RDS-live + live-verified. (New landmine logged in PENDING C3: `terraform apply` must pin `-var backend_image_tag` or it regresses the image.)
+
 ## Pending / next steps
 
 ➡️ **The canonical, durable register of ALL outstanding/deferred items is
