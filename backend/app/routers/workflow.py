@@ -67,7 +67,7 @@ def create_submission(app_id: uuid.UUID, ctx: RequestContext = Depends(get_curre
         return c
     appn = _app_or_404(db, ctx, app_id)  # tenant+BU ownership check
     obj = Submission(tenant_id=_tid(ctx), business_unit_id=BU, application_id=app_id,
-                     client_id=appn.client_id, status="submitted",
+                     client_id=appn.client_id, owner_user_id=appn.owner_user_id, status="submitted",
                      submitted_by=uuid.UUID(str(ctx.user_id)) if ctx.user_id else None)
     db.add(obj)
     db.flush()
@@ -167,7 +167,8 @@ def create_offer(app_id: uuid.UUID, body: OfferIn, ctx: RequestContext = Depends
         return c
     appn = _app_or_404(db, ctx, app_id)
     obj = Offer(tenant_id=_tid(ctx), business_unit_id=BU, application_id=app_id,
-                client_id=appn.client_id, ctc=body.ctc, joining_date=body.joining_date, status="draft")
+                client_id=appn.client_id, owner_user_id=appn.owner_user_id,
+                ctc=body.ctc, joining_date=body.joining_date, status="draft")
     db.add(obj)
     db.flush()
     write_audit(db, ctx, "offer.create", "offer", obj.id, after={"application_id": str(app_id)})
@@ -284,7 +285,8 @@ def create_interview(app_id: uuid.UUID, body: InterviewIn, ctx: RequestContext =
         return c
     appn = _app_or_404(db, ctx, app_id)
     obj = Interview(tenant_id=_tid(ctx), business_unit_id=BU, application_id=app_id,
-                    client_id=appn.client_id, scheduled_at=body.scheduled_at, mode=body.mode or "video",
+                    client_id=appn.client_id, owner_user_id=appn.owner_user_id,
+                    scheduled_at=body.scheduled_at, mode=body.mode or "video",
                     interviewer_name=body.interviewer_name, status="scheduled")
     db.add(obj)
     db.flush()

@@ -256,8 +256,11 @@ def approve_client(req_id: uuid.UUID, body: ApproveClientIn, ctx: RequestContext
                 full_name=r.contact_person, status="active")
     db.add(user); db.flush()
 
-    # 3) ACTIVE client_users binding — this is what gives the login its client scope
-    db.add(ClientUser(tenant_id=_tid(ctx), user_id=user.id, client_id=client.id, status="active"))
+    # 3) ACTIVE client_users binding — this is what gives the login its client scope.
+    # The self-registrant who an admin approves is the client's FIRST user → client_admin
+    # (HR): full pipeline + offer-write + can invite teammates / reassign jobs.
+    db.add(ClientUser(tenant_id=_tid(ctx), user_id=user.id, client_id=client.id,
+                      status="active", role="client_admin"))
     # 4) consent ledger entry for the now-real user
     if r.consent_data_processing:
         db.add(Consent(tenant_id=_tid(ctx), subject_user_id=user.id, purpose="data_processing",

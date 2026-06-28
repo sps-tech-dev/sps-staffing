@@ -211,6 +211,7 @@ class ClientUser(TimestampMixin, Base):
         sa.CheckConstraint(
             "status IN ('pending','active','rejected','suspended')", name="ck_client_users_status"
         ),
+        sa.CheckConstraint("role IN ('client_admin','client_manager')", name="ck_client_users_role"),
         sa.UniqueConstraint("tenant_id", "user_id", name="uq_client_users_tenant_user"),
         {"schema": SCHEMA},
     )
@@ -224,6 +225,10 @@ class ClientUser(TimestampMixin, Base):
     )
     # bound on approval (soft ref to staffing.clients.id); NULL while pending.
     client_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    # client-internal role: client_admin (HR — sees all client jobs, the only role that
+    # may write offers, can reassign owners) | client_manager (hiring manager — sees only
+    # their OWN posted jobs' pipeline, offer card read-only). First registrant = client_admin.
+    role: Mapped[str] = mapped_column(sa.Text, nullable=False, server_default=sa.text("'client_admin'"))
     status: Mapped[str] = mapped_column(sa.Text, nullable=False, server_default=sa.text("'pending'"))
 
 

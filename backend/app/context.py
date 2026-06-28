@@ -11,6 +11,9 @@ class RequestContext:
     # portal session (from the JWT). When present, the base repository additionally
     # filters every query by client_id — a client can read only its own company's rows.
     client_id: str | None = None
+    # Client-internal role for the session: 'client_admin' (HR — all client jobs) or
+    # 'client_manager' (own posted jobs only). Drives owner-scoping + the offer-write gate.
+    client_role: str | None = None
 
 _ctx: ContextVar[RequestContext | None] = ContextVar("ctx", default=None)
 

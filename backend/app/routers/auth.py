@@ -61,7 +61,8 @@ def _set_cookie(resp: Response, name: str, value: str, max_age: int) -> None:
     )
 
 
-def _build_claims(user, tenant, memberships, client_id=None):
+def _build_claims(user, tenant, memberships, binding=None):
+    """binding = (client_id, client_role) for an active client session, else None."""
     role_flat = sorted({r for _, roles in memberships for r in roles})
     claims = {
         "sub": str(user.id),
@@ -72,10 +73,12 @@ def _build_claims(user, tenant, memberships, client_id=None):
         "role_flat": role_flat,
         "memberships": [{"business_unit_id": code, "roles": roles} for code, roles in memberships],
     }
-    # Client-portal session: bind the client scope into the JWT. An ACTIVE client_users
-    # row is what produces this (the approval gate); without it there is no client scope.
-    if client_id is not None:
+    # Client-portal session: bind the client scope + internal role into the JWT. An ACTIVE
+    # client_users row produces this (the approval gate); without it there is no client scope.
+    if binding is not None:
+        client_id, client_role = binding
         claims["client_id"] = str(client_id)
+        claims["client_role"] = client_role
         claims["role"] = "client"
         if "client" not in role_flat:
             claims["role_flat"] = sorted(set(role_flat) | {"client"})
@@ -97,8 +100,8 @@ def login(body: LoginBody, request: Request, response: Response, db: Session = D
     if user is None or user.status != "active" or not verify_password(user.password_hash, body.password):
         _invalid()
     memberships = AuthQueries.memberships(db, user.id)
-    client_id = AuthQueries.active_client_binding(db, user.id)
-    claims = _build_claims(user, tenant, memberships, client_id=client_id)
+    binding = AuthQueries.active_client_binding(db, user.id)
+    claims = _build_claims(user, tenant, memberships, binding=binding)
     _set_cookie(response, "access_token", create_access_token(claims), settings.access_ttl_seconds)
     _set_cookie(response, "refresh_token",
                 create_refresh_token({"sub": claims["sub"], "tenant_id": claims["tenant_id"]}),
@@ -118,7 +121,7 @@ def refresh(request: Request, response: Response, db: Session = Depends(get_db))
     if tenant is None or user is None or user.status != "active":
         raise HTTPException(status_code=401, detail={"code": "UNAUTHENTICATED", "message": "Session no longer valid"})
     claims = _build_claims(user, tenant, AuthQueries.memberships(db, user.id),
-                           client_id=AuthQueries.active_client_binding(db, user.id))
+                           binding=AuthQueries.active_client_binding(db, user.id))
     _set_cookie(response, "access_token", create_access_token(claims), settings.access_ttl_seconds)
     return {"ok": True, "role": claims["role"]}
 
@@ -142,4 +145,6 @@ def me(ctx: RequestContext = Depends(get_current_context), request: Request = No
         "role": payload.get("role"),
         "memberships": payload.get("memberships", []),
         "business_unit": ctx.business_unit_id,
+        "client_id": ctx.client_id,
+        "client_role": ctx.client_role,   # client_admin (HR) | client_manager | null
     }

@@ -4,8 +4,8 @@ import { api } from "./client";
 import type {
   AdminCandidate, AdminClient, AdminJobRow, AiSummary, AuditRow, CandidateOverview,
   ConsentState, DpdpRequestRow, EmployeeOverview, EmployerOverview, FeatureFlags,
-  ClientInterviewRow, ClientOfferRow, ClientOverview, ClientPipeline, ClientRegistration,
-  ClientSubmission, Interview, Invoice, Job, JobPipeline, Offer, Paginated, PipelineRow,
+  ClientInterviewRow, ClientMe, ClientOfferRow, ClientOverview, ClientPipeline, ClientRegistration,
+  ClientSubmission, ClientTeamMember, Interview, Invoice, Job, JobPipeline, Offer, Paginated, PipelineRow,
   RegistrationConfig, RegistrationResult, Submission, Vendor, VendorSubmission,
 } from "./types";
 
@@ -65,6 +65,55 @@ export function useClientPostJob() {
     mutationFn: (body: { title: string; jd_text?: string; skills?: string[] }) =>
       api<Job>("/client/jobs", { method: "POST", body: JSON.stringify(body) }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["client", "jobs"] }); qc.invalidateQueries({ queryKey: ["client", "overview"] }); },
+  });
+}
+
+// ── Client-internal role (HR vs hiring manager) + HR-only writes ────
+/** The session's client role — drives HR-only vs read-only UI. From the verified JWT. */
+export function useClientMe() {
+  return useQuery({ queryKey: ["client", "me"], queryFn: () => api<ClientMe>("/auth/me"), retry: false });
+}
+/** HR releases a DRAFT offer + commits the joining date (client_admin only). */
+export function useClientReleaseOffer() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, joining_date, ctc }: { id: string; joining_date: string; ctc?: number }) =>
+      api(`/client/offers/${id}/release`, { method: "POST", body: JSON.stringify({ joining_date, ctc }) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["client", "offers"] }),
+  });
+}
+/** HR adjusts a released offer's joining date (client_admin only). */
+export function useClientSetJoiningDate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, joining_date }: { id: string; joining_date: string }) =>
+      api(`/client/offers/${id}/joining-date`, { method: "PATCH", body: JSON.stringify({ joining_date }) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["client", "offers"] }),
+  });
+}
+/** HR roster of the client's portal users (client_admin only → 403 for managers). */
+export function useClientTeam() {
+  return useQuery({ queryKey: ["client", "team"], queryFn: () => api<ClientTeamMember[]>("/client/team"), retry: false });
+}
+/** HR invites a teammate (creates the login + active binding with the chosen role). */
+export function useClientAddTeammate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { email: string; full_name: string; initial_password: string; role: "client_admin" | "client_manager" }) =>
+      api<ClientTeamMember>("/client/team", { method: "POST", body: JSON.stringify(body) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["client", "team"] }),
+  });
+}
+/** HR reassigns a job (+ its pipeline) to a different hiring manager. */
+export function useClientReassignJob() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ jobId, owner_user_id }: { jobId: string; owner_user_id: string }) =>
+      api(`/client/jobs/${jobId}/reassign`, { method: "POST", body: JSON.stringify({ owner_user_id }) }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["client", "jobs"] });
+      qc.invalidateQueries({ queryKey: ["client", "pipeline"] });
+    },
   });
 }
 

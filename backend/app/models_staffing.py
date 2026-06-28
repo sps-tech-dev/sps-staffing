@@ -46,11 +46,15 @@ class Job(TwoAxisMixin, Base):
         bu_check("jobs"),
         sa.Index("ix_jobs_tenant_bu", "tenant_id", "business_unit_id"),
         sa.Index("ix_jobs_client_id", "client_id"),
+        sa.Index("ix_jobs_owner_user_id", "owner_user_id"),
         {"schema": SCHEMA},
     )
     client_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), sa.ForeignKey(f"{SCHEMA}.clients.id")
     )
+    # The client portal user who posted/owns this job (soft ref to shared.users). Drives
+    # client_manager owner-scoping. NULL for staff-created jobs (no client owner).
+    owner_user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     title: Mapped[str] = mapped_column(sa.Text, nullable=False)
     jd_text: Mapped[str | None] = mapped_column(sa.Text)
     skills: Mapped[list[str] | None] = mapped_column(ARRAY(sa.Text))
@@ -104,6 +108,7 @@ class Application(TwoAxisMixin, Base):
         sa.Index("ix_applications_job_id", "job_id"),
         sa.Index("ix_applications_candidate_id", "candidate_id"),
         sa.Index("ix_applications_client_id", "client_id"),
+        sa.Index("ix_applications_owner_user_id", "owner_user_id"),
         {"schema": SCHEMA},
     )
     job_id: Mapped[uuid.UUID] = mapped_column(
@@ -117,8 +122,10 @@ class Application(TwoAxisMixin, Base):
     client_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), sa.ForeignKey(f"{SCHEMA}.clients.id")
     )
+    # Denormalized owning client USER (from the job) → client_manager owner-scoping.
+    owner_user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     stage: Mapped[str] = mapped_column(sa.Text, nullable=False, server_default=sa.text("'sourced'"))
-    owner_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    owner_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))  # recruiter (internal)
 
 
 # Submission to client (Part 5): submissions(application_id, client_feedback, status)
@@ -134,6 +141,7 @@ class Submission(TwoAxisMixin, Base):
         sa.Index("ix_submissions_tenant_bu", "tenant_id", "business_unit_id"),
         sa.Index("ix_submissions_application_id", "application_id"),
         sa.Index("ix_submissions_client_id", "client_id"),
+        sa.Index("ix_submissions_owner_user_id", "owner_user_id"),
         {"schema": SCHEMA},
     )
     application_id: Mapped[uuid.UUID] = mapped_column(
@@ -142,6 +150,7 @@ class Submission(TwoAxisMixin, Base):
     client_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), sa.ForeignKey(f"{SCHEMA}.clients.id")
     )  # denormalized owning client (nested isolation)
+    owner_user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))  # owning client user
     status: Mapped[str] = mapped_column(sa.Text, nullable=False, server_default=sa.text("'submitted'"))
     client_feedback: Mapped[str | None] = mapped_column(sa.Text)
     submitted_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
@@ -160,6 +169,7 @@ class Offer(TwoAxisMixin, Base):
         sa.Index("ix_offers_tenant_bu", "tenant_id", "business_unit_id"),
         sa.Index("ix_offers_application_id", "application_id"),
         sa.Index("ix_offers_client_id", "client_id"),
+        sa.Index("ix_offers_owner_user_id", "owner_user_id"),
         {"schema": SCHEMA},
     )
     application_id: Mapped[uuid.UUID] = mapped_column(
@@ -168,6 +178,7 @@ class Offer(TwoAxisMixin, Base):
     client_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), sa.ForeignKey(f"{SCHEMA}.clients.id")
     )  # denormalized owning client (nested isolation)
+    owner_user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))  # owning client user
     ctc: Mapped[float | None] = mapped_column(sa.Numeric)          # annual CTC (INR)
     joining_date: Mapped[datetime.date | None] = mapped_column(sa.Date)
     status: Mapped[str] = mapped_column(sa.Text, nullable=False, server_default=sa.text("'draft'"))
@@ -191,6 +202,7 @@ class Interview(TwoAxisMixin, Base):
         sa.Index("ix_interviews_tenant_bu", "tenant_id", "business_unit_id"),
         sa.Index("ix_interviews_application_id", "application_id"),
         sa.Index("ix_interviews_client_id", "client_id"),
+        sa.Index("ix_interviews_owner_user_id", "owner_user_id"),
         {"schema": SCHEMA},
     )
     application_id: Mapped[uuid.UUID] = mapped_column(
@@ -199,6 +211,7 @@ class Interview(TwoAxisMixin, Base):
     client_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), sa.ForeignKey(f"{SCHEMA}.clients.id")
     )  # denormalized owning client (nested isolation)
+    owner_user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))  # owning client user
     scheduled_at: Mapped[datetime.datetime | None] = mapped_column(sa.DateTime(timezone=True))
     mode: Mapped[str] = mapped_column(sa.Text, nullable=False, server_default=sa.text("'video'"))
     status: Mapped[str] = mapped_column(sa.Text, nullable=False, server_default=sa.text("'scheduled'"))

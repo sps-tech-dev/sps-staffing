@@ -109,3 +109,8 @@ export interface ClientSubmission {
 export interface ClientPipeline { stages: Record<string, { id: string; candidate: string; job: string; stage: string }[]>; }
 export interface ClientInterviewRow { id: string; scheduled_at: string | null; mode: string; status: string; candidate: string | null; }
 export interface ClientOfferRow { id: string; status: string; ctc: number | null; joining_date: string | null; candidate: string | null; }
+export type ClientRole = "client_admin" | "client_manager" | null;
+export interface ClientMe {
+  user_id: string; role: string; client_id: string | null; client_role: ClientRole; business_unit: string | null;
+}
+export interface ClientTeamMember { user_id: string; email: string; name: string | null; role: "client_admin" | "client_manager"; is_self: boolean; }

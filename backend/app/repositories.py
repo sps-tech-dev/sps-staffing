@@ -41,17 +41,18 @@ class AuthQueries:
         return [(code, list(roles or [])) for code, roles in rows]
 
     @staticmethod
-    def active_client_binding(db: Session, user_id) -> uuid.UUID | None:
-        """The client_id an ACTIVE client_users row binds this user to (or None).
-        Login-time only — this is what gives a client session its client scope. A
+    def active_client_binding(db: Session, user_id) -> tuple[uuid.UUID, str] | None:
+        """The (client_id, role) an ACTIVE client_users row binds this user to (or None).
+        Login-time only — this is what gives a client session its client scope + role. A
         'pending'/'rejected'/'suspended' row (or no row) yields NO client scope, so
         a self-registration alone grants nothing until an admin approves+binds."""
         from .models import ClientUser
-        return db.execute(
-            select(ClientUser.client_id).where(
+        row = db.execute(
+            select(ClientUser.client_id, ClientUser.role).where(
                 ClientUser.user_id == user_id, ClientUser.status == "active",
                 ClientUser.client_id.is_not(None))
-        ).scalar_one_or_none()
+        ).first()
+        return (row[0], row[1]) if row else None
 
 
 class TenantScopedRepo:
@@ -79,6 +80,16 @@ class TenantScopedRepo:
             if isinstance(cid, str):
                 cid = uuid.UUID(cid)
             q = q.where(model.client_id == cid)
+        # NESTED OWNER SCOPE: a client_manager (hiring manager) sees ONLY rows they own
+        # (jobs they posted + that job's pipeline) — no cross-manager visibility. A
+        # client_admin (HR) has no owner filter → all the client's jobs. Enforced here in
+        # the base layer (owner_user_id denormalized onto owned models so no join needed).
+        if cid is not None and self.ctx.client_role == "client_manager" and hasattr(model, "owner_user_id"):
+            uid = self.ctx.user_id
+            if uid is not None:
+                if isinstance(uid, str):
+                    uid = uuid.UUID(uid)
+                q = q.where(model.owner_user_id == uid)
         return q
 
     def scoped_all(self, model):

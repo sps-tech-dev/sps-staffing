@@ -242,7 +242,8 @@ def create_application(body: ApplicationIn, ctx: RequestContext = Depends(get_cu
     if existing is not None:
         return _app_dict(existing)  # idempotent on the natural key
     obj = Application(tenant_id=_tid(ctx), business_unit_id=BU, job_id=body.job_id,
-                      candidate_id=body.candidate_id, client_id=job.client_id, stage="sourced",
+                      candidate_id=body.candidate_id, client_id=job.client_id,
+                      owner_user_id=job.owner_user_id, stage="sourced",
                       owner_id=uuid.UUID(str(ctx.user_id)) if ctx.user_id else None)
     db.add(obj); db.flush()
     write_audit(db, ctx, "application.create", "application", obj.id,
