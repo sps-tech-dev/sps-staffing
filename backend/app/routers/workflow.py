@@ -16,8 +16,9 @@ from ..db import get_db
 from ..deps import get_current_context
 from ..idempotency import get_cached, store
 from ..models_staffing import (
-    INTERVIEW_MODES, INTERVIEW_STATUSES, OFFER_STATUSES, SUBMISSION_STATUSES,
-    Application, Candidate, Interview, Job, Offer, Submission,
+    DEFAULT_FEE_PERCENT, INTERVIEW_MODES, INTERVIEW_STATUSES, INVOICE_STATUSES,
+    OFFER_STATUSES, SUBMISSION_STATUSES,
+    Application, Candidate, Interview, Invoice, Job, Offer, Submission,
 )
 from .staffing import BU, _require_staff, _tid
 
@@ -346,3 +347,117 @@ def update_interview(interview_id: uuid.UUID, body: InterviewUpdateIn,
     write_audit(db, ctx, "interview.update", "interview", i.id, before=before, after={"status": i.status})
     db.commit()
     return _iv_dict(i)
+
+
+# ── invoices (structure only; tax configurable/stubbed, never hardcoded) ──────
+class InvoiceIn(BaseModel):
+    application_id: uuid.UUID
+    base_amount: float
+    fee_percent: float | None = None        # defaults to the 15% SPS placement fee
+    gst_percent: float | None = None         # TAX — only applied if a rate is supplied (legal Q1)
+    tds_percent: float | None = None         # TAX — only applied if a rate is supplied (legal Q1)
+
+
+class InvoiceUpdateIn(BaseModel):
+    status: str | None = None
+    gst_percent: float | None = None
+    tds_percent: float | None = None
+
+    @field_validator("status")
+    @classmethod
+    def _s(cls, v):
+        if v is not None and v not in INVOICE_STATUSES:
+            raise ValueError(f"status must be one of {INVOICE_STATUSES}")
+        return v
+
+
+def _round2(x):
+    return round(float(x), 2)
+
+
+def _compute_invoice(base: float, fee_pct: float, gst_pct, tds_pct):
+    """fee = the SPS placement fee (business term). GST/TDS only computed when a
+    rate is explicitly supplied — NEVER assumed (rates await legal, PENDING Q1)."""
+    fee = _round2(base * fee_pct / 100)
+    gst = _round2(fee * gst_pct / 100) if gst_pct is not None else None
+    tds = _round2(fee * tds_pct / 100) if tds_pct is not None else None
+    total = _round2(fee + (gst or 0) - (tds or 0))
+    return fee, gst, tds, total
+
+
+def _inv_dict(v: Invoice) -> dict:
+    f = lambda x: float(x) if x is not None else None  # noqa: E731
+    return {"id": str(v.id), "application_id": str(v.application_id),
+            "client_id": str(v.client_id) if v.client_id else None,
+            "base_amount": f(v.base_amount), "fee_percent": f(v.fee_percent), "fee_amount": f(v.fee_amount),
+            "gst_percent": f(v.gst_percent), "gst_amount": f(v.gst_amount),
+            "tds_percent": f(v.tds_percent), "tds_amount": f(v.tds_amount),
+            "total_amount": f(v.total_amount), "currency": v.currency, "status": v.status,
+            "created_at": v.created_at.isoformat() if v.created_at else None}
+
+
+@router.post("/invoices")
+def create_invoice(body: InvoiceIn, ctx: RequestContext = Depends(get_current_context),
+                   db: Session = Depends(get_db), idempotency_key: str | None = Header(default=None)):
+    """Create a placement invoice. fee_percent defaults to the 15% SPS fee; GST/TDS
+    are applied ONLY if a rate is supplied (no hardcoded tax — see PENDING Q1)."""
+    _require_staff(ctx)
+    if (c := get_cached(str(ctx.tenant_id), idempotency_key)):
+        return c
+    app = _app_or_404(db, ctx, body.application_id)
+    # derive client from the application's job
+    job = db.execute(select(Job).where(Job.id == app.job_id, Job.tenant_id == _tid(ctx))).scalar_one_or_none()
+    client_id = job.client_id if job else None
+    fee_pct = body.fee_percent if body.fee_percent is not None else DEFAULT_FEE_PERCENT
+    fee, gst, tds, total = _compute_invoice(body.base_amount, fee_pct, body.gst_percent, body.tds_percent)
+    obj = Invoice(tenant_id=_tid(ctx), business_unit_id=BU, application_id=body.application_id,
+                  client_id=client_id, base_amount=body.base_amount, fee_percent=fee_pct, fee_amount=fee,
+                  gst_percent=body.gst_percent, gst_amount=gst, tds_percent=body.tds_percent, tds_amount=tds,
+                  total_amount=total, status="draft")
+    db.add(obj)
+    db.flush()
+    write_audit(db, ctx, "invoice.create", "invoice", obj.id, after={"application_id": str(body.application_id)})
+    db.commit()
+    res = _inv_dict(obj)
+    store(str(ctx.tenant_id), idempotency_key, res)
+    return res
+
+
+@router.get("/invoices")
+def list_invoices(ctx: RequestContext = Depends(get_current_context), db: Session = Depends(get_db)):
+    """Invoices dashboard — tenant+BU scoped, with client + candidate names."""
+    _require_staff(ctx)
+    rows = db.execute(
+        select(Invoice, Candidate.full_name, Job.title)
+        .join(Application, Application.id == Invoice.application_id)
+        .join(Candidate, Candidate.id == Application.candidate_id)
+        .join(Job, Job.id == Application.job_id)
+        .where(Invoice.tenant_id == _tid(ctx), Invoice.business_unit_id == BU, Invoice.deleted_at.is_(None))
+        .order_by(Invoice.created_at.desc())
+    ).all()
+    return [{**_inv_dict(v), "candidate": name, "job": title} for v, name, title in rows]
+
+
+@router.patch("/invoices/{invoice_id}")
+def update_invoice(invoice_id: uuid.UUID, body: InvoiceUpdateIn,
+                   ctx: RequestContext = Depends(get_current_context), db: Session = Depends(get_db)):
+    """Update invoice status and/or supply GST/TDS rates (recomputes totals). Tax is
+    only ever applied from explicitly supplied rates — never assumed."""
+    _require_staff(ctx)
+    v = db.execute(select(Invoice).where(
+        Invoice.id == invoice_id, Invoice.tenant_id == _tid(ctx),
+        Invoice.business_unit_id == BU, Invoice.deleted_at.is_(None))).scalar_one_or_none()
+    if v is None:
+        raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "Invoice not found"})
+    before = {"status": v.status}
+    if body.gst_percent is not None or body.tds_percent is not None:
+        gst_pct = body.gst_percent if body.gst_percent is not None else (float(v.gst_percent) if v.gst_percent is not None else None)
+        tds_pct = body.tds_percent if body.tds_percent is not None else (float(v.tds_percent) if v.tds_percent is not None else None)
+        fee, gst, tds, total = _compute_invoice(float(v.base_amount), float(v.fee_percent), gst_pct, tds_pct)
+        v.gst_percent, v.gst_amount, v.tds_percent, v.tds_amount, v.total_amount = gst_pct, gst, tds_pct, tds, total
+    if body.status is not None:
+        v.status = body.status
+    db.flush()
+    write_audit(db, ctx, "invoice.update", "invoice", v.id, before=before, after={"status": v.status})
+    db.commit()
+    return _inv_dict(v)

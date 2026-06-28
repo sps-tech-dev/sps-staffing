@@ -92,6 +92,18 @@ Last refreshed: 2026-06-28.
 
 ### B3. audit_logs / consents append-only enforcement — ✅ RESOLVED (see Resolved section)
 
+### B5. Invoicing GST/TDS compliance specifics — await legal confirmation
+- **What:** the placement-invoice structure (`staffing.invoices`) is built — the **15% placement
+  fee is computed** (SPS business term, configurable per invoice). But **GST and TDS are NOT
+  hardcoded**: `gst_percent`/`tds_percent` are NULL by default and tax amounts are computed ONLY
+  when a rate is explicitly supplied. No statutory rate, rounding rule, place-of-supply / RCM logic,
+  HSN/SAC codes, invoice-numbering format, or retention rule is baked in.
+- **Why deferred:** GST/TDS rates + compliance specifics are a legal determination (ties to Q1
+  retention floor). Must not guess tax law.
+- **Blocks:** issuing compliant real invoices.
+- **Trigger:** legal confirms GST/TDS rates + invoice compliance rules → wire them as config
+  (per-tenant/region), add invoice numbering + PDF, then enable issuing real invoices.
+
 ### B4. Keep PII out of Redis — invariant to uphold (surfaced by the erasure data-map)
 - **What:** the export endpoint's Idempotency-Key caching was removed precisely so decrypted PII
   is never written to Redis. Current Redis use (idempotency for consent/register, sessions) holds

@@ -508,6 +508,14 @@ bottom of the dated sections. Updated at the end of **every** session.
 - **Tests: 78 pass** (+ schedule/outcome/dashboard, bad mode/status 422, staff-gate). Migration up/down/up clean.
 - **Status:** ✅ applied + deployed.
 
+### Staffing — Invoicing (structure only; configurable/stubbed tax) ✅
+- **Backend:** `staffing.invoices` (two-axis, FK→applications [placement] + clients). **15% placement fee computed** (`fee_percent` default 15 = SPS business term, configurable). **GST/TDS NOT hardcoded** — `gst_percent`/`tds_percent` NULL by default; tax computed ONLY when a rate is explicitly supplied (legal Q1). `base_amount`, `fee_amount`, `gst_amount`, `tds_amount`, `total_amount`, currency, status CHECK draft/issued/paid/cancelled. Endpoints (staff-gated, idempotent, audited): `POST /api/invoices`, `GET /api/invoices` (dashboard), `PATCH /api/invoices/{id}` (status + supply GST/TDS → recompute). Migration `0014`.
+- **Frontend:** `/employer/invoices` (fee/total view, GST/TDS rate inputs with a "rates await legal" banner, status) + "Generate invoice" on accepted offers + nav item.
+- **DDL (additive, two-axis, FK applications+clients):** see migration 0014. `fee_percent NUMERIC DEFAULT 15`; gst/tds percent+amount NULLable.
+- **Tests: 81 pass** (+ 15% fee, no-tax-until-supplied, GST/TDS recompute, custom fee%, staff-gate). Migration up/down/up clean.
+- **PENDING B5:** invoicing GST/TDS compliance specifics (rates, rounding, place-of-supply/RCM, HSN/SAC, numbering, PDF) await legal.
+- **Status:** ✅ applied + deployed (tax inert until legal-confirmed rates).
+
 ## Pending / next steps
 
 ➡️ **The canonical, durable register of ALL outstanding/deferred items is

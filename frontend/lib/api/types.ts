@@ -76,3 +76,10 @@ export interface Interview {
   interviewer_name: string | null; feedback: string | null; created_at: string | null;
   candidate?: string; job?: string;
 }
+export interface Invoice {
+  id: string; application_id: string; client_id: string | null;
+  base_amount: number | null; fee_percent: number | null; fee_amount: number | null;
+  gst_percent: number | null; gst_amount: number | null; tds_percent: number | null; tds_amount: number | null;
+  total_amount: number | null; currency: string; status: string; created_at: string | null;
+  candidate?: string; job?: string;
+}

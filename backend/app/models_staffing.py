@@ -186,3 +186,40 @@ class Interview(TwoAxisMixin, Base):
     status: Mapped[str] = mapped_column(sa.Text, nullable=False, server_default=sa.text("'scheduled'"))
     interviewer_name: Mapped[str | None] = mapped_column(sa.Text)
     feedback: Mapped[str | None] = mapped_column(sa.Text)
+
+
+# Invoice (Part 5): invoices(client_id, placement_id, amount, status). Placement =
+# the placed application (accepted offer). The 15% placement fee is the SPS business
+# term (configurable per invoice). GST/TDS are TAX rates that are NULL until legally
+# confirmed (PENDING — Q1); they are NEVER hardcoded/defaulted here.
+INVOICE_STATUSES = ("draft", "issued", "paid", "cancelled")
+_INV_SQL = ", ".join(f"'{s}'" for s in INVOICE_STATUSES)
+DEFAULT_FEE_PERCENT = 15  # SPS placement fee (business model), not a tax
+
+
+class Invoice(TwoAxisMixin, Base):
+    __tablename__ = "invoices"
+    __table_args__ = (
+        bu_check("invoices"),
+        sa.CheckConstraint(f"status IN ({_INV_SQL})", name="ck_invoices_status"),
+        sa.Index("ix_invoices_tenant_bu", "tenant_id", "business_unit_id"),
+        sa.Index("ix_invoices_client_id", "client_id"),
+        {"schema": SCHEMA},
+    )
+    application_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), sa.ForeignKey(f"{SCHEMA}.applications.id"), nullable=False
+    )  # the placement (placed application)
+    client_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), sa.ForeignKey(f"{SCHEMA}.clients.id")
+    )
+    base_amount: Mapped[float | None] = mapped_column(sa.Numeric)        # billing base (e.g. CTC)
+    fee_percent: Mapped[float] = mapped_column(sa.Numeric, nullable=False, server_default=sa.text("15"))
+    fee_amount: Mapped[float | None] = mapped_column(sa.Numeric)          # base * fee_percent
+    # TAX — configurable/stubbed; NULL until legal confirms rates (Q1). Not defaulted.
+    gst_percent: Mapped[float | None] = mapped_column(sa.Numeric)
+    gst_amount: Mapped[float | None] = mapped_column(sa.Numeric)
+    tds_percent: Mapped[float | None] = mapped_column(sa.Numeric)
+    tds_amount: Mapped[float | None] = mapped_column(sa.Numeric)
+    total_amount: Mapped[float | None] = mapped_column(sa.Numeric)
+    currency: Mapped[str] = mapped_column(sa.Text, nullable=False, server_default=sa.text("'INR'"))
+    status: Mapped[str] = mapped_column(sa.Text, nullable=False, server_default=sa.text("'draft'"))

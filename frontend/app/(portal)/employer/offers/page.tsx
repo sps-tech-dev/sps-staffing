@@ -3,8 +3,9 @@ import { AppShell } from "@/components/shell/app-shell";
 import { SectionCard } from "@/components/kit/section-card";
 import { EmptyState } from "@/components/kit/empty-state";
 import { Skeleton } from "@/components/kit/skeleton";
-import { useOffers, useUpdateOffer } from "@/lib/api/hooks";
-import { FileSignature, CheckCircle2 } from "lucide-react";
+import { useState } from "react";
+import { useOffers, useUpdateOffer, useCreateInvoice } from "@/lib/api/hooks";
+import { FileSignature, CheckCircle2, Receipt } from "lucide-react";
 
 const STATUSES = ["draft", "released", "accepted", "declined", "withdrawn"];
 const STATUS_STYLE: Record<string, string> = {
@@ -18,6 +19,8 @@ const STATUS_STYLE: Record<string, string> = {
 export default function OffersPage() {
   const { data, isLoading, isError, refetch } = useOffers();
   const update = useUpdateOffer();
+  const createInvoice = useCreateInvoice();
+  const [invoiced, setInvoiced] = useState<Record<string, boolean>>({});
 
   return (
     <AppShell role="client" title="Offers">
@@ -62,6 +65,15 @@ export default function OffersPage() {
                     {!o.rtr_signed_at && (
                       <button onClick={() => update.mutate({ id: o.id, rtr_signed: true })}
                         className="rounded-lg border border-cardline px-2 py-1 text-xs font-medium text-ink">Mark RTR signed</button>
+                    )}
+                    {o.status === "accepted" && o.ctc != null && (
+                      <button
+                        onClick={() => createInvoice.mutate({ application_id: o.application_id, base_amount: o.ctc! },
+                          { onSuccess: () => setInvoiced((m) => ({ ...m, [o.id]: true })) })}
+                        disabled={invoiced[o.id]}
+                        className="inline-flex items-center gap-1 rounded-lg bg-[#16A34A] px-2 py-1 text-xs font-semibold text-white disabled:opacity-50">
+                        <Receipt size={12} /> {invoiced[o.id] ? "Invoiced" : "Generate invoice"}
+                      </button>
                     )}
                   </div>
                 </div>

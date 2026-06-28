@@ -4,7 +4,7 @@ import { api } from "./client";
 import type {
   AdminCandidate, AdminClient, AdminJobRow, AiSummary, AuditRow, CandidateOverview,
   ConsentState, DpdpRequestRow, EmployeeOverview, EmployerOverview, FeatureFlags,
-  Interview, Job, JobPipeline, Offer, Paginated, PipelineRow, RegistrationConfig,
+  Interview, Invoice, Job, JobPipeline, Offer, Paginated, PipelineRow, RegistrationConfig,
   RegistrationResult, Submission,
 } from "./types";
 
@@ -203,6 +203,27 @@ export function useUpdateInterview() {
     mutationFn: ({ id, ...body }: { id: string; scheduled_at?: string; mode?: string; status?: string; interviewer_name?: string; feedback?: string }) =>
       api<Interview>(`/interviews/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["interviews"] }),
+  });
+}
+
+// ── Staffing workflow: invoices ─────────────────────────────────
+export function useInvoices() {
+  return useQuery({ queryKey: ["invoices"], queryFn: () => api<Invoice[]>("/invoices"), retry: false });
+}
+export function useCreateInvoice() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { application_id: string; base_amount: number; fee_percent?: number }) =>
+      api<Invoice>("/invoices", { method: "POST", body: JSON.stringify(body) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["invoices"] }),
+  });
+}
+export function useUpdateInvoice() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: { id: string; status?: string; gst_percent?: number; tds_percent?: number }) =>
+      api<Invoice>(`/invoices/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["invoices"] }),
   });
 }
 
