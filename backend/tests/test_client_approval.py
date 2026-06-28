@@ -100,6 +100,23 @@ def test_approve_links_activates_and_enables_client_login(env):
     assert claims.get("client_id") == client_id, "JWT must carry the bound client_id"
 
 
+def test_client_session_rejected_by_staff_and_admin_endpoints(env):
+    """A bound client session must NOT reach staff/admin endpoints (which are NOT
+    client-scoped) — else /employer/* etc. would leak tenant-wide data."""
+    sps, _ = env
+    req_id = _register()
+    a = _admin_client()
+    a.post(f"/api/admin/client-registrations/{req_id}/approve",
+           json={"create_new_client": True, "initial_password": CLIENT_PW}, headers=HOST)
+    cli = TestClient(app)  # persistent session → keeps the client cookie
+    assert cli.post("/api/auth/login", json={"email": CLIENT_EMAIL, "password": CLIENT_PW}, headers=HOST).status_code == 200
+    # staff endpoints (raw tenant-scoped, not client-scoped) → 403 for a client session
+    for path in ("/api/submissions", "/api/offers", "/api/interviews", "/api/invoices", "/api/vendors"):
+        assert cli.get(path, headers=HOST).status_code == 403, f"LEAK risk: client reached {path}"
+    assert cli.post("/api/jobs", json={"title": "x"}, headers=HOST).status_code == 403
+    assert cli.get("/api/admin/clients", headers=HOST).status_code == 403
+
+
 def test_reject_keeps_no_access(env):
     sps, _ = env
     req_id = _register()

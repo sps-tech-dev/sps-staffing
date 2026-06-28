@@ -4,7 +4,8 @@ import { api } from "./client";
 import type {
   AdminCandidate, AdminClient, AdminJobRow, AiSummary, AuditRow, CandidateOverview,
   ConsentState, DpdpRequestRow, EmployeeOverview, EmployerOverview, FeatureFlags,
-  ClientRegistration, Interview, Invoice, Job, JobPipeline, Offer, Paginated, PipelineRow,
+  ClientInterviewRow, ClientOfferRow, ClientOverview, ClientPipeline, ClientRegistration,
+  ClientSubmission, Interview, Invoice, Job, JobPipeline, Offer, Paginated, PipelineRow,
   RegistrationConfig, RegistrationResult, Submission, Vendor, VendorSubmission,
 } from "./types";
 
@@ -28,6 +29,42 @@ export function useEmployerOverview() {
     queryKey: ["employer", "overview"],
     queryFn: () => api<EmployerOverview>("/client-portal/overview"),
     retry: false,
+  });
+}
+
+// ── Client self-service portal (scoped to the session's client_id) ──
+export function useClientOverview() {
+  return useQuery({ queryKey: ["client", "overview"], queryFn: () => api<ClientOverview>("/client/overview"), retry: false });
+}
+export function useClientJobs() {
+  return useQuery({ queryKey: ["client", "jobs"], queryFn: () => api<Job[]>("/client/jobs"), retry: false });
+}
+export function useClientPipeline() {
+  return useQuery({ queryKey: ["client", "pipeline"], queryFn: () => api<ClientPipeline>("/client/pipeline"), retry: false });
+}
+export function useClientSubmissions() {
+  return useQuery({ queryKey: ["client", "submissions"], queryFn: () => api<ClientSubmission[]>("/client/submissions"), retry: false });
+}
+export function useClientInterviews() {
+  return useQuery({ queryKey: ["client", "interviews"], queryFn: () => api<ClientInterviewRow[]>("/client/interviews"), retry: false });
+}
+export function useClientOffers() {
+  return useQuery({ queryKey: ["client", "offers"], queryFn: () => api<ClientOfferRow[]>("/client/offers"), retry: false });
+}
+export function useClientSubmissionFeedback() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, decision, note }: { id: string; decision: "approve" | "reject"; note?: string }) =>
+      api(`/client/submissions/${id}/feedback`, { method: "POST", body: JSON.stringify({ decision, note }) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["client", "submissions"] }),
+  });
+}
+export function useClientPostJob() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { title: string; jd_text?: string; skills?: string[] }) =>
+      api<Job>("/client/jobs", { method: "POST", body: JSON.stringify(body) }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["client", "jobs"] }); qc.invalidateQueries({ queryKey: ["client", "overview"] }); },
   });
 }
 

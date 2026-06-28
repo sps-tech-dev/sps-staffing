@@ -43,7 +43,9 @@ TRANSITIONS = {
 
 
 def _require_staff(ctx: RequestContext):
-    if not (set(ctx.roles) & STAFF_ROLES):
+    # A client-portal session (client_id bound) is NEVER staff — it may use only the
+    # client-scoped /api/client/* endpoints, never these tenant-wide staff queries.
+    if ctx.client_id is not None or not (set(ctx.roles) & STAFF_ROLES):
         raise HTTPException(status_code=403, detail={"code": "FORBIDDEN", "message": "Staff role required"})
 
 

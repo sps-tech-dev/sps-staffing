@@ -37,7 +37,7 @@ def _sla(age_hours: float) -> str:
 
 @router.get("/overview")
 def employee_overview(ctx: RequestContext = Depends(get_current_context), db: Session = Depends(get_db)):
-    if not (set(ctx.roles) & STAFF_ROLES):
+    if ctx.client_id is not None or not (set(ctx.roles) & STAFF_ROLES):
         raise HTTPException(status_code=403, detail={"code": "FORBIDDEN", "message": "Staff role required"})
     tid = uuid.UUID(str(ctx.tenant_id))
     now = dt.datetime.now(dt.timezone.utc)

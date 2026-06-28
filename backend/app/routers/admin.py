@@ -35,7 +35,8 @@ ADMIN_ROLES = {"owner", "super_admin", "admin"}
 
 
 def _require_admin(ctx: RequestContext):
-    if not (set(ctx.roles) & ADMIN_ROLES):
+    # A client-portal session (client_id bound) is never an admin.
+    if ctx.client_id is not None or not (set(ctx.roles) & ADMIN_ROLES):
         raise HTTPException(status_code=403, detail={"code": "FORBIDDEN", "message": "Admin role required"})
 
 

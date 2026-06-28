@@ -554,6 +554,13 @@ bottom of the dated sections. Updated at the end of **every** session.
 - **Tests: 94 pass** (+ approve links+activates+enables client login [asserts JWT carries client_id, role=client, home=/client], reject keeps no access, non-admin 403). No new migration.
 - **Status:** ✅ applied + deployed.
 
+### Client Portal — Tasks 4+5: client login/auth + transparency portal ✅
+- **Task 4 (login + routing):** login mints `client_id` into the JWT from `active_client_binding` (role→`client`, home→`/client`). `deps` reads it; frontend middleware routes a bound client session to `/client` and **bounces it out of staff areas** (`/employer`,`/admin`). **Anti-leak hardening:** `_require_staff`/`_require_admin` + the employee hub now REJECT any session with `client_id` (a client can't reach the tenant-wide staff endpoints).
+- **Task 5 (client portal, strictly client-scoped):** new `app/routers/client_portal.py` mounted at `/api/client/*`, gated by `_require_client` (client_id required), every read through `TenantScopedRepo.base_query` (auto client-scoped): `GET /overview` (KPIs + funnel), `/jobs`, `/pipeline` (by stage), `/submissions` (candidate + stage), `/interviews`, `/offers`. Writes: `POST /submissions/{id}/feedback` (approve→shortlist / reject; target must be in the client's scope or 404), `POST /jobs` (client_id forced from session → recruiter queue). Audited.
+- **Frontend `/client/*`:** overview (KPIs/funnel/interviews/offers), submissions (approve/reject), jobs (list + post), pipeline (read board); `client` nav repointed to `/client`. Responsive, loading/empty/error.
+- **Tests: 99 pass** — incl. `test_client_portal` (client sees only own jobs/candidates, feedback only on own submission [other→404], post-job owned by client, non-client 403) and the **staff-endpoint rejection** of a client session. No new migration.
+- **Status:** ✅ applied + deployed.
+
 ## Pending / next steps
 
 ➡️ **The canonical, durable register of ALL outstanding/deferred items is

@@ -4,6 +4,7 @@ export interface Session {
   role: Role;
   name: string;
   tenantId?: string;
+  clientId?: string;   // set ONLY for a bound client-portal session (nested client scope)
 }
 
 /** Edge-safe base64url-decode of a JWT payload (no signature verify — that's the
@@ -32,12 +33,13 @@ export function readSessionFromCookie(token?: string): Session | null {
     role: p.role as Role,
     name: typeof p.name === "string" ? p.name : "",
     tenantId: typeof p.tenant_id === "string" ? p.tenant_id : undefined,
+    clientId: typeof p.client_id === "string" ? p.client_id : undefined,
   };
 }
 
 export const HOME_FOR: Record<Role, string> = {
   candidate: "/candidate",
-  client: "/employer",
+  client: "/client",
   employee: "/employee",
   admin: "/admin/dashboard",
 };

@@ -11,16 +11,14 @@ export const NAV: Record<Role, NavItem[]> = {
     { label: "Applications", href: "/candidate/applications", icon: ClipboardList },
     { label: "Privacy", href: "/privacy-rights", icon: ShieldCheck },
   ],
+  // External client self-service portal (role `client` + bound client_id). Strictly
+  // scoped to the client's own company; the legacy /employer/* staff tools are no
+  // longer linked from here.
   client: [
-    { label: "Overview", href: "/employer", icon: LayoutDashboard },
-    { label: "Jobs", href: "/employer/jobs", icon: Briefcase },
-    { label: "Pipeline", href: "/employer/pipeline", icon: KanbanSquare },
-    { label: "Submissions", href: "/employer/submissions", icon: Send },
-    { label: "Interviews", href: "/employer/interviews", icon: CalendarClock },
-    { label: "Offers", href: "/employer/offers", icon: FileSignature },
-    { label: "Invoices", href: "/employer/invoices", icon: Receipt },
-    { label: "Vendors", href: "/employer/vendors", icon: Building2 },
-    { label: "Candidates", href: "/employer/candidates", icon: Users },
+    { label: "Overview", href: "/client", icon: LayoutDashboard },
+    { label: "Jobs", href: "/client/jobs", icon: Briefcase },
+    { label: "Pipeline", href: "/client/pipeline", icon: KanbanSquare },
+    { label: "Submissions", href: "/client/submissions", icon: Send },
   ],
   employee: [
     { label: "Overview", href: "/employee", icon: LayoutDashboard },

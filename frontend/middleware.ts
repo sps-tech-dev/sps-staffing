@@ -4,6 +4,7 @@ import { readSessionFromCookie, type Role } from "@/lib/auth/session";
 // Unified login page (Slice 1). Role-specific login screens (/admin/login etc.)
 // arrive in later slices; for now everyone authenticates at /login.
 const NEED: { prefix: string; role: Role; login: string }[] = [
+  { prefix: "/client", role: "client", login: "/login?role=client" },
   { prefix: "/admin", role: "admin", login: "/login?role=admin" },
   { prefix: "/employer", role: "client", login: "/login?role=client" },
   { prefix: "/employee", role: "employee", login: "/login?role=employee" },
@@ -17,6 +18,12 @@ export function middleware(req: NextRequest) {
   if (!rule) return NextResponse.next();
   // Role is read from the httpOnly access-token JWT cookie set by the backend.
   const session = readSessionFromCookie(req.cookies.get("access_token")?.value);
+  // A bound client-portal session belongs ONLY in /client — bounce it out of staff areas
+  // (the backend also rejects client sessions on staff endpoints; this is the UX guard).
+  if (session?.clientId && rule.prefix !== "/client") {
+    const url = req.nextUrl.clone(); url.pathname = "/client"; url.search = "";
+    return NextResponse.redirect(url);
+  }
   if (session?.role === rule.role) return NextResponse.next();
   const url = req.nextUrl.clone();
   const [path, query] = rule.login.split("?");
@@ -24,5 +31,5 @@ export function middleware(req: NextRequest) {
   return NextResponse.redirect(url);
 }
 export const config = {
-  matcher: ["/admin/:path*", "/employer/:path*", "/employee/:path*", "/candidate/:path*", "/privacy-rights/:path*"],
+  matcher: ["/client/:path*", "/admin/:path*", "/employer/:path*", "/employee/:path*", "/candidate/:path*", "/privacy-rights/:path*"],
 };

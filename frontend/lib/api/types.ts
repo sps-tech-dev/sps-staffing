@@ -98,3 +98,14 @@ export interface ClientRegistration {
   email: string; phone: string | null; website: string | null; company_size: string | null;
   status: string; created_at: string | null;
 }
+export interface ClientOverview {
+  open_jobs: number; in_pipeline: number; interviews: number; offers: number;
+  funnel: { label: string; value: number }[];
+}
+export interface ClientSubmission {
+  id: string; status: string; client_feedback: string | null;
+  candidate: string | null; job: string | null; stage: string | null; created_at: string | null;
+}
+export interface ClientPipeline { stages: Record<string, { id: string; candidate: string; job: string; stage: string }[]>; }
+export interface ClientInterviewRow { id: string; scheduled_at: string | null; mode: string; status: string; candidate: string | null; }
+export interface ClientOfferRow { id: string; status: string; ctc: number | null; joining_date: string | null; candidate: string | null; }
