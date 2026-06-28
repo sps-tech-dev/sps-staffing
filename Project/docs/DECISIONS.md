@@ -266,3 +266,32 @@ Discovery surfaced internal inconsistencies in the architecture spec. Resolved a
 - **PROVEN:** `test_client_isolation.py` — within one tenant, Acme's client context cannot read Globex's
   jobs/applications/submissions/offers/interviews (both directions), a client cannot read across tenants, and a
   staff session is not client-restricted. **This gate passes before any portal UI was built.**
+
+### 2026-06-28 — Client-internal roles: owner-scoped jobs (manager↔manager) + HR-only offer-write
+- **Model:** within a client (already isolated by `tenant_id` + `client_id`), TWO client-user roles chosen at
+  user creation: **`client_admin` (HR)** — sees/manages ALL the client's jobs + full pipelines, the ONLY client
+  role that can WRITE offers (release offer + set joining date), invites teammates, reassigns a job's owner;
+  **`client_manager` (hiring manager)** — sees the FULL pipeline of ONLY their OWN posted jobs
+  (`owner_user_id = self`), no cross-manager visibility, offer card READ-ONLY (a released offer surfaces
+  read-only on their job). The approved self-registrant is the client's FIRST user → `client_admin` by default;
+  invited teammates get the role HR chooses.
+- **Two INDEPENDENT axes** (deliberately not conflated): **(a) row scope** — manager → `owner_user_id = self`,
+  HR → no owner filter; **(b) offer-write permission** — create/release/joining-date = `client_admin` only,
+  `client_manager` 403 on offer-WRITE / 200 on offer-READ. A manager is a fully valid client session (sees their
+  own pipeline) yet read-only on offers; HR is unrestricted on rows but the write-gate is a separate check.
+- **Enforced in ONE place each, not per-endpoint:** axis (a) in `TenantScopedRepo.base_query` (nests
+  `owner_user_id` under tenant→BU→client whenever `ctx.client_role == "client_manager"` AND the model has the
+  column); axis (b) in a single `_require_client_admin` dependency (reads `ctx.client_role` from the verified
+  JWT). Both derive from the JWT, minted from the active `client_users` row at login.
+- **`client_users.role`** (CHECK `client_admin`/`client_manager`, default `client_admin`) is the source of truth;
+  carried into the JWT (`active_client_binding` now returns `(client_id, role)`). **`owner_user_id`** is
+  **denormalized** onto jobs + applications/submissions/offers/interviews (mirrors the `client_id` denormalization)
+  so the base layer can owner-scope the WHOLE pipeline by a column filter — no join, can't be forgotten. Candidates
+  stay tenant-scoped (the pool is neither client- nor owner-owned). **Soft ref** to `shared.users` (no cross-schema FK).
+- **HR job reassignment** cascades `owner_user_id` onto the job's whole pipeline (so the new manager gains the full
+  view and the old one loses it); the new owner must be an active user of the same client; audited. A manager cannot
+  reassign (403).
+- **PROVEN before UI** (`test_client_owner_scoping.py`, 8 tests + dev E2E `scripts/e2e_client_roles.py`, 25/25):
+  manager A sees only own pipeline / B invisible both directions; HR sees all; manager 403 offer-write / 200 read;
+  HR releases → read-only on manager's job; HR reassign cascades / manager 403; cross-client + cross-tenant leakage
+  = NONE (existing gates still green). Full suite 107 pass.

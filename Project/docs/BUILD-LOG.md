@@ -567,6 +567,53 @@ bottom of the dated sections. Updated at the end of **every** session.
 - **Full backend suite: 99 pass** incl. all leakage tests (`test_client_isolation`, `test_client_portal`, staff-endpoint rejection, `test_tenant_isolation`).
 - **Status:** ✅ client self-service portal complete + leak-proof end-to-end on dev.
 
+### Client Portal — Task 7: client-internal roles (HR vs hiring manager) — owner-scoped jobs + HR-only offer-write ✅
+Two **client-user roles** nested INSIDE the existing tenant+client isolation (a third scoping
+level + an orthogonal permission gate). Set at user creation; carried in the JWT.
+- **Role model (see DECISIONS 2026-06-28):** `client_admin` (HR) — sees ALL the client's jobs +
+  full pipelines; the ONLY client role that can WRITE offers (release + joining date); invites
+  teammates; reassigns jobs. `client_manager` (hiring manager) — sees the FULL pipeline of ONLY
+  their OWN posted jobs (`owner_user_id = self`), no cross-manager visibility; offer card is
+  READ-ONLY. The approved self-registrant is the client's first user → `client_admin`.
+- **Two independent axes:** (a) **row scope** — `TenantScopedRepo.base_query` nests
+  `owner_user_id = self` for a `client_manager` (no owner filter for HR), under tenant→BU→client;
+  (b) **offer-write permission** — release / joining-date / team / reassign gated by
+  `_require_client_admin` (reads `ctx.client_role` from the JWT); manager → 403 on write, 200 on read.
+- **Backend:** `client_users.role` (CHECK `client_admin`/`client_manager`) carried into JWT via
+  `active_client_binding` → `_build_claims` (`client_role` claim) → `ctx.client_role` (deps) →
+  base_query + gate; `owner_user_id` denormalized onto jobs + applications/submissions/offers/
+  interviews (set by every creator: client post-job = poster; create_application = job's owner;
+  submission/offer/interview = application's owner). New `/api/client/*` endpoints (HR-only):
+  `POST /offers/{id}/release` (draft→released + joining date), `PATCH /offers/{id}/joining-date`,
+  `GET|POST /team` (roster + invite teammate w/ chosen role), `POST /jobs/{id}/reassign` (cascades
+  owner onto the whole pipeline; new owner must be an active user of this client; audited). `/me`
+  now returns `client_role`. `approve_client` stamps the first user `client_admin`.
+- **Migration `0019_client_roles_owner`** (applied via the dev pipeline; local up/down/idempotent clean):
+  - `ALTER TABLE shared.client_users ADD COLUMN role text NOT NULL DEFAULT 'client_admin';`
+  - `ALTER TABLE shared.client_users ADD CONSTRAINT ck_client_users_role CHECK (role IN ('client_admin','client_manager'));`
+  - for each of `staffing.{jobs,applications,submissions,offers,interviews}`:
+    `ADD COLUMN owner_user_id uuid NULL;` + `CREATE INDEX ix_<t>_owner_user_id ON staffing.<t>(owner_user_id);`
+  - backfill: `UPDATE staffing.applications a SET owner_user_id = j.owner_user_id FROM staffing.jobs j WHERE j.id = a.job_id;`
+    then submissions/offers/interviews `SET owner_user_id = a.owner_user_id FROM staffing.applications a WHERE a.id = x.application_id;`
+  - `owner_user_id` is a SOFT ref to `shared.users` (no cross-schema FK — same rule as `client_id`). Additive; reversible.
+- **Frontend:** `/client/offers` (HR-editable card — release draft + set/adjust joining date; manager
+  read-only), `/client/team` (HR: roster + invite teammate + per-job reassign; manager → "HR access
+  only" notice), nav items Offers + Team. `useClientMe()` drives the role-conditioned UI. Responsive,
+  loading/empty/error. tsc + eslint clean.
+- **THE GATE — `tests/test_client_owner_scoping.py` (8 tests) PASSES before UI:** manager A sees only
+  own pipeline / B invisible both directions; HR sees all; manager 403 offer-write + 200 read; HR
+  releases → manager sees read-only; HR reassign works + cascades, manager 403; reassign→non-member
+  422; team HR-only. Existing `test_client_isolation` (cross-client) + `test_tenant_isolation`
+  (cross-tenant) STILL pass. **Full backend suite: 107 pass.**
+- **E2E on dev RDS (2026-06-28, under `sps_app`):** `scripts/e2e_client_roles.py` via a one-off ECS
+  Fargate task (backend task def rev 40, image `c1b6fad`) — **25/25 PASS, exitCode 0**: owner-scoping
+  both ways (manager A↔B invisible), HR sees-all, offer-write gate (manager 403 / HR releases + sets
+  joining date), released-offer read-only on the owning manager's job, reassign cascade (old owner loses
+  it / new owner gains it), reassign→non-member 422, team HR-only, and cross-client + cross-tenant
+  leakage = NONE; probe artifacts cleaned up. Migration `0019` applied by the pipeline (migrate exitCode 0);
+  service stable; `/readyz` 200.
+- **Status:** ✅ owner-scoped jobs + HR-only offer-write proven leak-free on dev; applied + deployed.
+
 ## Pending / next steps
 
 ➡️ **The canonical, durable register of ALL outstanding/deferred items is

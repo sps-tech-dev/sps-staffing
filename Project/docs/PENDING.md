@@ -6,7 +6,7 @@ and must not silently skip any item here. When an item is resolved, move it to
 **Resolved** at the bottom with the date. When new deferrals happen, add them here
 (with: what / why deferred / what it blocks / trigger to pick up).
 
-Last refreshed: 2026-06-28.
+Last refreshed: 2026-06-28 (after client-internal roles / owner-scoped jobs — Task 7).
 
 ---
 
@@ -174,12 +174,18 @@ Last refreshed: 2026-06-28.
 
 ### D4. Client portal — follow-ups (non-blocking)
 - **What / why deferred:** (a) **client account activation** — admin currently sets an initial password on approval;
-  the real flow is an **invite link / set-password email** (no email infra yet). (b) **Legacy `/employer/*` staff
+  the real flow is an **invite link / set-password email** (no email infra yet). **Also applies to HR-invited
+  teammates** (Task 7): `POST /api/client/team` likewise sets an initial password inline — same invite-link/SES gap.
+  (b) **Legacy `/employer/*` staff
   screens** (the recruiter client-management tools built earlier) are no longer linked from the `client` nav (which now
   = the external client portal); give internal staff their own nav entry / role mapping. (c) Client **consent notices**
   reuse the stubbed `[LEGAL COPY TBD]` (tracked in A1) — no real-client onboarding until real wording + hCaptcha keys (A2).
-- **Blocks:** real client onboarding (pairs with A1 legal copy + A2 hCaptcha keys); polished staff UX.
-- **Trigger:** when adding email/invite infra; at real-user launch prep (with A1/A2); a staff-nav cleanup pass.
+  (d) **Client-role UI polish** (Task 7): the Offers + Team nav items render for BOTH client roles; a hiring manager
+  who opens Team sees an "HR access only" notice and the API enforces 403, but hiding the nav item for managers (needs
+  the role at the server-rendered nav layer, currently role-agnostic) is a nice-to-have.
+- **Blocks:** real client onboarding (pairs with A1 legal copy + A2 hCaptcha keys); polished staff/manager UX.
+- **Trigger:** when adding email/invite infra (covers HR teammate invites too); at real-user launch prep (with A1/A2);
+  a staff-nav cleanup pass.
 
 ### D3. Vendor management — depth beyond the core (follow-up)
 - **What:** core built — `staffing.vendors` + `staffing.vendor_submissions` (CRUD + attribution + status).
