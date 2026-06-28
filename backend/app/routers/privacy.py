@@ -21,6 +21,7 @@ from pydantic import BaseModel, field_validator
 from sqlalchemy import select
 from sqlalchemy.orm import Session, undefer
 
+from .. import erasure
 from ..audit import write_audit
 from ..context import RequestContext
 from ..db import get_db
@@ -171,18 +172,43 @@ def export_data(ctx: RequestContext = Depends(get_current_context), db: Session 
 @router.post("/erase")
 def request_erasure(ctx: RequestContext = Depends(get_current_context), db: Session = Depends(get_db),
                     idempotency_key: str | None = Header(default=None)):
-    """Right to erasure — RECORD a request (status=pending). Execution is not
-    performed here (needs a reviewed cascade/redaction policy)."""
+    """Right to erasure (Stage 1). DISABLE immediately (soft-delete the principal's
+    candidates), then: legal-hold → exempt (manual approval required); otherwise
+    AUTO-APPROVE → anonymize irreversibly → retain de-identified records → audit."""
     uid = _uid(ctx)
     if (cached := get_cached(str(ctx.tenant_id), idempotency_key)):
         return cached
-    req = DpdpRequest(tenant_id=_tid(ctx), subject_user_id=uid, kind="erasure", status="pending",
-                      detail={"note": "Recorded; manual review + execution pending (mechanism only)."})
+    user = db.execute(select(User).where(User.id == uid, User.tenant_id == _tid(ctx))).scalar_one_or_none()
+    if user is None:
+        raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "User not found"})
+
+    req = DpdpRequest(tenant_id=_tid(ctx), subject_user_id=uid, kind="erasure", status=erasure.PENDING,
+                      detail={"note": "disable-on-request; anonymize-on-approval (Stage 1)"})
     db.add(req)
     db.flush()
-    write_audit(db, ctx, "dpdp.erasure_requested", "dpdp_request", req.id)
+
+    # 1) disable immediately (reversible window) — before/independent of anonymization
+    disabled = erasure.soft_delete_candidates(db, ctx, user.email)
+    write_audit(db, ctx, "dpdp.erasure_requested", "dpdp_request", req.id,
+                after={"candidates_disabled": disabled})
+
+    # 2) legal-hold gate — held requests are EXEMPT and need explicit manual approval
+    if erasure.under_legal_hold(db, ctx, user):
+        req.legal_hold = True
+        req.status = erasure.LEGAL_HOLD
+        db.commit()
+        res = {"request_id": str(req.id), "kind": "erasure", "status": req.status,
+               "candidates_disabled": disabled, "legal_hold": True}
+        store(str(ctx.tenant_id), idempotency_key, res)
+        return res
+
+    # 3) normal → auto-approve (explicit transition) → anonymize
+    req.status = erasure.APPROVED
+    db.flush()
+    summary = erasure.run_erasure(db, ctx, req, user)
     db.commit()
-    res = {"request_id": str(req.id), "kind": "erasure", "status": "pending"}
+    res = {"request_id": str(req.id), "kind": "erasure", "status": req.status,
+           "candidates_disabled": disabled, "summary": summary}
     store(str(ctx.tenant_id), idempotency_key, res)
     return res
 

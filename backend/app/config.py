@@ -49,6 +49,10 @@ class Settings(BaseSettings):
     hcaptcha_secret: str = ""           # HCAPTCHA_SECRET
     hcaptcha_sitekey: str = ""          # HCAPTCHA_SITEKEY (public; client widget)
 
+    # DPDP erasure auto-purge retention period (days). DELIBERATELY None — auto-purge
+    # is a STUB pending legally-confirmed retention periods (GST/TDS/DPDP). Never guess.
+    dpdp_retention_days: int | None = None   # DPDP_RETENTION_DAYS
+
     @property
     def database_url(self) -> str:
         return (f"postgresql+psycopg://{self.db_user}:{self.db_password}"

@@ -479,6 +479,17 @@ bottom of the dated sections. Updated at the end of **every** session.
 - **Read/decrypt only:** no new migration/grant. **64 tests pass** (+ decrypted-PII export + audit, A/B isolation).
 - **Status:** ✅ built + locally verified; deploying + dev smoke (export path under `sps_app` via one-off task, since dev has no login).
 
+### DPDP erasure engine — Stage 1 (disable + anonymize + audit + approval gate) ✅
+- **Model (ratified, DECISIONS):** hybrid — disable-on-request → approval-gate → anonymize → retain de-identified records → (LATER) auto-purge. Stage 1 = everything except auto-purge.
+- **Flow:** `POST /api/privacy/erase` soft-deletes the principal's candidates immediately (instant access loss), then legal-hold → exempt (manual approval) else auto-approve → **anonymize** (full_name→[erased], email/phone_enc/pan_enc null, **phone_bidx/pan_bidx cleared**, search_doc/source/resume_s3_key null; user disabled+anonymized) → append-only `dpdp.erasure_executed` audit → request `completed`.
+- **Admin manual gate:** `/api/admin/erasure-requests` list + `/approve` /`/reject` /`/legal-hold` (admin-gated). `run_erasure` asserts the `approved` transition.
+- **Retain (untouched):** consents, audit_logs (append-only — sps_app can't delete), dpdp_requests; applications de-identified transitively. S3 resume delete wired but inert (no keys yet; C5).
+- **Auto-purge:** INERT STUB (`auto_purge_due_requests`) — reads `dpdp_retention_days` (None), deletes nothing; activation gated on legal Q1/Q3/Q5/Q6/Q7 (PENDING B1).
+- **Migration 0010:** `dpdp_requests.legal_hold` + expanded status CHECK. Local up→down→up clean. STOP-1 DDL shown + approved.
+- **Runs as `sps_app`** (UPDATE candidates/users + INSERT audit; never UPDATE/DELETE append-only).
+- **Tests: 69 pass** (anonymize + blind-index clearing, retention, audit, legal-hold gate, approved-gate, purge no-op).
+- **Status:** ✅ built + locally verified; applying 0010 + deploying.
+
 ## Pending / next steps
 
 ➡️ **The canonical, durable register of ALL outstanding/deferred items is

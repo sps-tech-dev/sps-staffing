@@ -164,8 +164,10 @@ class DpdpRequest(Base):
     __tablename__ = "dpdp_requests"
     __table_args__ = (
         sa.CheckConstraint("kind IN ('export','erasure')", name="ck_dpdp_requests_kind"),
+        # Erasure state machine (Stage 1): pending → approved → processing → completed,
+        # plus rejected and legal_hold (exemption). See DECISIONS / erasure.py.
         sa.CheckConstraint(
-            "status IN ('pending','processing','completed','rejected')",
+            "status IN ('pending','approved','processing','completed','rejected','legal_hold')",
             name="ck_dpdp_requests_status",
         ),
         {"schema": SCHEMA},
@@ -180,6 +182,9 @@ class DpdpRequest(Base):
     )
     kind: Mapped[str] = mapped_column(sa.Text, nullable=False)
     status: Mapped[str] = mapped_column(sa.Text, nullable=False, server_default=sa.text("'pending'"))
+    # First-class legal-hold flag: a held request is exempt from processing and needs
+    # explicit manual approval (open legal Q5 defines when this is set).
+    legal_hold: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, server_default=sa.text("false"))
     detail: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     created_at: Mapped[datetime.datetime] = mapped_column(
         sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False

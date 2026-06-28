@@ -13,10 +13,11 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from .. import erasure
 from ..context import RequestContext
 from ..db import get_db
 from ..deps import get_current_context
-from ..models import AuditLog
+from ..models import AuditLog, DpdpRequest, User
 from ..models_staffing import Candidate, Client, Job
 
 router = APIRouter()
@@ -94,3 +95,76 @@ def audit_logs(limit: int = Query(50, le=200), offset: int = 0,
         "entity_id": str(r[0].entity_id) if r[0].entity_id else None,
         "actor_id": str(r[0].actor_id) if r[0].actor_id else None,
         "ts": r[0].ts.isoformat() if r[0].ts else None})
+
+
+# ── DPDP erasure manual gate (admin) ─────────────────────────────
+def _req_dict(r: DpdpRequest) -> dict:
+    return {"id": str(r.id), "kind": r.kind, "status": r.status, "legal_hold": r.legal_hold,
+            "subject_user_id": str(r.subject_user_id),
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+            "completed_at": r.completed_at.isoformat() if r.completed_at else None}
+
+
+def _load_erasure(db, ctx, request_id: uuid.UUID) -> DpdpRequest:
+    r = db.execute(select(DpdpRequest).where(
+        DpdpRequest.id == request_id, DpdpRequest.tenant_id == _tid(ctx),
+        DpdpRequest.kind == "erasure")).scalar_one_or_none()
+    if r is None:
+        raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "Erasure request not found"})
+    return r
+
+
+@router.get("/erasure-requests")
+def erasure_requests(limit: int = Query(50, le=200), offset: int = 0,
+                     ctx: RequestContext = Depends(get_current_context), db: Session = Depends(get_db)):
+    _require_admin(ctx)
+    where = [DpdpRequest.tenant_id == _tid(ctx), DpdpRequest.kind == "erasure"]
+    base = select(DpdpRequest).where(*where).order_by(DpdpRequest.created_at.desc())
+    cnt = select(func.count()).select_from(DpdpRequest).where(*where)
+    return _page(db, base, cnt, limit, offset, lambda r: _req_dict(r[0]))
+
+
+@router.post("/erasure-requests/{request_id}/legal-hold")
+def flag_legal_hold(request_id: uuid.UUID, ctx: RequestContext = Depends(get_current_context),
+                    db: Session = Depends(get_db)):
+    """Flag a request as legal-hold — exempt from processing until manual approval."""
+    _require_admin(ctx)
+    r = _load_erasure(db, ctx, request_id)
+    if r.status in (erasure.COMPLETED, erasure.REJECTED):
+        raise HTTPException(status_code=409, detail={"code": "INVALID_STATE", "message": f"Cannot hold a {r.status} request"})
+    r.legal_hold = True
+    r.status = erasure.LEGAL_HOLD
+    db.commit()
+    return _req_dict(r)
+
+
+@router.post("/erasure-requests/{request_id}/approve")
+def approve_erasure(request_id: uuid.UUID, ctx: RequestContext = Depends(get_current_context),
+                    db: Session = Depends(get_db)):
+    """Explicit manual approval → anonymize. Works for pending or legal_hold (this IS
+    the explicit approval that clears the hold). No-op-safe on already-completed."""
+    _require_admin(ctx)
+    r = _load_erasure(db, ctx, request_id)
+    if r.status in (erasure.COMPLETED, erasure.REJECTED):
+        raise HTTPException(status_code=409, detail={"code": "INVALID_STATE", "message": f"Request already {r.status}"})
+    user = db.execute(select(User).where(User.id == r.subject_user_id)).scalar_one_or_none()
+    if user is None:
+        raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "Subject user not found"})
+    r.legal_hold = False
+    r.status = erasure.APPROVED
+    db.flush()
+    summary = erasure.run_erasure(db, ctx, r, user)
+    db.commit()
+    return {**_req_dict(r), "summary": summary}
+
+
+@router.post("/erasure-requests/{request_id}/reject")
+def reject_erasure(request_id: uuid.UUID, ctx: RequestContext = Depends(get_current_context),
+                   db: Session = Depends(get_db)):
+    _require_admin(ctx)
+    r = _load_erasure(db, ctx, request_id)
+    if r.status in (erasure.COMPLETED, erasure.REJECTED):
+        raise HTTPException(status_code=409, detail={"code": "INVALID_STATE", "message": f"Request already {r.status}"})
+    r.status = erasure.REJECTED
+    db.commit()
+    return _req_dict(r)

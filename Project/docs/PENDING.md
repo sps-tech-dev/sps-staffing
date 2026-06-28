@@ -50,11 +50,30 @@ Last refreshed: 2026-06-28.
 
 ## B. DPDP / compliance follow-ups
 
-### B1. DPDP erasure execution engine — DESIGN DONE; execution BLOCKED on legal decisions
-- **What:** `POST /api/privacy/erase` records a `pending` `dpdp_requests` row only; there is NO
-  deletion/anonymization cascade. The **design + PII data-map is complete** (2026-06-28, proposed
-  in chat) — but **NO execution code may be built** until the open legal questions below are decided.
-- **PII data map (what an erasure must reach):** `staffing.candidates` (full_name, email,
+### B1. DPDP erasure engine — STAGE 1 BUILT; auto-purge STUBBED pending legal retention periods
+- **Status (2026-06-28):** **Stage 1 BUILT + live** — disable-on-request (soft-delete) → approval
+  gate (auto-approve normal; `legal_hold` exempt + manual approval) → **anonymize** irreversibly
+  (incl. **clearing `*_bidx` blind indexes**) → retain de-identified records → append-only
+  `dpdp.erasure_executed` audit. Code: `app/erasure.py`, `app/routers/privacy.py` (erase),
+  `app/routers/admin.py` (`/erasure-requests` list/approve/reject/legal-hold), migration `0010`
+  (`legal_hold` + state machine). Model ratified in DECISIONS.
+- **AUTO-PURGE = INERT STUB:** `erasure.auto_purge_due_requests` reads `settings.dpdp_retention_days`
+  (deliberately `None`) and **deletes NOTHING** (logs "pending legal retention-period determination").
+  **Do NOT implement a timed hard-delete on a guessed period.** Activation is gated on the legal
+  questions below.
+- **Remaining OPEN legal questions — gate auto-purge activation + full real-user go-live** (Q2
+  delete-vs-anonymize and Q4 users were RATIFIED → hybrid anonymize/disable; the rest remain open;
+  each trigger = "decide before activating auto-purge / opening real erasure"):
+  - **Q1 Retention floor:** which records/periods are legally retention-required (GST/TDS, placement/
+    invoice, statutory) and must survive — and for how long (the number auto-purge needs)?
+  - **Q3 audit_logs identifiers:** retaining `actor_id`/`entity_id` in the immutable log is acceptable
+    under DPDP, or must we pseudonymize identifiers at write-time going forward?
+  - **Q5 Legal-hold rule:** what defines an account under hold/dispute (so `under_legal_hold` can
+    return True instead of the current always-False stub)?
+  - **Q6 SLA:** required fulfilment SLA (e.g. 30 days) + is a human approval gate mandatory for normal
+    erasures (today normal = auto-approved)?
+  - **Q7 Consent records:** retain consent history (proof of lawful basis) after erasure, or purge?
+- **Reference — PII data map (what an erasure must reach):** `staffing.candidates` (full_name, email,
   `phone_enc`/`pan_enc`, **`phone_bidx`/`pan_bidx`** pseudonymous identifiers, skills, `resume_s3_key`,
   `source`, `search_doc`, soft-delete `deleted_at`); `staffing.applications` (candidate↔job linkage +
   placement record); `shared.consents` (subject linkage + consent history); `shared.audit_logs`
@@ -62,28 +81,12 @@ Last refreshed: 2026-06-28.
   CANNOT delete → audit erasure is impossible-by-design**); `shared.users` (email/full_name/
   password_hash — if the person has a login); **S3 resume objects** under `resume_s3_key`;
   `shared.dpdp_requests` (the erasure-request record itself — retain as proof).
-- **Newly-surfaced gaps (see also C5, B4):** S3 resume deletion path; blind-index (`*_bidx`)
-  clearing on anonymize; `search_doc` PII risk once FTS is populated; the audit append-only
-  implication above.
-- **Open legal questions — DECIDE BEFORE BUILDING ERASURE EXECUTION (each trigger = "decide before
-  building erasure execution"):**
-  1. **Retention floor:** which records are legally retention-required (GST/TDS financial,
-     placement/invoice records, statutory periods) and must survive erasure?
-  2. **Delete vs anonymize** per category: hard-delete the candidate, or anonymize (sever PII,
-     keep de-identified application/placement rows for compliance)? Default proposal = anonymize
-     where retention applies, hard-delete the rest — needs your ratification.
-  3. **audit_logs:** confirm audit entries are RETAINED (append-only, can't be deleted by the app) —
-     is retaining `actor_id`/`entity_id` (person identifiers) in an immutable log acceptable under
-     DPDP, or must we tokenize/pseudonymize identifiers at write-time going forward?
-  4. **`shared.users`:** if the principal has a login account, delete it or disable+anonymize?
-  5. **Legal hold:** how are accounts under active legal hold / dispute exempted from erasure?
-  6. **SLA & approval:** is a human review/approval gate required before an erasure executes, and
-     what fulfilment SLA (e.g. 30 days) applies?
-  7. **Consent records:** retain consent history (proof of lawful basis) even after erasure, or purge?
-- **Blocks:** fulfilling real erasure requests (and therefore real-user launch readiness for the
-  right-to-erasure obligation).
-- **Trigger:** user + legal answer the questions above → then build the cascade (approval gate →
-  soft-delete/anonymize → S3 purge → audited erasure record), reviewed before any RDS run.
+- **Retained-untouched (Stage 1):** `consents`, `audit_logs` (append-only — can't delete), `dpdp_requests`;
+  `applications` retained de-identified transitively. **S3 resume objects:** delete is wired but inert
+  (no upload code/keys yet → no-op; needs `s3:DeleteObject` grant + bucket-cfg fix, see C5).
+- **Blocks:** auto-purge activation + full real-user erasure go-live (the Q1/Q3/Q5/Q6/Q7 answers).
+- **Trigger:** legal answers the open questions → then activate auto-purge (set retention period +
+  implement the timed purge, reviewed before any RDS run) and tighten the legal-hold rule / SLA.
 
 ### B2. DPDP export completion — ✅ RESOLVED (see Resolved section)
 

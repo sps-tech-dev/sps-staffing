@@ -213,3 +213,30 @@ Discovery surfaced internal inconsistencies in the architecture spec. Resolved a
   PII in Redis. Each call re-derives + re-audits (a legitimate, separately-logged disclosure).
 - **Would change if:** export grows large (then stream/async + a download artifact in S3 with
   short-lived signed URLs, still audited).
+
+### 2026-06-28 — DPDP erasure model: hybrid disable→anonymize→retain→(later)purge, with approval gate (RATIFIED)
+- **Decision (user-ratified):** erasure is **hybrid** — (1) **disable immediately** (soft-delete the
+  candidate at request time = instant access loss, reversible window); (2) on an **approved**
+  transition, **anonymize** personal data **irreversibly** (scrub PII incl. clearing the `*_bidx`
+  blind indexes — they are stable pseudonymous identifiers); (3) **retain de-identified**
+  legally-required records (applications/placement; consents as proof of lawful basis; audit_logs);
+  (4) **auto-purge** anonymized records after the statutory retention period — **LATER / STUB ONLY**,
+  blocked on legal retention numbers (GST/TDS/DPDP); (5) **approval gate** — normal erasure may be
+  **auto-approved**, but any request flagged **legal_hold** requires **explicit manual approval** and
+  is **exempt from processing**.
+- **State machine:** `pending → approved → processing → completed`, plus `rejected` and `legal_hold`
+  (exemption). `legal_hold` is a first-class boolean field on the request. Anonymization runs ONLY
+  after an explicit `approved` transition (gate enforced in code).
+- **What is scrubbed (anonymize):** `candidates` — `full_name`→`[erased]` (NOT NULL), `email`,
+  `phone_enc`, `pan_enc`, **`phone_bidx`/`pan_bidx` cleared**, `search_doc`, `source`, `resume_s3_key`
+  (after S3 object delete); the row is RETAINED for FK integrity. `users` (if a login exists) —
+  disable + anonymize (tombstone email, unusable password_hash, status=`erased`), NOT hard-deleted.
+- **What is retained (untouched):** `consents` (lawful-basis proof, pending legal Q7), `audit_logs`
+  (append-only; `sps_app` physically can't delete — retained by design), `dpdp_requests` (proof of
+  erasure). `applications` retained but de-identified transitively (no PII columns; point to the
+  anonymized candidate).
+- **Auto-purge = inert stub:** reads `settings.dpdp_retention_days` (deliberately `None`); logs
+  "pending legal retention-period determination" and deletes NOTHING. **No timed hard-delete on a
+  guessed period under any circumstances.**
+- **Role:** anonymization runs through `sps_app` — UPDATE candidates/users/dpdp_requests + INSERT
+  audit (allowed); never UPDATE/DELETE audit_logs/consents (append-only holds).

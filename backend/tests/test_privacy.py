@@ -129,10 +129,12 @@ def test_export_isolation_only_own_pii(subject):
     db.execute(delete(User).where(User.id == b.id)); db.commit(); db.close()
 
 
-def test_erasure_records_pending_request(subject):
+def test_erasure_request_auto_completes_stage1(subject):
+    # Stage 1: a normal erasure auto-approves → completed (full anonymize flow is
+    # covered in test_erasure.py). Here just confirm the request is recorded + final.
     c = TestClient(app); _login(c)
     r = c.post("/api/privacy/erase", headers=HOST)
     assert r.status_code == 200, r.text
-    assert r.json()["kind"] == "erasure" and r.json()["status"] == "pending"
+    assert r.json()["kind"] == "erasure" and r.json()["status"] == "completed"
     items = c.get("/api/privacy/requests", headers=HOST).json()["items"]
-    assert any(i["kind"] == "erasure" and i["status"] == "pending" for i in items)
+    assert any(i["kind"] == "erasure" for i in items)
