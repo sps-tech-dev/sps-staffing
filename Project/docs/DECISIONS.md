@@ -3,6 +3,9 @@
 Short, dated records of key decisions: **what** was decided, **why**, and **what
 would change it**. Newest at the bottom.
 
+> 📌 **Outstanding/deferred work lives in [`docs/PENDING.md`](PENDING.md)** — the single
+> source of truth for everything not yet done. Read it each session; do not skip its items.
+
 ---
 
 ### 2026-06-26 — GoDaddy DNS over Route 53

@@ -463,19 +463,10 @@ bottom of the dated sections. Updated at the end of **every** session.
 - **Status:** ✅ deployed + RDS-live + live-verified. Real signups blocked until STOP-3 (consent wording) + STOP-4 (hCaptcha keys) are resolved.
 
 ## Pending / next steps
-- [ ] **DPDP export should include the principal's own PII** (phone/pan) once app-layer encryption lands (currently omitted).
-- [ ] **Erasure execution** — build the reviewed cascade/redaction that fulfils a `pending` erasure request (mechanism records only today).
-- [ ] **Real DPDP/consent legal copy** — replace `[LEGAL COPY TBD]` + bump `policy_version` before any real-user launch (STOP-3).
-- [ ] **Marketing SSG-per-locale (SEO)** — move marketing under `app/[locale]/` with `hreflang` when SEO demands it (currently cookie-based, dynamically rendered).
-- [ ] **DKIM CNAMEs** for Microsoft 365 (email migration not fully complete).
-- [ ] **audit_logs INSERT-only DB role** — enforce append-only at the DB (revoke UPDATE/DELETE); currently convention-only in app code.
-- [ ] **Backend lockfile migration** — switch to `use_lockfile = true`, then delete the `sps-staffing-tflock` DynamoDB table.
-- [ ] **GST tax number** — add to AWS account tax settings.
-- [ ] **PII encryption (HARD BLOCKER)** — encrypt/tokenize `candidates.pan`/`phone` (+ future Aadhaar) at the app layer (Part 10) **before** the candidate-registration slice stores real PII. Plaintext columns now; no real data yet.
-- [ ] **Deployed-dev real login** (STOP-4) — JWT secret → Secrets Manager + ECS task-def `secrets` + execution-role IAM grant + `COOKIE_SECURE=true` + activate a dev user. Local loop does real logins meanwhile; revisit before any UAT/stakeholder demo on dev-api.
-- [ ] **audit_logs append-only enforcement** — create a restricted app DB role with INSERT-only grant on the audit tables (currently convention-only; structure is in place, grants deferred per decision B).
-- [x] **Security groups** — alb / ecs / rds / redis. ✅ Applied.
-- [x] **RDS** (PostgreSQL) in private-data subnets. ✅ Applied.
-- [x] **Redis** (ElastiCache) in private-data subnets. ✅ Applied.
-- [x] **ECS Fargate** services in private-app subnets. ✅ Applied (backend live).
-- [x] **ALB** in public subnets. ✅ Applied (HTTP:80; HTTPS+ACM still pending).
+
+➡️ **The canonical, durable register of ALL outstanding/deferred items is
+[`docs/PENDING.md`](PENDING.md)** — read it each session before assuming anything is
+done. (This list is no longer maintained here to avoid two diverging copies.)
+
+Infra already applied: security groups, RDS, Redis, ECS Fargate (backend live), ALB +
+HTTPS/ACM (dev-api serves HTTPS).
