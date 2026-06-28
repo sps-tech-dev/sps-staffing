@@ -7,17 +7,18 @@ import { AppShell } from "@/components/shell/app-shell";
 import { SectionCard } from "@/components/kit/section-card";
 import { EmptyState } from "@/components/kit/empty-state";
 import { Skeleton } from "@/components/kit/skeleton";
-import { useJobs, useJobPipeline, useChangeStage, useCreateSubmission, useCreateOffer } from "@/lib/api/hooks";
+import { useJobs, useJobPipeline, useChangeStage, useCreateSubmission, useCreateOffer, useCreateInterview } from "@/lib/api/hooks";
 import { AiInsightsCard } from "@/components/ai/ai-insights-card";
 import type { PipelineRow } from "@/lib/api/types";
-import { KanbanSquare, Send, FileSignature } from "lucide-react";
+import { KanbanSquare, Send, FileSignature, CalendarClock } from "lucide-react";
 
 // Active pipeline columns (Part 5). Drag a candidate card between columns to move
 // its stage; illegal transitions are rejected by the server (409) and revert.
 const COLUMNS = ["sourced", "screened", "assessed", "submitted", "interview", "offer", "placed"];
 
-function Card({ row, onSubmit, onOffer, busy }: {
-  row: PipelineRow; onSubmit: (appId: string) => void; onOffer: (appId: string) => void; busy: boolean;
+function Card({ row, onSubmit, onOffer, onInterview, busy }: {
+  row: PipelineRow; onSubmit: (id: string) => void; onOffer: (id: string) => void;
+  onInterview: (id: string) => void; busy: boolean;
 }) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: row.id, data: { stage: row.stage } });
   return (
@@ -27,13 +28,15 @@ function Card({ row, onSubmit, onOffer, busy }: {
       </div>
       <div className="mt-1 flex flex-wrap gap-2">
         <button type="button" onPointerDown={(e) => e.stopPropagation()} onClick={() => onSubmit(row.id)} disabled={busy}
-          className="inline-flex items-center gap-1 text-[11px] font-medium text-[#1B5FE8] hover:underline disabled:opacity-50"
-          title="Submit this candidate to the client">
+          className="inline-flex items-center gap-1 text-[11px] font-medium text-[#1B5FE8] hover:underline disabled:opacity-50" title="Submit to client">
           <Send size={11} /> Submit
         </button>
+        <button type="button" onPointerDown={(e) => e.stopPropagation()} onClick={() => onInterview(row.id)} disabled={busy}
+          className="inline-flex items-center gap-1 text-[11px] font-medium text-[#7C3AED] hover:underline disabled:opacity-50" title="Schedule an interview">
+          <CalendarClock size={11} /> Interview
+        </button>
         <button type="button" onPointerDown={(e) => e.stopPropagation()} onClick={() => onOffer(row.id)} disabled={busy}
-          className="inline-flex items-center gap-1 text-[11px] font-medium text-[#16A34A] hover:underline disabled:opacity-50"
-          title="Create a draft offer for this candidate">
+          className="inline-flex items-center gap-1 text-[11px] font-medium text-[#16A34A] hover:underline disabled:opacity-50" title="Create a draft offer">
           <FileSignature size={11} /> Offer
         </button>
       </div>
@@ -41,8 +44,9 @@ function Card({ row, onSubmit, onOffer, busy }: {
   );
 }
 
-function Column({ stage, rows, onSubmit, onOffer, busy }: {
-  stage: string; rows: PipelineRow[]; onSubmit: (appId: string) => void; onOffer: (appId: string) => void; busy: boolean;
+function Column({ stage, rows, onSubmit, onOffer, onInterview, busy }: {
+  stage: string; rows: PipelineRow[]; onSubmit: (id: string) => void; onOffer: (id: string) => void;
+  onInterview: (id: string) => void; busy: boolean;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: stage });
   return (
@@ -54,7 +58,7 @@ function Column({ stage, rows, onSubmit, onOffer, busy }: {
       </div>
       <div className="space-y-2">
         {rows.length === 0 ? <p className="py-3 text-center text-xs text-muted">—</p>
-          : rows.map((r) => <Card key={r.id} row={r} onSubmit={onSubmit} onOffer={onOffer} busy={busy} />)}
+          : rows.map((r) => <Card key={r.id} row={r} onSubmit={onSubmit} onOffer={onOffer} onInterview={onInterview} busy={busy} />)}
       </div>
     </div>
   );
@@ -70,8 +74,17 @@ export default function PipelinePage() {
   const changeStage = useChangeStage(jobId);
   const createSub = useCreateSubmission();
   const createOffer = useCreateOffer();
+  const createInterview = useCreateInterview();
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+
+  function onScheduleInterview(appId: string) {
+    setNotice(null); setError(null);
+    createInterview.mutate(appId, {
+      onSuccess: () => setNotice("Interview created. Set the time/mode under Interviews."),
+      onError: () => setError("Couldn't schedule the interview — please retry."),
+    });
+  }
 
   function onSubmitToClient(appId: string) {
     setNotice(null); setError(null);
@@ -130,8 +143,8 @@ export default function PipelinePage() {
               <div className="grid grid-flow-col auto-cols-[minmax(180px,1fr)] gap-3 overflow-x-auto pb-2 xl:grid-flow-row xl:grid-cols-7">
                 {COLUMNS.map((stage) => (
                   <Column key={stage} stage={stage} rows={pipe.stages[stage] ?? []}
-                          onSubmit={onSubmitToClient} onOffer={onMakeOffer}
-                          busy={createSub.isPending || createOffer.isPending} />
+                          onSubmit={onSubmitToClient} onOffer={onMakeOffer} onInterview={onScheduleInterview}
+                          busy={createSub.isPending || createOffer.isPending || createInterview.isPending} />
                 ))}
               </div>
             </DndContext>

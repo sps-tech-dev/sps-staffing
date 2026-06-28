@@ -1,4 +1,4 @@
-import { LayoutDashboard, Briefcase, Users, FileText, ClipboardList, ShieldCheck, Building2, GraduationCap, KanbanSquare, Timer, Send, FileSignature } from "lucide-react";
+import { LayoutDashboard, Briefcase, Users, FileText, ClipboardList, ShieldCheck, Building2, GraduationCap, KanbanSquare, Timer, Send, FileSignature, CalendarClock } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { Role } from "./auth/session";
 
@@ -16,6 +16,7 @@ export const NAV: Record<Role, NavItem[]> = {
     { label: "Jobs", href: "/employer/jobs", icon: Briefcase },
     { label: "Pipeline", href: "/employer/pipeline", icon: KanbanSquare },
     { label: "Submissions", href: "/employer/submissions", icon: Send },
+    { label: "Interviews", href: "/employer/interviews", icon: CalendarClock },
     { label: "Offers", href: "/employer/offers", icon: FileSignature },
     { label: "Candidates", href: "/employer/candidates", icon: Users },
   ],

@@ -71,3 +71,8 @@ export interface Offer {
   status: string; rtr_signed_at: string | null; accepted_at: string | null;
   created_at: string | null; candidate?: string; job?: string;
 }
+export interface Interview {
+  id: string; application_id: string; scheduled_at: string | null; mode: string; status: string;
+  interviewer_name: string | null; feedback: string | null; created_at: string | null;
+  candidate?: string; job?: string;
+}

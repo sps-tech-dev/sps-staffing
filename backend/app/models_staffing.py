@@ -159,3 +159,30 @@ class Offer(TwoAxisMixin, Base):
     status: Mapped[str] = mapped_column(sa.Text, nullable=False, server_default=sa.text("'draft'"))
     rtr_signed_at: Mapped[datetime.datetime | None] = mapped_column(sa.DateTime(timezone=True))  # Right-to-Represent
     accepted_at: Mapped[datetime.datetime | None] = mapped_column(sa.DateTime(timezone=True))
+
+
+# Interview (Part 5): schedule + track interviews against applications
+INTERVIEW_STATUSES = ("scheduled", "completed", "cancelled", "no_show")
+INTERVIEW_MODES = ("phone", "video", "onsite")
+_IV_STATUS_SQL = ", ".join(f"'{s}'" for s in INTERVIEW_STATUSES)
+_IV_MODE_SQL = ", ".join(f"'{s}'" for s in INTERVIEW_MODES)
+
+
+class Interview(TwoAxisMixin, Base):
+    __tablename__ = "interviews"
+    __table_args__ = (
+        bu_check("interviews"),
+        sa.CheckConstraint(f"status IN ({_IV_STATUS_SQL})", name="ck_interviews_status"),
+        sa.CheckConstraint(f"mode IN ({_IV_MODE_SQL})", name="ck_interviews_mode"),
+        sa.Index("ix_interviews_tenant_bu", "tenant_id", "business_unit_id"),
+        sa.Index("ix_interviews_application_id", "application_id"),
+        {"schema": SCHEMA},
+    )
+    application_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), sa.ForeignKey(f"{SCHEMA}.applications.id"), nullable=False
+    )
+    scheduled_at: Mapped[datetime.datetime | None] = mapped_column(sa.DateTime(timezone=True))
+    mode: Mapped[str] = mapped_column(sa.Text, nullable=False, server_default=sa.text("'video'"))
+    status: Mapped[str] = mapped_column(sa.Text, nullable=False, server_default=sa.text("'scheduled'"))
+    interviewer_name: Mapped[str | None] = mapped_column(sa.Text)
+    feedback: Mapped[str | None] = mapped_column(sa.Text)

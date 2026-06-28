@@ -4,8 +4,8 @@ import { api } from "./client";
 import type {
   AdminCandidate, AdminClient, AdminJobRow, AiSummary, AuditRow, CandidateOverview,
   ConsentState, DpdpRequestRow, EmployeeOverview, EmployerOverview, FeatureFlags,
-  Job, JobPipeline, Offer, Paginated, PipelineRow, RegistrationConfig, RegistrationResult,
-  Submission,
+  Interview, Job, JobPipeline, Offer, Paginated, PipelineRow, RegistrationConfig,
+  RegistrationResult, Submission,
 } from "./types";
 
 const PAGE = 20;
@@ -183,6 +183,26 @@ export function useUpdateOffer() {
     mutationFn: ({ id, ...body }: { id: string; status?: string; ctc?: number; joining_date?: string; rtr_signed?: boolean }) =>
       api<Offer>(`/offers/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["offers"] }),
+  });
+}
+
+// ── Staffing workflow: interviews ───────────────────────────────
+export function useInterviews() {
+  return useQuery({ queryKey: ["interviews"], queryFn: () => api<Interview[]>("/interviews"), retry: false });
+}
+export function useCreateInterview() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (appId: string) => api<Interview>(`/applications/${appId}/interviews`, { method: "POST", body: JSON.stringify({}) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["interviews"] }),
+  });
+}
+export function useUpdateInterview() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: { id: string; scheduled_at?: string; mode?: string; status?: string; interviewer_name?: string; feedback?: string }) =>
+      api<Interview>(`/interviews/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["interviews"] }),
   });
 }
 

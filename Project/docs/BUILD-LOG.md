@@ -502,6 +502,12 @@ bottom of the dated sections. Updated at the end of **every** session.
 - **Tests: 75 pass** (+ create/RTR/acceptance/dashboard, bad-status 422, staff-gate). Migration up/down/up clean.
 - **Status:** ✅ applied + deployed.
 
+### Staffing — Interview scheduling ✅
+- **Backend:** `staffing.interviews` (two-axis, FK→applications, scheduled_at, mode CHECK phone/video/onsite, status CHECK scheduled/completed/cancelled/no_show, interviewer_name, feedback). Endpoints (staff-gated, idempotent, audited): `POST /api/applications/{id}/interviews`, `GET /api/applications/{id}/interviews`, `GET /api/interviews` (dashboard soonest-first), `PATCH /api/interviews/{id}` (reschedule/mode/status/interviewer/feedback). Migration `0013` (STOP-1 DDL approved).
+- **Frontend:** `/employer/interviews` (datetime, mode, status, feedback) + "Interview" action on pipeline cards + nav item.
+- **Tests: 78 pass** (+ schedule/outcome/dashboard, bad mode/status 422, staff-gate). Migration up/down/up clean.
+- **Status:** ✅ applied + deployed.
+
 ## Pending / next steps
 
 ➡️ **The canonical, durable register of ALL outstanding/deferred items is

@@ -16,7 +16,8 @@ from ..db import get_db
 from ..deps import get_current_context
 from ..idempotency import get_cached, store
 from ..models_staffing import (
-    OFFER_STATUSES, SUBMISSION_STATUSES, Application, Candidate, Job, Offer, Submission,
+    INTERVIEW_MODES, INTERVIEW_STATUSES, OFFER_STATUSES, SUBMISSION_STATUSES,
+    Application, Candidate, Interview, Job, Offer, Submission,
 )
 from .staffing import BU, _require_staff, _tid
 
@@ -226,3 +227,122 @@ def update_offer(offer_id: uuid.UUID, body: OfferUpdateIn,
     write_audit(db, ctx, "offer.update", "offer", o.id, before=before, after={"status": o.status})
     db.commit()
     return _offer_dict(o)
+
+
+# ── interviews ───────────────────────────────────────────────────
+class InterviewIn(BaseModel):
+    scheduled_at: datetime.datetime | None = None
+    mode: str | None = None
+    interviewer_name: str | None = None
+
+    @field_validator("mode")
+    @classmethod
+    def _m(cls, v):
+        if v is not None and v not in INTERVIEW_MODES:
+            raise ValueError(f"mode must be one of {INTERVIEW_MODES}")
+        return v
+
+
+class InterviewUpdateIn(BaseModel):
+    scheduled_at: datetime.datetime | None = None
+    mode: str | None = None
+    status: str | None = None
+    interviewer_name: str | None = None
+    feedback: str | None = None
+
+    @field_validator("mode")
+    @classmethod
+    def _m(cls, v):
+        if v is not None and v not in INTERVIEW_MODES:
+            raise ValueError(f"mode must be one of {INTERVIEW_MODES}")
+        return v
+
+    @field_validator("status")
+    @classmethod
+    def _s(cls, v):
+        if v is not None and v not in INTERVIEW_STATUSES:
+            raise ValueError(f"status must be one of {INTERVIEW_STATUSES}")
+        return v
+
+
+def _iv_dict(i: Interview) -> dict:
+    return {"id": str(i.id), "application_id": str(i.application_id),
+            "scheduled_at": i.scheduled_at.isoformat() if i.scheduled_at else None,
+            "mode": i.mode, "status": i.status, "interviewer_name": i.interviewer_name,
+            "feedback": i.feedback,
+            "created_at": i.created_at.isoformat() if i.created_at else None}
+
+
+@router.post("/applications/{app_id}/interviews")
+def create_interview(app_id: uuid.UUID, body: InterviewIn, ctx: RequestContext = Depends(get_current_context),
+                     db: Session = Depends(get_db), idempotency_key: str | None = Header(default=None)):
+    """Schedule an interview for an application."""
+    _require_staff(ctx)
+    if (c := get_cached(str(ctx.tenant_id), idempotency_key)):
+        return c
+    _app_or_404(db, ctx, app_id)
+    obj = Interview(tenant_id=_tid(ctx), business_unit_id=BU, application_id=app_id,
+                    scheduled_at=body.scheduled_at, mode=body.mode or "video",
+                    interviewer_name=body.interviewer_name, status="scheduled")
+    db.add(obj)
+    db.flush()
+    write_audit(db, ctx, "interview.create", "interview", obj.id, after={"application_id": str(app_id)})
+    db.commit()
+    res = _iv_dict(obj)
+    store(str(ctx.tenant_id), idempotency_key, res)
+    return res
+
+
+@router.get("/applications/{app_id}/interviews")
+def list_app_interviews(app_id: uuid.UUID, ctx: RequestContext = Depends(get_current_context),
+                        db: Session = Depends(get_db)):
+    _require_staff(ctx)
+    _app_or_404(db, ctx, app_id)
+    rows = db.execute(select(Interview).where(
+        Interview.tenant_id == _tid(ctx), Interview.business_unit_id == BU,
+        Interview.application_id == app_id, Interview.deleted_at.is_(None))
+        .order_by(Interview.scheduled_at.asc().nulls_last())).scalars().all()
+    return [_iv_dict(i) for i in rows]
+
+
+@router.get("/interviews")
+def list_interviews(ctx: RequestContext = Depends(get_current_context), db: Session = Depends(get_db)):
+    """Interviews dashboard — tenant+BU scoped, with candidate + job names."""
+    _require_staff(ctx)
+    rows = db.execute(
+        select(Interview, Candidate.full_name, Job.title)
+        .join(Application, Application.id == Interview.application_id)
+        .join(Candidate, Candidate.id == Application.candidate_id)
+        .join(Job, Job.id == Application.job_id)
+        .where(Interview.tenant_id == _tid(ctx), Interview.business_unit_id == BU,
+               Interview.deleted_at.is_(None))
+        .order_by(Interview.scheduled_at.asc().nulls_last())
+    ).all()
+    return [{**_iv_dict(i), "candidate": name, "job": title} for i, name, title in rows]
+
+
+@router.patch("/interviews/{interview_id}")
+def update_interview(interview_id: uuid.UUID, body: InterviewUpdateIn,
+                     ctx: RequestContext = Depends(get_current_context), db: Session = Depends(get_db)):
+    """Reschedule / set mode, interviewer, status (completed/cancelled/no_show), feedback."""
+    _require_staff(ctx)
+    i = db.execute(select(Interview).where(
+        Interview.id == interview_id, Interview.tenant_id == _tid(ctx),
+        Interview.business_unit_id == BU, Interview.deleted_at.is_(None))).scalar_one_or_none()
+    if i is None:
+        raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "Interview not found"})
+    before = {"status": i.status}
+    if body.scheduled_at is not None:
+        i.scheduled_at = body.scheduled_at
+    if body.mode is not None:
+        i.mode = body.mode
+    if body.status is not None:
+        i.status = body.status
+    if body.interviewer_name is not None:
+        i.interviewer_name = body.interviewer_name
+    if body.feedback is not None:
+        i.feedback = body.feedback
+    db.flush()
+    write_audit(db, ctx, "interview.update", "interview", i.id, before=before, after={"status": i.status})
+    db.commit()
+    return _iv_dict(i)
