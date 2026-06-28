@@ -22,14 +22,21 @@ Last refreshed: 2026-06-28.
 - **Trigger:** user/legal supplies wording → replace placeholders → **bump `POLICY_VERSION`**
   (`app/routers/privacy.py`) → remove the "Draft notices" banners.
 
-### A2. hCaptcha real keys (STOP-4)
-- **What:** Mechanism is wired (`app/captcha.py`: real `siteverify` when `HCAPTCHA_SECRET`
-  set; frontend `/register` uses hCaptcha's TEST sitekey otherwise). No real account/keys.
-- **Why deferred:** needs an hCaptcha account (site key + secret) — user's STOP-4 decision.
-- **Blocks:** real candidate signups (bot protection is in test mode = effectively open).
-- **Trigger:** create hCaptcha account → add a Secrets Manager scaffold (like `pii.tf`) for
-  the secret, set `HCAPTCHA_SITEKEY` (public env) + `HCAPTCHA_SECRET` (secret, **set
-  out-of-band, never in git**) on the backend task def + IAM GetSecretValue. Pair with A1.
+### A2. hCaptcha real keys (STOP-4) — scaffold BUILT (inert/test mode); keys still needed
+- **What:** App mechanism wired (`app/captcha.py`: real `siteverify` only when `HCAPTCHA_SECRET`
+  non-empty; else test mode). **Terraform scaffold now APPLIED** (`Project/hcaptcha.tf`):
+  Secrets Manager `sps-shared-dev-hcaptcha` exists but is seeded **EMPTY** (`lifecycle
+  ignore_changes` so the real value is never clobbered); execution-role GetSecretValue; backend
+  task def wires `HCAPTCHA_SITEKEY` (env, empty) + `HCAPTCHA_SECRET` (from secret, empty). Empty ⇒
+  app stays in **test mode** (verified live: service healthy, registration accepts test token).
+- **Why deferred:** real keys need an hCaptcha account — user's STOP-4 decision.
+- **Blocks:** real candidate signups (bot protection is test mode = effectively open). **Pairs with
+  A1 (legal copy)** — BOTH must be resolved before real registration opens.
+- **Trigger / go-live steps (all out-of-band):** (1) create an hCaptcha account → public site key +
+  secret; (2) `aws secretsmanager put-secret-value --secret-id sps-shared-dev-hcaptcha
+  --secret-string '{"secret":"<REAL>"}'` (**never in git/TF**); (3) set `var.hcaptcha_sitekey` to the
+  public site key (+ apply, pinning `-var backend_image_tag=<live>` per C3); (4) redeploy so tasks
+  pick up the real secret.
 
 ### A3. Deployed-dev real login (STOP-4)
 - **What:** `dev-api` mints no tokens (founder is `invited`; JWT secrets are unexercised
@@ -43,17 +50,54 @@ Last refreshed: 2026-06-28.
 
 ## B. DPDP / compliance follow-ups
 
-### B1. DPDP erasure execution engine (sensitive — design with user first)
-- **What:** `POST /api/privacy/erase` records a `pending` `dpdp_requests` row only; there is
-  NO actual deletion/redaction cascade.
-- **Why deferred:** needs a deliberately-designed, reviewed cascade + a decision on what
-  DPDP requires erased vs. what is legally retained. Irreversible.
-- **Blocks:** fulfilling real erasure requests.
-- **Trigger:** design the cascade WITH the user before building (do not auto-implement).
+### B1. DPDP erasure execution engine — DESIGN DONE; execution BLOCKED on legal decisions
+- **What:** `POST /api/privacy/erase` records a `pending` `dpdp_requests` row only; there is NO
+  deletion/anonymization cascade. The **design + PII data-map is complete** (2026-06-28, proposed
+  in chat) — but **NO execution code may be built** until the open legal questions below are decided.
+- **PII data map (what an erasure must reach):** `staffing.candidates` (full_name, email,
+  `phone_enc`/`pan_enc`, **`phone_bidx`/`pan_bidx`** pseudonymous identifiers, skills, `resume_s3_key`,
+  `source`, `search_doc`, soft-delete `deleted_at`); `staffing.applications` (candidate↔job linkage +
+  placement record); `shared.consents` (subject linkage + consent history); `shared.audit_logs`
+  (`actor_id`/`entity_id` linkage + `before`/`after` JSONB; **append-only — `sps_app` physically
+  CANNOT delete → audit erasure is impossible-by-design**); `shared.users` (email/full_name/
+  password_hash — if the person has a login); **S3 resume objects** under `resume_s3_key`;
+  `shared.dpdp_requests` (the erasure-request record itself — retain as proof).
+- **Newly-surfaced gaps (see also C5, B4):** S3 resume deletion path; blind-index (`*_bidx`)
+  clearing on anonymize; `search_doc` PII risk once FTS is populated; the audit append-only
+  implication above.
+- **Open legal questions — DECIDE BEFORE BUILDING ERASURE EXECUTION (each trigger = "decide before
+  building erasure execution"):**
+  1. **Retention floor:** which records are legally retention-required (GST/TDS financial,
+     placement/invoice records, statutory periods) and must survive erasure?
+  2. **Delete vs anonymize** per category: hard-delete the candidate, or anonymize (sever PII,
+     keep de-identified application/placement rows for compliance)? Default proposal = anonymize
+     where retention applies, hard-delete the rest — needs your ratification.
+  3. **audit_logs:** confirm audit entries are RETAINED (append-only, can't be deleted by the app) —
+     is retaining `actor_id`/`entity_id` (person identifiers) in an immutable log acceptable under
+     DPDP, or must we tokenize/pseudonymize identifiers at write-time going forward?
+  4. **`shared.users`:** if the principal has a login account, delete it or disable+anonymize?
+  5. **Legal hold:** how are accounts under active legal hold / dispute exempted from erasure?
+  6. **SLA & approval:** is a human review/approval gate required before an erasure executes, and
+     what fulfilment SLA (e.g. 30 days) applies?
+  7. **Consent records:** retain consent history (proof of lawful basis) even after erasure, or purge?
+- **Blocks:** fulfilling real erasure requests (and therefore real-user launch readiness for the
+  right-to-erasure obligation).
+- **Trigger:** user + legal answer the questions above → then build the cascade (approval gate →
+  soft-delete/anonymize → S3 purge → audited erasure record), reviewed before any RDS run.
 
 ### B2. DPDP export completion — ✅ RESOLVED (see Resolved section)
 
 ### B3. audit_logs / consents append-only enforcement — ✅ RESOLVED (see Resolved section)
+
+### B4. Keep PII out of Redis — invariant to uphold (surfaced by the erasure data-map)
+- **What:** the export endpoint's Idempotency-Key caching was removed precisely so decrypted PII
+  is never written to Redis. Current Redis use (idempotency for consent/register, sessions) holds
+  **no PII** (verified). This is an invariant, not a bug.
+- **Why tracked:** a future cached/denormalized path could reintroduce PII into Redis (which has no
+  field-level encryption and, in dev, no transit encryption) — and Redis is OUTSIDE the erasure cascade.
+- **Blocks:** nothing now.
+- **Trigger:** any new caching/denormalization of candidate/user data — keep PII out, or include
+  that store in the erasure cascade.
 
 ---
 
@@ -90,6 +134,18 @@ Last refreshed: 2026-06-28.
 - **Why deferred:** housekeeping.
 - **Blocks:** nothing functional; removes a legacy lock table.
 - **Trigger:** any infra-cleanup pass.
+
+### C5. S3 resume object lifecycle (upload + erasure deletion) — surfaced by the erasure data-map
+- **What:** `staffing.candidates.resume_s3_key` points at a resume file in the storage bucket
+  (`sps-shared-dev-storage-<acct>`). Two gaps: (1) **no resume-upload code exists yet** (the column
+  has no writer); (2) **erasure must delete the S3 object**, not just the DB row — S3 is outside the
+  DB cascade. Minor note: `settings.storage_bucket` default (`sps-technosoft-dev-storage`) differs
+  from the real bucket; deployed uses the `S3_BUCKET` env (correct), so this only matters if the
+  default is ever relied on.
+- **Why deferred:** resume upload not built; erasure deletion gated on the B1 design decisions.
+- **Blocks:** complete erasure (resume PII would survive a DB-only erase); resume feature itself.
+- **Trigger:** when building resume upload (add S3 PII to the data map) AND when building erasure
+  execution (delete the S3 object as part of the cascade).
 
 ---
 
