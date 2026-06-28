@@ -452,6 +452,14 @@ bottom of the dated sections. Updated at the end of **every** session.
 - Prod note (documented in the migration): a live-traffic contract needs an intermediate "unmap" deploy first; dev has no candidate traffic so the rollover window is a non-issue.
 - **Status:** ✅ deploy 2 — plaintext PII columns removed; PII now exists only as KMS-encrypted ciphertext + HMAC blind indexes.
 
+### Candidate registration — secure intake (applied pending RDS) ✅ (local)
+- **Public `POST /api/register/candidate`** (unauthenticated; tenant from Host): hCaptcha gate → DPDP consent gate (no PAN without consent) → tenant resolve → candidate persisted **encrypted** (`EncryptedStr` + blind index, dedup → 409) → consent recorded in the F6 ledger against the candidate. `GET /api/register/config` exposes sitekey + stubbed notices.
+- **Migration 0009:** `consents.subject_user_id` → nullable + `subject_candidate_id` (soft ref) + CHECK exactly-one-subject. Local up→down→up clean. **STOP-1**: DDL shown, awaiting approval before RDS apply.
+- **hCaptcha = STOP-4** (real keys need an account; local test mode passes a present token, missing → 400). **Consent copy = STOP-3** (`[LEGAL COPY TBD]`; cannot take real candidates until real wording).
+- **Frontend `/register`:** multi-step RHF+zod wizard (keyboard Tab/Enter convention), hCaptcha widget, consent checkboxes. typecheck/lint/build clean; 0 new high/critical deps.
+- **Tests: 62 pass** (+ captcha gate, consent-required, encrypted-persist+consent-ledger, dedup-409, config). Live HTTP smoke verified end-to-end (ciphertext + blind index + consent ledger).
+- **Status:** ✅ built + locally verified; STOP-1 before RDS apply/deploy.
+
 ## Pending / next steps
 - [ ] **DPDP export should include the principal's own PII** (phone/pan) once app-layer encryption lands (currently omitted).
 - [ ] **Erasure execution** — build the reviewed cascade/redaction that fulfils a `pending` erasure request (mechanism records only today).

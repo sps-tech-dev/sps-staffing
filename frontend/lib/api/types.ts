@@ -52,3 +52,11 @@ export interface DpdpRequestRow { id: string; kind: string; status: string; crea
 export interface AiSummary {
   candidate_id: string; stub: boolean; summary: string; highlights: string[]; disclaimer: string;
 }
+
+// Candidate self-registration
+export interface RegistrationConfig {
+  hcaptcha_sitekey: string;
+  policy_version: string;
+  notices: { data_processing: string; marketing: string };
+}
+export interface RegistrationResult { id: string; status: string; policy_version: string; }

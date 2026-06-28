@@ -56,3 +56,29 @@ export const loginSchema = z.object({
   password: requiredString("Password"),
 });
 export type LoginInput = z.infer<typeof loginSchema>;
+
+// Candidate self-registration (multi-step). PAN/phone are encrypted server-side;
+// data-processing consent is mandatory (DPDP — can't collect PAN without it).
+export const registrationSchema = z.object({
+  full_name: nameSchema,
+  email: emailSchema,
+  phone: phoneSchema,
+  pan: panSchema,
+  skills: z.string().trim().optional(), // comma-separated → split on submit
+  total_exp: z
+    .union([z.literal(""), experienceSchema])
+    .optional()
+    .transform((v) => (v === "" || v === undefined ? undefined : v)),
+  consent_data_processing: z.literal(true, {
+    errorMap: () => ({ message: "You must consent to data processing to register" }),
+  }),
+  consent_marketing: z.boolean().optional().default(false),
+});
+export type RegistrationInput = z.infer<typeof registrationSchema>;
+
+// Fields validated per wizard step (used with RHF trigger() before advancing).
+export const registrationSteps: (keyof RegistrationInput)[][] = [
+  ["full_name", "email", "phone"],
+  ["pan", "skills", "total_exp"],
+  ["consent_data_processing", "consent_marketing"],
+];

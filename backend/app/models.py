@@ -129,6 +129,12 @@ class Consent(Base):
         sa.CheckConstraint(
             "purpose IN ('data_processing','marketing','cookies')", name="ck_consents_purpose"
         ),
+        # The subject is EITHER an authenticated user (DPDP self-service) OR a
+        # candidate (collected at public registration, before any user account).
+        sa.CheckConstraint(
+            "num_nonnulls(subject_user_id, subject_candidate_id) = 1",
+            name="ck_consents_one_subject",
+        ),
         {"schema": SCHEMA},
     )
 
@@ -136,9 +142,12 @@ class Consent(Base):
     tenant_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), sa.ForeignKey(f"{SCHEMA}.tenants.id"), nullable=False
     )
-    subject_user_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), sa.ForeignKey(f"{SCHEMA}.users.id"), nullable=False
+    subject_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), sa.ForeignKey(f"{SCHEMA}.users.id"), nullable=True
     )
+    # Soft reference (no cross-schema FK: candidates live in the `staffing`
+    # vertical schema; `shared` must not depend on a vertical).
+    subject_candidate_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     purpose: Mapped[str] = mapped_column(sa.Text, nullable=False)
     granted: Mapped[bool] = mapped_column(sa.Boolean, nullable=False)
     # Which version of the (currently STUBBED) consent notice the subject acted on.

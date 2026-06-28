@@ -78,6 +78,11 @@ function LoginForm() {
             {loading ? "Signing in…" : "Sign in"}
           </button>
         </form>
+
+        <p className="mt-4 text-center text-sm text-muted">
+          New candidate?{" "}
+          <a href="/register" className="font-medium text-[#1B5FE8] hover:underline">Create your profile</a>
+        </p>
       </div>
     </div>
   );

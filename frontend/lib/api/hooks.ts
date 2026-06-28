@@ -4,7 +4,7 @@ import { api } from "./client";
 import type {
   AdminCandidate, AdminClient, AdminJobRow, AiSummary, AuditRow, CandidateOverview,
   ConsentState, DpdpRequestRow, EmployeeOverview, EmployerOverview, FeatureFlags,
-  Job, JobPipeline, Paginated, PipelineRow,
+  Job, JobPipeline, Paginated, PipelineRow, RegistrationConfig, RegistrationResult,
 } from "./types";
 
 const PAGE = 20;
@@ -124,6 +124,24 @@ export function useDpdpRequests() {
     queryKey: ["privacy", "requests"],
     queryFn: () => api<{ items: DpdpRequestRow[] }>("/privacy/requests"),
     retry: false,
+  });
+}
+
+// ── Public candidate registration ───────────────────────────────
+/** Registration page config — captcha sitekey + (stubbed) consent notices. */
+export function useRegistrationConfig() {
+  return useQuery({
+    queryKey: ["register", "config"],
+    queryFn: () => api<RegistrationConfig>("/register/config"),
+    retry: false,
+  });
+}
+
+/** Submit a candidate registration (public; PII encrypted server-side). */
+export function useRegisterCandidate() {
+  return useMutation({
+    mutationFn: (body: Record<string, unknown>) =>
+      api<RegistrationResult>("/register/candidate", { method: "POST", body: JSON.stringify(body) }),
   });
 }
 

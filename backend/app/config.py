@@ -41,6 +41,14 @@ class Settings(BaseSettings):
     pii_index_key: str = ""            # PII_INDEX_KEY  (base64 or raw)
     pii_local_dek: str = ""            # PII_LOCAL_DEK  (base64; local mode only)
 
+    # hCaptcha bot gate on public registration (Part: anti-abuse).
+    #   - HCAPTCHA_SECRET set  -> real server-side verification (siteverify).
+    #   - empty                -> LOCAL test mode: a non-empty token passes (no
+    #     external call) so the gate mechanism is exercised in tests. Real keys
+    #     are STOP-4 (hCaptcha account). HCAPTCHA_SITEKEY is exposed to the client.
+    hcaptcha_secret: str = ""           # HCAPTCHA_SECRET
+    hcaptcha_sitekey: str = ""          # HCAPTCHA_SITEKEY (public; client widget)
+
     @property
     def database_url(self) -> str:
         return (f"postgresql+psycopg://{self.db_user}:{self.db_password}"
