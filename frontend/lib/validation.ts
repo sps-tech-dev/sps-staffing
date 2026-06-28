@@ -82,3 +82,18 @@ export const registrationSteps: (keyof RegistrationInput)[][] = [
   ["pan", "skills", "total_exp"],
   ["consent_data_processing", "consent_marketing"],
 ];
+
+// Client (company) self-registration → a pending request (no access until approved).
+export const clientRegistrationSchema = z.object({
+  company_name: z.string().trim().min(2, "Company name is required"),
+  industry: z.string().trim().optional(),
+  contact_person: nameSchema,
+  email: emailSchema,
+  phone: phoneSchema,
+  website: z.union([z.literal(""), urlSchema]).optional().transform((v) => (v ? v : undefined)),
+  company_size: z.string().trim().optional(),
+  consent_data_processing: z.literal(true, {
+    errorMap: () => ({ message: "You must consent to data processing to register" }),
+  }),
+});
+export type ClientRegistrationInput = z.infer<typeof clientRegistrationSchema>;

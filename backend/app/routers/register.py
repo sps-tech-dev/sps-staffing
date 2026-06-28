@@ -26,7 +26,7 @@ from ..context import RequestContext, tenant_from_host
 from ..crypto import blind_index
 from ..db import get_db
 from ..idempotency import get_cached, store
-from ..models import Consent, Tenant
+from ..models import ClientRegistrationRequest, Consent, Tenant
 from ..models_staffing import Candidate
 from ..validation import normalize_phone, validate_email, validate_name, validate_pan
 from .privacy import POLICY_TEXT, POLICY_VERSION
@@ -133,5 +133,78 @@ def register_candidate(body: RegistrationIn, request: Request, db: Session = Dep
         _dup(db)
 
     res = {"id": str(cand.id), "status": "registered", "policy_version": POLICY_VERSION}
+    store(str(tenant.id), idempotency_key, res)
+    return res
+
+
+# ── public CLIENT self-registration (Task 2) ─────────────────────
+class ClientRegistrationIn(BaseModel):
+    company_name: str
+    industry: str | None = None
+    contact_person: str
+    email: str
+    phone: str
+    website: str | None = None
+    company_size: str | None = None
+    captcha_token: str | None = None
+    consent_data_processing: bool = False
+
+    @field_validator("company_name", "contact_person")
+    @classmethod
+    def _req(cls, v):
+        v = (v or "").strip()
+        if len(v) < 2:
+            raise ValueError("This field is required (min 2 characters)")
+        return v
+
+    @field_validator("contact_person")
+    @classmethod
+    def _name(cls, v):
+        return validate_name(v)
+
+    @field_validator("email")
+    @classmethod
+    def _e(cls, v):
+        return validate_email(v)
+
+    @field_validator("phone")
+    @classmethod
+    def _p(cls, v):
+        return normalize_phone(v)
+
+
+@router.post("/client")
+def register_client(body: ClientRegistrationIn, request: Request, db: Session = Depends(get_db),
+                    idempotency_key: str | None = Header(default=None)):
+    """Public client self-registration → a PENDING, UNLINKED request. Grants NOTHING
+    until an admin approves + links it to a clients row (the security gate). Contact
+    phone is encrypted at rest (personal data); consent + captcha gated like candidate reg."""
+    if not verify_captcha(body.captcha_token):
+        raise HTTPException(status_code=400, detail={
+            "code": "CAPTCHA_FAILED", "message": "Captcha verification failed — please retry"})
+    if not body.consent_data_processing:
+        raise HTTPException(status_code=422, detail={
+            "code": "CONSENT_REQUIRED", "message": "Consent to data processing is required to register"})
+    slug = tenant_from_host(request.headers.get("host", ""), settings.app_base_domain)
+    tenant = db.execute(select(Tenant).where(Tenant.slug == slug)).scalar_one_or_none()
+    if tenant is None:
+        raise HTTPException(status_code=404, detail={"code": "UNKNOWN_TENANT", "message": "Unknown registration site"})
+
+    if (cached := get_cached(str(tenant.id), idempotency_key)):
+        return cached
+
+    req = ClientRegistrationRequest(
+        tenant_id=tenant.id, company_name=body.company_name, industry=body.industry,
+        contact_person=body.contact_person, email=body.email,
+        phone_enc=body.phone, phone_bidx=blind_index(body.phone),
+        website=body.website, company_size=body.company_size,
+        consent_data_processing=True, policy_version=POLICY_VERSION, status="pending")
+    db.add(req)
+    db.flush()
+    ctx = RequestContext(tenant_id=str(tenant.id), business_unit_id="STAFFING", user_id=None)
+    write_audit(db, ctx, "client.register", "client_registration_request", req.id,
+                after={"company": body.company_name})
+    db.commit()
+    res = {"id": str(req.id), "status": "pending", "policy_version": POLICY_VERSION}
     store(str(tenant.id), idempotency_key, res)
     return res

@@ -146,6 +146,14 @@ export function useRegisterCandidate() {
   });
 }
 
+/** Submit a CLIENT (company) registration → a pending request (no access until approved). */
+export function useRegisterClient() {
+  return useMutation({
+    mutationFn: (body: Record<string, unknown>) =>
+      api<RegistrationResult>("/register/client", { method: "POST", body: JSON.stringify(body) }),
+  });
+}
+
 // ── Staffing workflow: submissions ──────────────────────────────
 export function useSubmissions() {
   return useQuery({ queryKey: ["submissions"], queryFn: () => api<Submission[]>("/submissions"), retry: false });

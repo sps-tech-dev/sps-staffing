@@ -83,6 +83,10 @@ function LoginForm() {
           New candidate?{" "}
           <a href="/register" className="font-medium text-[#1B5FE8] hover:underline">Create your profile</a>
         </p>
+        <p className="mt-1 text-center text-sm text-muted">
+          Hiring?{" "}
+          <a href="/register/client" className="font-medium text-[#1B5FE8] hover:underline">Register your company</a>
+        </p>
       </div>
     </div>
   );

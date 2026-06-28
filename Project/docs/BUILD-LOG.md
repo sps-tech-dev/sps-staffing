@@ -540,6 +540,14 @@ bottom of the dated sections. Updated at the end of **every** session.
 - **THE GATE — `test_client_isolation.py` PASSES:** cross-client isolation on Job/Application/Submission/Offer/Interview (both directions), no cross-tenant read, staff not client-restricted, candidates only via scoped pipeline. **87 backend tests pass.**
 - **Status:** ✅ foundation proven leak-free; safe to build the portal on top.
 
+### Client Portal — Task 2: client self-registration (public, pending+unlinked) ✅
+- **Backend:** `POST /api/register/client` (public; tenant from Host) → a PENDING, UNLINKED `shared.client_registration_requests` row. **Grants NOTHING** (no user, no client_users) until admin approval. Gates: hCaptcha (test-mode) → DPDP consent (422 if absent) → tenant resolve. Contact **phone encrypted** at rest (EncryptedStr + blind index; personal data); email CITEXT; consent + policy_version recorded. Audit `client.register`. Migration `0018` (revision id shortened to fit alembic_version varchar(32)).
+- **DDL:** CREATE TABLE shared.client_registration_requests(company_name, industry, contact_person, email CITEXT, phone_enc/phone_bidx bytea, website, company_size, consent_data_processing, policy_version, status CHECK pending/approved/rejected, reviewed_by/at) + index(tenant_id,status).
+- **Frontend:** `/register/client` RHF+zod form (company/industry/size, contact/email/phone, website, consent + hCaptcha) + success "pending review" screen + login link. Responsive, loading/empty/error.
+- **STOP-3:** consent copy stubbed [LEGAL COPY TBD]. **STOP-4:** hCaptcha test-mode. (Both tracked launch-blockers.)
+- **Tests: 91 pass** (+ captcha gate, consent-required, bad email/phone 422, pending+unlinked+encrypted, grants-nothing). Migration up/down/up clean.
+- **Status:** ✅ applied + deployed.
+
 ## Pending / next steps
 
 ➡️ **The canonical, durable register of ALL outstanding/deferred items is

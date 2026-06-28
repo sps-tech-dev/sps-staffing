@@ -15,6 +15,7 @@ from sqlalchemy.dialects.postgresql import ARRAY, CITEXT, JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .base import Base
+from .crypto import EncryptedStr
 from .mixins import TimestampMixin, business_unit_check
 
 SCHEMA = "shared"
@@ -224,6 +225,36 @@ class ClientUser(TimestampMixin, Base):
     # bound on approval (soft ref to staffing.clients.id); NULL while pending.
     client_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
     status: Mapped[str] = mapped_column(sa.Text, nullable=False, server_default=sa.text("'pending'"))
+
+
+class ClientRegistrationRequest(TimestampMixin, Base):
+    # Public client self-registration (Task 2). An inbound, PENDING, UNLINKED request:
+    # it grants NOTHING. On admin approval it becomes a clients row + an active
+    # client_users binding. Contact details are personal data — phone is encrypted
+    # (EncryptedStr + blind index); email stays CITEXT (login/dedup anchor).
+    __tablename__ = "client_registration_requests"
+    __table_args__ = (
+        sa.CheckConstraint("status IN ('pending','approved','rejected')", name="ck_client_reg_status"),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), sa.ForeignKey(f"{SCHEMA}.tenants.id"), nullable=False
+    )
+    company_name: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    industry: Mapped[str | None] = mapped_column(sa.Text)
+    contact_person: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    email: Mapped[str] = mapped_column(CITEXT, nullable=False)
+    phone_enc: Mapped[str | None] = mapped_column(EncryptedStr, deferred=True)   # personal data
+    phone_bidx: Mapped[bytes | None] = mapped_column(sa.LargeBinary)
+    website: Mapped[str | None] = mapped_column(sa.Text)
+    company_size: Mapped[str | None] = mapped_column(sa.Text)
+    consent_data_processing: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, server_default=sa.text("false"))
+    policy_version: Mapped[str | None] = mapped_column(sa.Text)
+    status: Mapped[str] = mapped_column(sa.Text, nullable=False, server_default=sa.text("'pending'"))
+    reviewed_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    reviewed_at: Mapped[datetime.datetime | None] = mapped_column(sa.DateTime(timezone=True))
 
 
 class AuditLog(Base):
