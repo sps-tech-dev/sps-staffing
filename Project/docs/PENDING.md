@@ -15,7 +15,7 @@ Last refreshed: 2026-06-28.
 ### A1. DPDP / legal copy — all `[LEGAL COPY TBD]` (STOP-3)
 - **What:** Real wording for: candidate-registration consent text, the DPDP consent
   notices (`data_processing` / `marketing` / `cookies` in `app/routers/privacy.py` →
-  `POLICY_TEXT`), the privacy policy, and the terms of service. All are placeholders.
+  `POLICY_TEXT`), the privacy policy, the terms of service, and the CLIENT registration consent notice. All are placeholders.
 - **Why deferred:** legal content must come from the user/legal, not be invented (STOP-3).
 - **Blocks:** taking ANY real candidate or user — DPDP requires informed consent for
   PAN collection. Registration is functionally live but must not onboard real people.
@@ -171,6 +171,15 @@ Last refreshed: 2026-06-28.
 - **Why deferred:** sequencing — Staffing first.
 - **Blocks:** those product lines.
 - **Trigger:** when the standing sequence reaches them.
+
+### D4. Client portal — follow-ups (non-blocking)
+- **What / why deferred:** (a) **client account activation** — admin currently sets an initial password on approval;
+  the real flow is an **invite link / set-password email** (no email infra yet). (b) **Legacy `/employer/*` staff
+  screens** (the recruiter client-management tools built earlier) are no longer linked from the `client` nav (which now
+  = the external client portal); give internal staff their own nav entry / role mapping. (c) Client **consent notices**
+  reuse the stubbed `[LEGAL COPY TBD]` (tracked in A1) — no real-client onboarding until real wording + hCaptcha keys (A2).
+- **Blocks:** real client onboarding (pairs with A1 legal copy + A2 hCaptcha keys); polished staff UX.
+- **Trigger:** when adding email/invite infra; at real-user launch prep (with A1/A2); a staff-nav cleanup pass.
 
 ### D3. Vendor management — depth beyond the core (follow-up)
 - **What:** core built — `staffing.vendors` + `staffing.vendor_submissions` (CRUD + attribution + status).

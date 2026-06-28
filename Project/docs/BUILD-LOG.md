@@ -561,6 +561,12 @@ bottom of the dated sections. Updated at the end of **every** session.
 - **Tests: 99 pass** — incl. `test_client_portal` (client sees only own jobs/candidates, feedback only on own submission [other→404], post-job owned by client, non-client 403) and the **staff-endpoint rejection** of a client session. No new migration.
 - **Status:** ✅ applied + deployed.
 
+### Client Portal — Task 6: final integration pass (E2E on dev) ✅
+- **E2E on dev RDS (under sps_app):** client registration request → admin approve+link to a clients row → **active client_users binding** (login would mint client_id) → client context sees **ONLY its own** jobs/submissions/overview → **cross-client AND cross-tenant leakage = NONE** (re-checked via the base repo, both directions). Probe artifacts cleaned up (master).
+- **Dev smoke:** `/api/client/{overview,jobs,submissions}` + `/api/admin/client-registrations` live + 401 unauth; `/api/register/client` no-consent → 422; `/readyz` ok.
+- **Full backend suite: 99 pass** incl. all leakage tests (`test_client_isolation`, `test_client_portal`, staff-endpoint rejection, `test_tenant_isolation`).
+- **Status:** ✅ client self-service portal complete + leak-proof end-to-end on dev.
+
 ## Pending / next steps
 
 ➡️ **The canonical, durable register of ALL outstanding/deferred items is
