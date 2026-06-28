@@ -614,6 +614,45 @@ level + an orthogonal permission gate). Set at user creation; carried in the JWT
   service stable; `/readyz` 200.
 - **Status:** ✅ owner-scoped jobs + HR-only offer-write proven leak-free on dev; applied + deployed.
 
+### Marketing — Corporate site + Staffing vertical landing (video hero + animations) ✅ (local only — NOT deployed)
+The public spstechnosoft.com front door, rebuilt as a two-level marketing site. **Frontend-only; no
+backend/auth/migrations touched. Built + run locally; deploy is a separate later step.**
+- **Two levels:** **Level 1 — corporate site at `/`** (purely informational, **NO login anywhere**)
+  presenting SPS Technosoft Pvt Ltd as a multi-vertical company. **Level 2 — staffing vertical at
+  `/staffing-and-recruitment`** (reached from the Services "Staffing & Recruitment" card) which carries
+  the **login entries** into the existing portals.
+- **Video hero** (`components/marketing/video-hero.tsx`): full-viewport `<video autoPlay muted loop
+  playsInline poster=…>` with BOTH `<source>` (webm + mp4) over the optimized assets in
+  `public/video/` (NOT re-encoded). Dark gradient overlay (navy 55%→85%, deeper at bottom) + left wash
+  for text readability. **Reduced-motion AND small screens (<768px) → poster only, no video** (perf +
+  a11y), decided client-side via matchMedia. Poster served through `next/image` (priority).
+- **Animations** (`components/marketing/reveal.tsx`, Framer Motion 12): scroll-triggered fade+slide-up
+  reveals (`<Reveal>`) and staggered groups (`<RevealGroup>`/`<RevealItem>`), premium ease, **all
+  gated by `useReducedMotion()`** → static when the user opts out. Header solidifies on scroll.
+- **Routes built** (all under the `(marketing)` group, English-first copy written in-house):
+  `/` (corporate home — video hero, intro, 3-vertical band, why-SPS, stats, CTA), `/about`,
+  `/services` (3 vertical cards → staffing / academy / consulting, alternating visual panels),
+  `/career` (employer brand + **empty "no open roles" state** + how-to-apply), `/contact`
+  (**stub form — no email infra; validates + success state, sends nothing, marked TODO**),
+  `/academy` + `/consulting` (**on-brand "Coming soon"** placeholders), and
+  `/staffing-and-recruitment` (own video hero, AI-assisted-quality-hiring narrative, problems / how-it-
+  works 5-step / why-SPS / placement-as-value, **three role logins → `/login?role=client|candidate|
+  employee`** using the existing auth flow + **Post a Job → `/register/client`**).
+- **Chrome:** new corporate `SiteHeader` (logo+name left, nav Home·About·Services·Career·Contact
+  right, mobile hamburger, **no login**) + `SiteFooter` (company brief, nav, verticals, contact,
+  copyright). The old 3-vertical `/` page was replaced (preserved in git history); next-intl provider
+  retained so app locale plumbing is intact.
+- **Brand:** Recruit Blue `#1B5FE8` / Navy `#0D1B3E` / Gold `#E8A020` / Sky `#5B8FFF`, Sora + DM Sans +
+  DM Mono. Responsive 360/768/1024/1440; semantic headings, alt text, keyboard nav, focus states.
+- **Quality:** `tsc` clean, `eslint` clean (marketing files 0 warnings; 2 pre-existing unrelated
+  warnings in `lib/nav.ts`), `next build` ✓ (37/37 pages). `npm run dev` boots clean; all 8 marketing
+  routes 200, video assets serve (mp4/webm/jpg), existing app routes/portals unaffected (login 200,
+  guarded portals 307→login).
+- **Stubbed / deferred:** contact form is a no-op preview (email infra pending — PENDING E1); `/academy`
+  + `/consulting` are Coming-soon; careers shows an empty openings state. Added dep: `framer-motion`.
+- **Status:** ✅ built + verified locally at `localhost:3000`. **NOT deployed** — deploy is the next
+  separate step (frontend has no deploy target yet — see PENDING C1).
+
 ## Pending / next steps
 
 ➡️ **The canonical, durable register of ALL outstanding/deferred items is
