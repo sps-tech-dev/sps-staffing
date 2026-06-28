@@ -5,7 +5,7 @@ import type {
   AdminCandidate, AdminClient, AdminJobRow, AiSummary, AuditRow, CandidateOverview,
   ConsentState, DpdpRequestRow, EmployeeOverview, EmployerOverview, FeatureFlags,
   Interview, Invoice, Job, JobPipeline, Offer, Paginated, PipelineRow, RegistrationConfig,
-  RegistrationResult, Submission,
+  RegistrationResult, Submission, Vendor, VendorSubmission,
 } from "./types";
 
 const PAGE = 20;
@@ -224,6 +224,38 @@ export function useUpdateInvoice() {
     mutationFn: ({ id, ...body }: { id: string; status?: string; gst_percent?: number; tds_percent?: number }) =>
       api<Invoice>(`/invoices/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["invoices"] }),
+  });
+}
+
+// ── Staffing workflow: vendors ──────────────────────────────────
+export function useVendors() {
+  return useQuery({ queryKey: ["vendors"], queryFn: () => api<Vendor[]>("/vendors"), retry: false });
+}
+export function useCreateVendor() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { name: string; contact_email?: string; commission_percent?: number }) =>
+      api<Vendor>("/vendors", { method: "POST", body: JSON.stringify(body) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["vendors"] }),
+  });
+}
+export function useUpdateVendor() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: { id: string; status?: string; commission_percent?: number }) =>
+      api<Vendor>(`/vendors/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["vendors"] }),
+  });
+}
+export function useVendorSubmissions() {
+  return useQuery({ queryKey: ["vendor-submissions"], queryFn: () => api<VendorSubmission[]>("/vendor-submissions"), retry: false });
+}
+export function useUpdateVendorSubmission() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: { id: string; status?: string; notes?: string }) =>
+      api<VendorSubmission>(`/vendor-submissions/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["vendor-submissions"] }),
   });
 }
 

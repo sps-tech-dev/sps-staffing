@@ -83,3 +83,11 @@ export interface Invoice {
   total_amount: number | null; currency: string; status: string; created_at: string | null;
   candidate?: string; job?: string;
 }
+export interface Vendor {
+  id: string; name: string; contact_email: string | null; contact_phone: string | null;
+  commission_percent: number | null; status: string;
+}
+export interface VendorSubmission {
+  id: string; vendor_id: string; candidate_id: string; job_id: string | null; status: string;
+  notes: string | null; created_at: string | null; vendor?: string; candidate?: string;
+}

@@ -223,3 +223,46 @@ class Invoice(TwoAxisMixin, Base):
     total_amount: Mapped[float | None] = mapped_column(sa.Numeric)
     currency: Mapped[str] = mapped_column(sa.Text, nullable=False, server_default=sa.text("'INR'"))
     status: Mapped[str] = mapped_column(sa.Text, nullable=False, server_default=sa.text("'draft'"))
+
+
+# Vendor / sub-vendor management (Part 5) — core: vendors + vendor_submissions.
+# (vendor_contracts / vendor_commissions / vendor_performance are a tracked follow-up.)
+VENDOR_STATUSES = ("active", "inactive")
+VENDOR_SUB_STATUSES = ("submitted", "shortlisted", "rejected", "placed")
+_VEND_SQL = ", ".join(f"'{s}'" for s in VENDOR_STATUSES)
+_VSUB_SQL = ", ".join(f"'{s}'" for s in VENDOR_SUB_STATUSES)
+
+
+class Vendor(TwoAxisMixin, Base):
+    __tablename__ = "vendors"
+    __table_args__ = (
+        bu_check("vendors"),
+        sa.CheckConstraint(f"status IN ({_VEND_SQL})", name="ck_vendors_status"),
+        sa.Index("ix_vendors_tenant_bu", "tenant_id", "business_unit_id"),
+        {"schema": SCHEMA},
+    )
+    name: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    contact_email: Mapped[str | None] = mapped_column(CITEXT)      # business contact (not candidate PII)
+    contact_phone: Mapped[str | None] = mapped_column(sa.Text)     # business contact
+    commission_percent: Mapped[float | None] = mapped_column(sa.Numeric)
+    status: Mapped[str] = mapped_column(sa.Text, nullable=False, server_default=sa.text("'active'"))
+
+
+class VendorSubmission(TwoAxisMixin, Base):
+    __tablename__ = "vendor_submissions"
+    __table_args__ = (
+        bu_check("vendor_submissions"),
+        sa.CheckConstraint(f"status IN ({_VSUB_SQL})", name="ck_vendor_submissions_status"),
+        sa.Index("ix_vendor_submissions_tenant_bu", "tenant_id", "business_unit_id"),
+        sa.Index("ix_vendor_submissions_vendor_id", "vendor_id"),
+        {"schema": SCHEMA},
+    )
+    vendor_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), sa.ForeignKey(f"{SCHEMA}.vendors.id"), nullable=False
+    )
+    candidate_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), sa.ForeignKey(f"{SCHEMA}.candidates.id"), nullable=False
+    )
+    job_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), sa.ForeignKey(f"{SCHEMA}.jobs.id"))
+    status: Mapped[str] = mapped_column(sa.Text, nullable=False, server_default=sa.text("'submitted'"))
+    notes: Mapped[str | None] = mapped_column(sa.Text)

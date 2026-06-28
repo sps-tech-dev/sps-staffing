@@ -17,8 +17,8 @@ from ..deps import get_current_context
 from ..idempotency import get_cached, store
 from ..models_staffing import (
     DEFAULT_FEE_PERCENT, INTERVIEW_MODES, INTERVIEW_STATUSES, INVOICE_STATUSES,
-    OFFER_STATUSES, SUBMISSION_STATUSES,
-    Application, Candidate, Interview, Invoice, Job, Offer, Submission,
+    OFFER_STATUSES, SUBMISSION_STATUSES, VENDOR_STATUSES, VENDOR_SUB_STATUSES,
+    Application, Candidate, Interview, Invoice, Job, Offer, Submission, Vendor, VendorSubmission,
 )
 from .staffing import BU, _require_staff, _tid
 
@@ -461,3 +461,171 @@ def update_invoice(invoice_id: uuid.UUID, body: InvoiceUpdateIn,
     write_audit(db, ctx, "invoice.update", "invoice", v.id, before=before, after={"status": v.status})
     db.commit()
     return _inv_dict(v)
+
+
+# ── vendors + vendor submissions (core; contracts/commissions/performance = follow-up) ──
+class VendorIn(BaseModel):
+    name: str
+    contact_email: str | None = None
+    contact_phone: str | None = None
+    commission_percent: float | None = None
+
+    @field_validator("name")
+    @classmethod
+    def _n(cls, v):
+        v = (v or "").strip()
+        if not v:
+            raise ValueError("Vendor name is required")
+        return v
+
+
+class VendorUpdateIn(BaseModel):
+    status: str | None = None
+    commission_percent: float | None = None
+
+    @field_validator("status")
+    @classmethod
+    def _s(cls, v):
+        if v is not None and v not in VENDOR_STATUSES:
+            raise ValueError(f"status must be one of {VENDOR_STATUSES}")
+        return v
+
+
+class VendorSubIn(BaseModel):
+    candidate_id: uuid.UUID
+    job_id: uuid.UUID | None = None
+    notes: str | None = None
+
+
+class VendorSubUpdateIn(BaseModel):
+    status: str | None = None
+    notes: str | None = None
+
+    @field_validator("status")
+    @classmethod
+    def _s(cls, v):
+        if v is not None and v not in VENDOR_SUB_STATUSES:
+            raise ValueError(f"status must be one of {VENDOR_SUB_STATUSES}")
+        return v
+
+
+def _vendor_dict(v: Vendor) -> dict:
+    return {"id": str(v.id), "name": v.name, "contact_email": v.contact_email,
+            "contact_phone": v.contact_phone,
+            "commission_percent": float(v.commission_percent) if v.commission_percent is not None else None,
+            "status": v.status}
+
+
+def _vsub_dict(s: VendorSubmission) -> dict:
+    return {"id": str(s.id), "vendor_id": str(s.vendor_id), "candidate_id": str(s.candidate_id),
+            "job_id": str(s.job_id) if s.job_id else None, "status": s.status, "notes": s.notes,
+            "created_at": s.created_at.isoformat() if s.created_at else None}
+
+
+@router.post("/vendors")
+def create_vendor(body: VendorIn, ctx: RequestContext = Depends(get_current_context),
+                  db: Session = Depends(get_db), idempotency_key: str | None = Header(default=None)):
+    _require_staff(ctx)
+    if (c := get_cached(str(ctx.tenant_id), idempotency_key)):
+        return c
+    obj = Vendor(tenant_id=_tid(ctx), business_unit_id=BU, name=body.name,
+                 contact_email=body.contact_email, contact_phone=body.contact_phone,
+                 commission_percent=body.commission_percent, status="active")
+    db.add(obj)
+    db.flush()
+    write_audit(db, ctx, "vendor.create", "vendor", obj.id, after={"name": body.name})
+    db.commit()
+    res = _vendor_dict(obj)
+    store(str(ctx.tenant_id), idempotency_key, res)
+    return res
+
+
+@router.get("/vendors")
+def list_vendors(ctx: RequestContext = Depends(get_current_context), db: Session = Depends(get_db)):
+    _require_staff(ctx)
+    rows = db.execute(select(Vendor).where(
+        Vendor.tenant_id == _tid(ctx), Vendor.business_unit_id == BU, Vendor.deleted_at.is_(None))
+        .order_by(Vendor.created_at.desc())).scalars().all()
+    return [_vendor_dict(v) for v in rows]
+
+
+@router.patch("/vendors/{vendor_id}")
+def update_vendor(vendor_id: uuid.UUID, body: VendorUpdateIn,
+                  ctx: RequestContext = Depends(get_current_context), db: Session = Depends(get_db)):
+    _require_staff(ctx)
+    v = db.execute(select(Vendor).where(
+        Vendor.id == vendor_id, Vendor.tenant_id == _tid(ctx),
+        Vendor.business_unit_id == BU, Vendor.deleted_at.is_(None))).scalar_one_or_none()
+    if v is None:
+        raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "Vendor not found"})
+    if body.status is not None:
+        v.status = body.status
+    if body.commission_percent is not None:
+        v.commission_percent = body.commission_percent
+    db.flush()
+    write_audit(db, ctx, "vendor.update", "vendor", v.id, after={"status": v.status})
+    db.commit()
+    return _vendor_dict(v)
+
+
+@router.post("/vendors/{vendor_id}/submissions")
+def create_vendor_submission(vendor_id: uuid.UUID, body: VendorSubIn,
+                             ctx: RequestContext = Depends(get_current_context), db: Session = Depends(get_db),
+                             idempotency_key: str | None = Header(default=None)):
+    """Attribute a candidate submission to a vendor."""
+    _require_staff(ctx)
+    if (c := get_cached(str(ctx.tenant_id), idempotency_key)):
+        return c
+    vendor = db.execute(select(Vendor).where(
+        Vendor.id == vendor_id, Vendor.tenant_id == _tid(ctx),
+        Vendor.business_unit_id == BU, Vendor.deleted_at.is_(None))).scalar_one_or_none()
+    if vendor is None:
+        raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "Vendor not found"})
+    cand = db.execute(select(Candidate).where(
+        Candidate.id == body.candidate_id, Candidate.tenant_id == _tid(ctx),
+        Candidate.deleted_at.is_(None))).scalar_one_or_none()
+    if cand is None:
+        raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "Candidate not found"})
+    obj = VendorSubmission(tenant_id=_tid(ctx), business_unit_id=BU, vendor_id=vendor_id,
+                           candidate_id=body.candidate_id, job_id=body.job_id, notes=body.notes, status="submitted")
+    db.add(obj)
+    db.flush()
+    write_audit(db, ctx, "vendor_submission.create", "vendor_submission", obj.id, after={"vendor_id": str(vendor_id)})
+    db.commit()
+    res = _vsub_dict(obj)
+    store(str(ctx.tenant_id), idempotency_key, res)
+    return res
+
+
+@router.get("/vendor-submissions")
+def list_vendor_submissions(ctx: RequestContext = Depends(get_current_context), db: Session = Depends(get_db)):
+    """Vendor submissions dashboard — with vendor + candidate names."""
+    _require_staff(ctx)
+    rows = db.execute(
+        select(VendorSubmission, Vendor.name, Candidate.full_name)
+        .join(Vendor, Vendor.id == VendorSubmission.vendor_id)
+        .join(Candidate, Candidate.id == VendorSubmission.candidate_id)
+        .where(VendorSubmission.tenant_id == _tid(ctx), VendorSubmission.business_unit_id == BU,
+               VendorSubmission.deleted_at.is_(None))
+        .order_by(VendorSubmission.created_at.desc())
+    ).all()
+    return [{**_vsub_dict(s), "vendor": vname, "candidate": cname} for s, vname, cname in rows]
+
+
+@router.patch("/vendor-submissions/{sub_id}")
+def update_vendor_submission(sub_id: uuid.UUID, body: VendorSubUpdateIn,
+                             ctx: RequestContext = Depends(get_current_context), db: Session = Depends(get_db)):
+    _require_staff(ctx)
+    s = db.execute(select(VendorSubmission).where(
+        VendorSubmission.id == sub_id, VendorSubmission.tenant_id == _tid(ctx),
+        VendorSubmission.business_unit_id == BU, VendorSubmission.deleted_at.is_(None))).scalar_one_or_none()
+    if s is None:
+        raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "Vendor submission not found"})
+    if body.status is not None:
+        s.status = body.status
+    if body.notes is not None:
+        s.notes = body.notes
+    db.flush()
+    write_audit(db, ctx, "vendor_submission.update", "vendor_submission", s.id, after={"status": s.status})
+    db.commit()
+    return _vsub_dict(s)

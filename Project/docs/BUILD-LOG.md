@@ -516,6 +516,13 @@ bottom of the dated sections. Updated at the end of **every** session.
 - **PENDING B5:** invoicing GST/TDS compliance specifics (rates, rounding, place-of-supply/RCM, HSN/SAC, numbering, PDF) await legal.
 - **Status:** ✅ applied + deployed (tax inert until legal-confirmed rates).
 
+### Staffing — Vendor / sub-vendor management (core) ✅
+- **Backend:** `staffing.vendors` (name, contact_email/phone [business contact], commission_percent, status CHECK active/inactive) + `staffing.vendor_submissions` (vendor↔candidate attribution, optional job, status CHECK submitted/shortlisted/rejected/placed, notes). Both two-axis. Endpoints (staff-gated, idempotent, audited): `POST/GET /api/vendors`, `PATCH /api/vendors/{id}`, `POST /api/vendors/{id}/submissions`, `GET /api/vendor-submissions`, `PATCH /api/vendor-submissions/{id}`. Migration `0015` (two tables).
+- **Frontend:** `/employer/vendors` (add-vendor form, vendor list w/ commission+activate, vendor-submissions attribution list w/ status) + nav item.
+- **Follow-up (PENDING D3):** vendor_contracts / vendor_commissions / vendor_performance + vendor-submission create UI.
+- **Tests: 84 pass** (+ vendor CRUD + submission attribution + status, bad-status 422, staff-gate). Migration up/down/up clean.
+- **Status:** ✅ applied + deployed.
+
 ## Pending / next steps
 
 ➡️ **The canonical, durable register of ALL outstanding/deferred items is

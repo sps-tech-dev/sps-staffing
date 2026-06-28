@@ -172,6 +172,15 @@ Last refreshed: 2026-06-28.
 - **Blocks:** those product lines.
 - **Trigger:** when the standing sequence reaches them.
 
+### D3. Vendor management — depth beyond the core (follow-up)
+- **What:** core built — `staffing.vendors` + `staffing.vendor_submissions` (CRUD + attribution + status).
+  NOT built: `vendor_contracts`, `vendor_commissions` (commission calc/payout against placements),
+  `vendor_performance`. Also: vendor-submission *creation* UI (backend endpoint exists + tested;
+  the screen currently lists/updates, creation is via API).
+- **Why deferred:** Part 5 calls vendor depth V2; core is enough for attribution now.
+- **Blocks:** commission payouts + vendor scorecards.
+- **Trigger:** when vendor commissions/performance are prioritized.
+
 ### D2. Rate-limiting the public registration endpoint (hardening)
 - **What:** `POST /api/register/candidate` is public; no rate limit yet (captcha + dedup
   unique are the current guards).
