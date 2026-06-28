@@ -19,7 +19,7 @@ import uuid
 from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel, field_validator
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, undefer
 
 from ..audit import write_audit
 from ..context import RequestContext
@@ -104,9 +104,18 @@ def set_consent(body: ConsentBody, ctx: RequestContext = Depends(get_current_con
 
 
 def _export_bundle(db: Session, ctx: RequestContext, user: User) -> dict:
-    """Assemble the data principal's data within the tenant."""
+    """Assemble the data principal's OWN data within the tenant.
+
+    Scope: candidates are matched to the principal by (tenant_id, email) — only the
+    principal's own records, never another candidate's. This is the privileged
+    self-export decryption path: it DOES include the principal's own decrypted
+    phone/pan (the *_enc columns are normally deferred; we undefer them here so they
+    are decrypted for this bundle). Admin/other views stay masked.
+    """
     cands = db.execute(
-        select(Candidate).where(
+        select(Candidate)
+        .options(undefer(Candidate.phone_enc), undefer(Candidate.pan_enc))
+        .where(
             Candidate.tenant_id == _tid(ctx), Candidate.deleted_at.is_(None),
             Candidate.email == user.email,
         )
@@ -124,6 +133,7 @@ def _export_bundle(db: Session, ctx: RequestContext, user: User) -> dict:
         "account": {"id": str(user.id), "email": user.email, "full_name": user.full_name,
                     "status": user.status},
         "candidates": [{"id": str(c.id), "full_name": c.full_name, "email": c.email,
+                        "phone": c.phone_enc, "pan": c.pan_enc,  # decrypted — principal's own
                         "skills": c.skills, "source": c.source} for c in cands],
         "applications": [{"id": str(a.id), "job_id": str(a.job_id), "stage": a.stage,
                           "business_unit_id": a.business_unit_id} for a in apps],
@@ -131,27 +141,31 @@ def _export_bundle(db: Session, ctx: RequestContext, user: User) -> dict:
 
 
 @router.post("/export")
-def export_data(ctx: RequestContext = Depends(get_current_context), db: Session = Depends(get_db),
-                idempotency_key: str | None = Header(default=None)):
-    """Right to access/portability — return the principal's data + record the request."""
+def export_data(ctx: RequestContext = Depends(get_current_context), db: Session = Depends(get_db)):
+    """Right to access/portability — return the principal's OWN data (incl. their
+    decrypted PAN/phone) + record the request and an audited PII-disclosure entry.
+
+    NOT idempotency-cached on purpose: the bundle contains decrypted PII, which must
+    not be written to Redis; and each export is a legitimate, separately-audited
+    disclosure event.
+    """
     uid = _uid(ctx)
-    if (cached := get_cached(str(ctx.tenant_id), idempotency_key)):
-        return cached
     user = db.execute(select(User).where(User.id == uid, User.tenant_id == _tid(ctx))).scalar_one_or_none()
     if user is None:
         raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "User not found"})
     bundle = _export_bundle(db, ctx, user)
+    pii_count = sum(1 for c in bundle["candidates"] if c["phone"] or c["pan"])
     req = DpdpRequest(tenant_id=_tid(ctx), subject_user_id=uid, kind="export", status="completed",
                       detail={"counts": {"candidates": len(bundle["candidates"]),
                                          "applications": len(bundle["applications"])}})
     db.add(req)
     db.flush()
-    write_audit(db, ctx, "dpdp.export", "dpdp_request", req.id)
+    # Privileged decryption disclosure — record WHO exported their own PII and WHEN.
+    write_audit(db, ctx, "dpdp.export", "dpdp_request", req.id,
+                after={"pii_disclosed": True, "candidates_with_pii": pii_count})
     db.commit()
-    res = {"request_id": str(req.id), "kind": "export", "status": "completed",
-           "generated_for": str(uid), "data": bundle}
-    store(str(ctx.tenant_id), idempotency_key, res)
-    return res
+    return {"request_id": str(req.id), "kind": "export", "status": "completed",
+            "generated_for": str(uid), "data": bundle}
 
 
 @router.post("/erase")

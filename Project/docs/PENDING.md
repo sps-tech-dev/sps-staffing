@@ -51,13 +51,7 @@ Last refreshed: 2026-06-28.
 - **Blocks:** fulfilling real erasure requests.
 - **Trigger:** design the cascade WITH the user before building (do not auto-implement).
 
-### B2. DPDP export completion (include the principal's own PII)
-- **What:** `app/routers/privacy.py` `_export_bundle` omits `phone`/`pan`. Now that
-  decryption exists, a data-access export should include the principal's own decrypted
-  phone/pan.
-- **Why deferred:** was omitted while PII was unencrypted; now unblocked.
-- **Blocks:** a complete DPDP right-to-access export.
-- **Trigger:** pick up any time (low risk) — decrypt + include in the export bundle.
+### B2. DPDP export completion — ✅ RESOLVED (see Resolved section)
 
 ### B3. audit_logs / consents append-only enforcement — ✅ RESOLVED (see Resolved section)
 
@@ -146,6 +140,12 @@ Last refreshed: 2026-06-28.
 ---
 
 ## Resolved (kept for history)
+- **DPDP export now includes the principal's own decrypted PAN/phone** — RESOLVED 2026-06-28:
+  `_export_bundle` undefers + decrypts `*_enc` for the principal's OWN candidates (matched by
+  tenant+email); scope-tested (A's export has A's PII, zero of B's). Export is the privileged,
+  audited decryption path (writes an `audit_logs` `dpdp.export` entry with `pii_disclosed`,
+  who/when) and is NOT idempotency-cached (decrypted PII must not be written to Redis). Admin
+  views stay masked.
 - **audit_logs / consents append-only enforcement** — RESOLVED 2026-06-28: the backend now
   connects as a least-privilege role **`sps_app`** (Secrets Manager `sps-shared-dev-app-db`,
   wired in `appdb.tf`) with full DML on business tables but only SELECT/INSERT on

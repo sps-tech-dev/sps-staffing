@@ -470,6 +470,15 @@ bottom of the dated sections. Updated at the end of **every** session.
 - **Rollback path (confirmed clean):** repoint backend service to the prior task-def revision (`:23`, master).
 - **Status:** ✅ deployed + RDS-live + live-verified. (New landmine logged in PENDING C3: `terraform apply` must pin `-var backend_image_tag` or it regresses the image.)
 
+### DPDP export PII completion — privileged self-export decryption ✅
+- **What:** `POST /api/privacy/export` now includes the principal's **own decrypted PAN/phone** (`_export_bundle` undefers + decrypts `*_enc` for candidates matched by tenant+email).
+- **Scope/isolation:** only the authenticated principal's own records; test asserts A's export contains A's PII and **zero** of B's (isolation with decryption in the path).
+- **Privileged + audited:** writes an `audit_logs` `dpdp.export` entry (`actor_id` = who, `ts` = when, `after.pii_disclosed=true`). Audit INSERT goes through `sps_app` (confirmed it can INSERT audit_logs).
+- **No PII in Redis:** export is **no longer idempotency-cached** (caching the decrypted bundle would write PII to Redis) — each export is a separately-audited disclosure.
+- **Masking unchanged:** admin/other views still mask via `*_bidx` presence; only self-export decrypts.
+- **Read/decrypt only:** no new migration/grant. **64 tests pass** (+ decrypted-PII export + audit, A/B isolation).
+- **Status:** ✅ built + locally verified; deploying + dev smoke (export path under `sps_app` via one-off task, since dev has no login).
+
 ## Pending / next steps
 
 ➡️ **The canonical, durable register of ALL outstanding/deferred items is

@@ -200,3 +200,16 @@ Discovery surfaced internal inconsistencies in the architecture spec. Resolved a
   just the probe): catches grant gaps the standalone probe can't.
 - **Trigger to revisit:** if a new append-only table is added, REVOKE UPDATE/DELETE on it from `sps_app`
   in the bootstrap; if `sps_app` ever needs new privileges, update the bootstrap (idempotent, re-runnable).
+
+### 2026-06-28 — DPDP export is the privileged self-export decryption path
+- **Decision:** the data-access export (`POST /api/privacy/export`) returns the principal's OWN
+  decrypted PAN/phone (DPDP right to access). Scope is strictly the authenticated principal's own
+  candidates (tenant_id + email match) — never another candidate's; an isolation test asserts A's
+  export excludes B's PII even with decryption in the path. Admin/other views remain masked.
+- **Audited disclosure:** every export writes an `audit_logs` `dpdp.export` entry (actor + timestamp +
+  `pii_disclosed`) — the privileged decryption path is recorded for DPDP disclosure hygiene. The audit
+  INSERT runs as `sps_app` (which can INSERT audit_logs but not UPDATE/DELETE — append-only holds).
+- **No PII caching:** export dropped Idempotency-Key caching — caching the decrypted bundle would put
+  PII in Redis. Each call re-derives + re-audits (a legitimate, separately-logged disclosure).
+- **Would change if:** export grows large (then stream/async + a download artifact in S3 with
+  short-lived signed URLs, still audited).
