@@ -194,6 +194,38 @@ class DpdpRequest(Base):
     )
 
 
+class ClientUser(TimestampMixin, Base):
+    # Client self-service portal identity (nested isolation). A client portal user
+    # is a `users` row (credentials, tenant-scoped — reused) PLUS an ACTIVE row here
+    # binding them to a specific `client_id` (a staffing.clients company). The bind +
+    # activation is the SECURITY GATE: a 'pending' row grants NOTHING; approval sets
+    # status='active' + client_id, which is what gives a login its client scope.
+    #   - dedicated table (not memberships.client_id): external client access is a
+    #     different trust model + lifecycle from internal staff memberships; keeps the
+    #     identity spine untouched and the approval gate explicit as row state.
+    #   - client_id is a SOFT reference to staffing.clients (no cross-schema FK — shared
+    #     must not depend on a vertical schema; same rule as consents.subject_candidate_id).
+    __tablename__ = "client_users"
+    __table_args__ = (
+        sa.CheckConstraint(
+            "status IN ('pending','active','rejected','suspended')", name="ck_client_users_status"
+        ),
+        sa.UniqueConstraint("tenant_id", "user_id", name="uq_client_users_tenant_user"),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    tenant_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), sa.ForeignKey(f"{SCHEMA}.tenants.id"), nullable=False
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), sa.ForeignKey(f"{SCHEMA}.users.id"), nullable=False
+    )
+    # bound on approval (soft ref to staffing.clients.id); NULL while pending.
+    client_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    status: Mapped[str] = mapped_column(sa.Text, nullable=False, server_default=sa.text("'pending'"))
+
+
 class AuditLog(Base):
     # EXCEPTION (decision B): bigserial PK, append-only, no mixin/soft-delete.
     __tablename__ = "audit_logs"

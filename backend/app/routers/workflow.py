@@ -65,9 +65,10 @@ def create_submission(app_id: uuid.UUID, ctx: RequestContext = Depends(get_curre
     _require_staff(ctx)
     if (c := get_cached(str(ctx.tenant_id), idempotency_key)):
         return c
-    _app_or_404(db, ctx, app_id)  # tenant+BU ownership check
+    appn = _app_or_404(db, ctx, app_id)  # tenant+BU ownership check
     obj = Submission(tenant_id=_tid(ctx), business_unit_id=BU, application_id=app_id,
-                     status="submitted", submitted_by=uuid.UUID(str(ctx.user_id)) if ctx.user_id else None)
+                     client_id=appn.client_id, status="submitted",
+                     submitted_by=uuid.UUID(str(ctx.user_id)) if ctx.user_id else None)
     db.add(obj)
     db.flush()
     write_audit(db, ctx, "submission.create", "submission", obj.id, after={"application_id": str(app_id)})
@@ -164,9 +165,9 @@ def create_offer(app_id: uuid.UUID, body: OfferIn, ctx: RequestContext = Depends
     _require_staff(ctx)
     if (c := get_cached(str(ctx.tenant_id), idempotency_key)):
         return c
-    _app_or_404(db, ctx, app_id)
+    appn = _app_or_404(db, ctx, app_id)
     obj = Offer(tenant_id=_tid(ctx), business_unit_id=BU, application_id=app_id,
-                ctc=body.ctc, joining_date=body.joining_date, status="draft")
+                client_id=appn.client_id, ctc=body.ctc, joining_date=body.joining_date, status="draft")
     db.add(obj)
     db.flush()
     write_audit(db, ctx, "offer.create", "offer", obj.id, after={"application_id": str(app_id)})
@@ -281,9 +282,9 @@ def create_interview(app_id: uuid.UUID, body: InterviewIn, ctx: RequestContext =
     _require_staff(ctx)
     if (c := get_cached(str(ctx.tenant_id), idempotency_key)):
         return c
-    _app_or_404(db, ctx, app_id)
+    appn = _app_or_404(db, ctx, app_id)
     obj = Interview(tenant_id=_tid(ctx), business_unit_id=BU, application_id=app_id,
-                    scheduled_at=body.scheduled_at, mode=body.mode or "video",
+                    client_id=appn.client_id, scheduled_at=body.scheduled_at, mode=body.mode or "video",
                     interviewer_name=body.interviewer_name, status="scheduled")
     db.add(obj)
     db.flush()

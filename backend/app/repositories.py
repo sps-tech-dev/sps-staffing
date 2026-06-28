@@ -40,16 +40,29 @@ class AuthQueries:
         ).all()
         return [(code, list(roles or [])) for code, roles in rows]
 
+    @staticmethod
+    def active_client_binding(db: Session, user_id) -> uuid.UUID | None:
+        """The client_id an ACTIVE client_users row binds this user to (or None).
+        Login-time only — this is what gives a client session its client scope. A
+        'pending'/'rejected'/'suspended' row (or no row) yields NO client scope, so
+        a self-registration alone grants nothing until an admin approves+binds."""
+        from .models import ClientUser
+        return db.execute(
+            select(ClientUser.client_id).where(
+                ClientUser.user_id == user_id, ClientUser.status == "active",
+                ClientUser.client_id.is_not(None))
+        ).scalar_one_or_none()
+
 
 class TenantScopedRepo:
-    """Every authenticated read goes through base_query → tenant-scoped."""
+    """Every authenticated read goes through base_query → tenant-scoped (+ BU, + client)."""
 
     def __init__(self, db: Session, ctx: RequestContext):
         self.db = db
         self.ctx = ctx
 
     def base_query(self, model):
-        # tenant_id from the verified JWT context — the isolation boundary.
+        # tenant_id from the verified JWT context — the authoritative isolation boundary.
         tid = self.ctx.tenant_id
         if isinstance(tid, str):
             tid = uuid.UUID(tid)
@@ -57,7 +70,20 @@ class TenantScopedRepo:
         # Two-axis tables also scope by business_unit_id when one is in context.
         if self.ctx.business_unit_id is not None and hasattr(model, "business_unit_id"):
             q = q.where(model.business_unit_id == self.ctx.business_unit_id)
+        # NESTED CLIENT SCOPE: a client-portal session (ctx.client_id set) can read ONLY
+        # rows belonging to its own client. Enforced HERE in the base layer so it can
+        # never be forgotten per-endpoint. Models without a client_id column are not
+        # client-owned and are unaffected (staff sessions have client_id=None → no filter).
+        cid = self.ctx.client_id
+        if cid is not None and hasattr(model, "client_id"):
+            if isinstance(cid, str):
+                cid = uuid.UUID(cid)
+            q = q.where(model.client_id == cid)
         return q
+
+    def scoped_all(self, model):
+        """Generic scoped read — every row of `model` visible to this context."""
+        return list(self.db.execute(self.base_query(model)).scalars().all())
 
     # Example scoped read used by the cross-tenant-leakage test: users in MY tenant.
     def list_users(self) -> list[User]:

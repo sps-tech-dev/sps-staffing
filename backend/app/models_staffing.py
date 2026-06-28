@@ -103,6 +103,7 @@ class Application(TwoAxisMixin, Base):
         sa.Index("ix_applications_tenant_bu", "tenant_id", "business_unit_id"),
         sa.Index("ix_applications_job_id", "job_id"),
         sa.Index("ix_applications_candidate_id", "candidate_id"),
+        sa.Index("ix_applications_client_id", "client_id"),
         {"schema": SCHEMA},
     )
     job_id: Mapped[uuid.UUID] = mapped_column(
@@ -110,6 +111,11 @@ class Application(TwoAxisMixin, Base):
     )
     candidate_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), sa.ForeignKey(f"{SCHEMA}.candidates.id"), nullable=False
+    )
+    # Denormalized owning client (from the job) so the base repo can client-scope
+    # the pipeline without a join — nested client isolation can't be forgotten.
+    client_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), sa.ForeignKey(f"{SCHEMA}.clients.id")
     )
     stage: Mapped[str] = mapped_column(sa.Text, nullable=False, server_default=sa.text("'sourced'"))
     owner_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
@@ -127,11 +133,15 @@ class Submission(TwoAxisMixin, Base):
         sa.CheckConstraint(f"status IN ({_SUB_SQL})", name="ck_submissions_status"),
         sa.Index("ix_submissions_tenant_bu", "tenant_id", "business_unit_id"),
         sa.Index("ix_submissions_application_id", "application_id"),
+        sa.Index("ix_submissions_client_id", "client_id"),
         {"schema": SCHEMA},
     )
     application_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), sa.ForeignKey(f"{SCHEMA}.applications.id"), nullable=False
     )
+    client_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), sa.ForeignKey(f"{SCHEMA}.clients.id")
+    )  # denormalized owning client (nested isolation)
     status: Mapped[str] = mapped_column(sa.Text, nullable=False, server_default=sa.text("'submitted'"))
     client_feedback: Mapped[str | None] = mapped_column(sa.Text)
     submitted_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
@@ -149,11 +159,15 @@ class Offer(TwoAxisMixin, Base):
         sa.CheckConstraint(f"status IN ({_OFFER_SQL})", name="ck_offers_status"),
         sa.Index("ix_offers_tenant_bu", "tenant_id", "business_unit_id"),
         sa.Index("ix_offers_application_id", "application_id"),
+        sa.Index("ix_offers_client_id", "client_id"),
         {"schema": SCHEMA},
     )
     application_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), sa.ForeignKey(f"{SCHEMA}.applications.id"), nullable=False
     )
+    client_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), sa.ForeignKey(f"{SCHEMA}.clients.id")
+    )  # denormalized owning client (nested isolation)
     ctc: Mapped[float | None] = mapped_column(sa.Numeric)          # annual CTC (INR)
     joining_date: Mapped[datetime.date | None] = mapped_column(sa.Date)
     status: Mapped[str] = mapped_column(sa.Text, nullable=False, server_default=sa.text("'draft'"))
@@ -176,11 +190,15 @@ class Interview(TwoAxisMixin, Base):
         sa.CheckConstraint(f"mode IN ({_IV_MODE_SQL})", name="ck_interviews_mode"),
         sa.Index("ix_interviews_tenant_bu", "tenant_id", "business_unit_id"),
         sa.Index("ix_interviews_application_id", "application_id"),
+        sa.Index("ix_interviews_client_id", "client_id"),
         {"schema": SCHEMA},
     )
     application_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), sa.ForeignKey(f"{SCHEMA}.applications.id"), nullable=False
     )
+    client_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), sa.ForeignKey(f"{SCHEMA}.clients.id")
+    )  # denormalized owning client (nested isolation)
     scheduled_at: Mapped[datetime.datetime | None] = mapped_column(sa.DateTime(timezone=True))
     mode: Mapped[str] = mapped_column(sa.Text, nullable=False, server_default=sa.text("'video'"))
     status: Mapped[str] = mapped_column(sa.Text, nullable=False, server_default=sa.text("'scheduled'"))

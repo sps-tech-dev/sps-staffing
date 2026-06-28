@@ -7,6 +7,10 @@ class RequestContext:
     business_unit_id: str | None
     user_id: str | None = None
     roles: tuple[str, ...] = ()
+    # Client-portal sub-scope (nested inside tenant). Set ONLY for an active client
+    # portal session (from the JWT). When present, the base repository additionally
+    # filters every query by client_id — a client can read only its own company's rows.
+    client_id: str | None = None
 
 _ctx: ContextVar[RequestContext | None] = ContextVar("ctx", default=None)
 

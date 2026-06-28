@@ -530,6 +530,16 @@ bottom of the dated sections. Updated at the end of **every** session.
 - **Dev endpoints live + auth-gated** (401 unauth): `/api/{submissions,offers,interviews,invoices,vendors,vendor-submissions}`. `/readyz` db:ok.
 - **Status:** ✅ staffing vertical workflow complete end-to-end on dev.
 
+### Client Portal — Task 1: isolation foundation + leakage GATE ✅
+- **Identity:** new `shared.client_users` (user_id, tenant_id, client_id soft-ref, status CHECK pending/active/rejected/suspended, UNIQUE(tenant_id,user_id)) — binds a login to one client; approval = status active + client_id bound (pending grants nothing). Justified vs memberships.client_id in DECISIONS.
+- **Base-layer nested scoping:** `RequestContext.client_id` (from JWT); `TenantScopedRepo.base_query` nests `client_id` filter under tenant_id+BU when ctx.client_id set + model has client_id. `AuthQueries.active_client_binding` mints client_id into the JWT at login/refresh; deps reads it. Can't be forgotten per-endpoint.
+- **Denormalized client_id** onto applications/submissions/offers/interviews (jobs+invoices already had it; backfilled from job) so the whole pipeline is base-scoped. Candidates stay tenant-scoped (pool not client-owned).
+- **Migrations 0016 (client_users) + 0017 (pipeline client_id + backfill).** Local up→down→up + idempotency clean. DDL:
+  - `0016`: CREATE TABLE shared.client_users(... client_id UUID, status CHECK(pending/active/rejected/suspended), FK tenant+user, UNIQUE(tenant_id,user_id)) + indexes.
+  - `0017`: ADD COLUMN client_id + FK clients + index on applications/submissions/offers/interviews; UPDATE backfill from job→application chain.
+- **THE GATE — `test_client_isolation.py` PASSES:** cross-client isolation on Job/Application/Submission/Offer/Interview (both directions), no cross-tenant read, staff not client-restricted, candidates only via scoped pipeline. **87 backend tests pass.**
+- **Status:** ✅ foundation proven leak-free; safe to build the portal on top.
+
 ## Pending / next steps
 
 ➡️ **The canonical, durable register of ALL outstanding/deferred items is

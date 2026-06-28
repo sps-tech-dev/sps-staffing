@@ -240,3 +240,29 @@ Discovery surfaced internal inconsistencies in the architecture spec. Resolved a
   guessed period under any circumstances.**
 - **Role:** anonymization runs through `sps_app` — UPDATE candidates/users/dpdp_requests + INSERT
   audit (allowed); never UPDATE/DELETE audit_logs/consents (append-only holds).
+
+### 2026-06-28 — Client self-service portal: nested client↔client isolation (client_users + denormalized client_id)
+- **Model:** a **client** is a company (staffing.clients) that posts jobs, owned by a **tenant**. A **client
+  portal user** is a `shared.users` login bound to a specific client; their session is scoped to BOTH
+  `tenant_id` (existing) AND `client_id` (NEW dimension) — they see only their own company's data. This is
+  client↔client isolation **nested inside** the existing tenant↔tenant isolation.
+- **Identity = dedicated `shared.client_users` table** (NOT a `client_id` on memberships). Justification:
+  external client access is a different trust model + lifecycle from internal staff memberships; a dedicated
+  table keeps the identity spine (memberships→business_units) untouched and makes the **approval gate explicit
+  as row state** — `status` pending→active + `client_id` bound on approval. A pending/unbound row grants
+  NOTHING; only an ACTIVE bound row produces a client scope. `client_id` is a **soft ref** to staffing.clients
+  (no cross-schema FK — same rule as consents.subject_candidate_id).
+- **Scoping enforced in the BASE repository, not per-endpoint:** `TenantScopedRepo.base_query` now nests a
+  `client_id` filter under tenant_id+BU **whenever `ctx.client_id` is set AND the model has a `client_id`
+  column**. `ctx.client_id` comes from the verified JWT (minted at login from `active_client_binding`). Staff
+  sessions have `client_id=None` → no client filter (unchanged behavior).
+- **Denormalized `client_id`** added to `applications`/`submissions`/`offers`/`interviews` (jobs+invoices
+  already had it; backfilled from the job) so the base layer can client-scope the **whole pipeline** by column
+  — can't be forgotten. **Candidates stay tenant-scoped** (the talent pool is NOT client-owned; clients reach
+  candidates ONLY via their own client-scoped submissions/applications).
+- **Role:** client portal user = role `client` + `client_id` in the JWT; `_HOME["client"]` → `/client` (new
+  portal). The legacy `/employer/*` screens were staff-facing management tools mapped to the `client` role;
+  real client users now route to `/client`. (Cleanup of the legacy mapping is a follow-up, non-blocking.)
+- **PROVEN:** `test_client_isolation.py` — within one tenant, Acme's client context cannot read Globex's
+  jobs/applications/submissions/offers/interviews (both directions), a client cannot read across tenants, and a
+  staff session is not client-restricted. **This gate passes before any portal UI was built.**

@@ -39,6 +39,9 @@ def get_current_context(request: Request) -> RequestContext:
         business_unit_id=bu,
         user_id=payload.get("sub"),
         roles=tuple(payload.get("role_flat", [])),
+        # Client-portal sub-scope from the signed JWT (set only for active client
+        # sessions). The base repository nests this under tenant_id automatically.
+        client_id=payload.get("client_id"),
     )
     set_context(ctx)
     return ctx
