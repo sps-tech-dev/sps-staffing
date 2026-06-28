@@ -523,6 +523,13 @@ bottom of the dated sections. Updated at the end of **every** session.
 - **Tests: 84 pass** (+ vendor CRUD + submission attribution + status, bad-status 422, staff-gate). Migration up/down/up clean.
 - **Status:** ✅ applied + deployed.
 
+### Staffing — Final integration pass (E2E on dev) ✅
+- **Full chain verified on dev RDS under `sps_app`** (via a one-off task calling the endpoint functions directly — the prod image has no httpx for TestClient): client → job → candidate → application → submission → offer(accepted) → interview → invoice (15% fee, GST/TDS inert) → vendor → vendor_submission; **all 5 workflow dashboards join** (candidate/job/client names). Probe artifacts cleaned up.
+- **Tenant scoping:** every workflow query filters by `tenant_id` (+ `business_unit_id` two-axis); staff-gated; idempotent writes; canonical error envelope.
+- **Full test suite: 84 pass**, incl. the **cross-tenant leakage** test (tenant A context cannot read tenant B).
+- **Dev endpoints live + auth-gated** (401 unauth): `/api/{submissions,offers,interviews,invoices,vendors,vendor-submissions}`. `/readyz` db:ok.
+- **Status:** ✅ staffing vertical workflow complete end-to-end on dev.
+
 ## Pending / next steps
 
 ➡️ **The canonical, durable register of ALL outstanding/deferred items is
