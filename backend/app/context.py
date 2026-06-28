@@ -23,7 +23,14 @@ VERTICAL = {
     "training-and-internship": "ACADEMY",
     "it-services-and-consulting": "CONSULTING",
 }
-RESERVED_SUBDOMAINS = {"www", "api", "auth", "app", "admin", "static", "cdn", "mail"}
+# Non-tenant labels: infra/app hosts that map to the owner tenant, not a tenant
+# slug. Includes the per-environment API hosts (e.g. dev-api / staging-api) so the
+# deployed single-tenant API resolves to the owner until real tenant subdomains +
+# CloudFront exist (the deferred Host↔JWT work).
+RESERVED_SUBDOMAINS = {
+    "www", "api", "auth", "app", "admin", "static", "cdn", "mail",
+    "dev", "dev-api", "staging", "staging-api", "uat", "uat-api",
+}
 
 def tenant_from_host(host: str, base_domain: str) -> str:
     h = host.split(":")[0].removeprefix("www.")

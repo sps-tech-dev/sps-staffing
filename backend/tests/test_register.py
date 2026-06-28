@@ -91,3 +91,14 @@ def test_registration_config_exposes_sitekey_and_notices(clean):
     cfg = c.get("/api/register/config", headers=HOST).json()
     assert "hcaptcha_sitekey" in cfg and cfg["policy_version"]
     assert "[LEGAL COPY TBD]" in cfg["notices"]["data_processing"]
+
+
+def test_deployed_api_host_resolves_to_owner_tenant(clean):
+    # the deployed API host (dev-api.*) is infra, not a tenant subdomain → owner.
+    from app.context import tenant_from_host
+    assert tenant_from_host("dev-api.spstechnosoft.com", "spstechnosoft.com") == "sps"
+    c = TestClient(app)
+    r = c.post("/api/register/candidate",
+               json=_payload(phone="9700055667", pan="HOSTP1234C"),
+               headers={"host": "dev-api.spstechnosoft.com"})
+    assert r.status_code == 200, r.text
