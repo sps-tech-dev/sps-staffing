@@ -31,6 +31,7 @@ export const NAV: Record<Role, NavItem[]> = {
     { label: "Dashboard", href: "/admin/dashboard", icon: LayoutDashboard },
     { label: "Candidates", href: "/admin/candidates", icon: Users },
     { label: "Clients", href: "/admin/clients", icon: Building2 },
+    { label: "Client Sign-ups", href: "/admin/client-registrations", icon: Building2 },
     { label: "Jobs", href: "/admin/jobs", icon: Briefcase },
     { label: "Employees", href: "/admin/employees", icon: GraduationCap },
     { label: "SLA Board", href: "/admin/sla-board", icon: Timer },

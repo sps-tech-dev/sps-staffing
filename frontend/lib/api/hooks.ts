@@ -4,8 +4,8 @@ import { api } from "./client";
 import type {
   AdminCandidate, AdminClient, AdminJobRow, AiSummary, AuditRow, CandidateOverview,
   ConsentState, DpdpRequestRow, EmployeeOverview, EmployerOverview, FeatureFlags,
-  Interview, Invoice, Job, JobPipeline, Offer, Paginated, PipelineRow, RegistrationConfig,
-  RegistrationResult, Submission, Vendor, VendorSubmission,
+  ClientRegistration, Interview, Invoice, Job, JobPipeline, Offer, Paginated, PipelineRow,
+  RegistrationConfig, RegistrationResult, Submission, Vendor, VendorSubmission,
 } from "./types";
 
 const PAGE = 20;
@@ -28,6 +28,30 @@ export function useEmployerOverview() {
     queryKey: ["employer", "overview"],
     queryFn: () => api<EmployerOverview>("/client-portal/overview"),
     retry: false,
+  });
+}
+
+// ── Admin: client-registration approval gate ────────────────────
+export function useClientRegistrations(status = "pending") {
+  return useQuery({
+    queryKey: ["admin", "client-registrations", status],
+    queryFn: () => api<Paginated<ClientRegistration>>(`/admin/client-registrations?status=${status}`),
+    retry: false,
+  });
+}
+export function useApproveClient() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: { id: string; create_new_client?: boolean; client_id?: string; initial_password: string }) =>
+      api(`/admin/client-registrations/${id}/approve`, { method: "POST", body: JSON.stringify(body) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "client-registrations"] }),
+  });
+}
+export function useRejectClient() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api(`/admin/client-registrations/${id}/reject`, { method: "POST" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["admin", "client-registrations"] }),
   });
 }
 

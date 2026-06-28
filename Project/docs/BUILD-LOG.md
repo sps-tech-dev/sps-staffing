@@ -548,6 +548,12 @@ bottom of the dated sections. Updated at the end of **every** session.
 - **Tests: 91 pass** (+ captcha gate, consent-required, bad email/phone 422, pending+unlinked+encrypted, grants-nothing). Migration up/down/up clean.
 - **Status:** ✅ applied + deployed.
 
+### Client Portal — Task 3: admin approval flow (the security gate) ✅
+- **Backend (admin-gated):** `GET /api/admin/client-registrations` (pending-first queue, phone masked via bidx — no decrypt); `POST .../{id}/approve` (THE GATE — links to an existing or new clients row, creates the login `users` row [active, argon2 password admin-sets], creates an **ACTIVE `client_users` binding** [tenant_id+client_id], records consent, request→approved, audited `client.approve`); `POST .../{id}/reject` (audited `client.reject`). Idempotent. Only this explicit approval grants a client a scoped session.
+- **Frontend:** `/admin/client-registrations` queue (company/contact/phone, set-initial-password + Approve&create-client / Reject) + nav item.
+- **Tests: 94 pass** (+ approve links+activates+enables client login [asserts JWT carries client_id, role=client, home=/client], reject keeps no access, non-admin 403). No new migration.
+- **Status:** ✅ applied + deployed.
+
 ## Pending / next steps
 
 ➡️ **The canonical, durable register of ALL outstanding/deferred items is

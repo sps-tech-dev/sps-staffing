@@ -91,3 +91,10 @@ export interface VendorSubmission {
   id: string; vendor_id: string; candidate_id: string; job_id: string | null; status: string;
   notes: string | null; created_at: string | null; vendor?: string; candidate?: string;
 }
+
+// Client portal
+export interface ClientRegistration {
+  id: string; company_name: string; industry: string | null; contact_person: string;
+  email: string; phone: string | null; website: string | null; company_size: string | null;
+  status: string; created_at: string | null;
+}

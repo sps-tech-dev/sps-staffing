@@ -13,6 +13,11 @@ _ph = PasswordHasher()
 ALG = "HS256"
 
 
+def hash_password(password: str) -> str:
+    """argon2 hash for a new credential (e.g. on client-account activation)."""
+    return _ph.hash(password)
+
+
 def verify_password(password_hash: str, password: str) -> bool:
     """True iff the password matches. The seeded sentinel '!' (not a valid argon2
     hash) raises InvalidHashError → returns False, so an un-activated account
