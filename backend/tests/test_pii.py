@@ -66,10 +66,9 @@ def test_create_candidate_stores_ciphertext_not_plaintext(recruiter):
 
     # at rest: the raw columns hold bytea ciphertext, NOT the plaintext
     db = get_sessionmaker()()
-    row = db.execute(text("SELECT phone, pan, phone_enc, pan_enc, phone_bidx, pan_bidx "
+    row = db.execute(text("SELECT phone_enc, pan_enc, phone_bidx, pan_bidx "
                           "FROM staffing.candidates WHERE id=:id"), {"id": cid}).one()
-    phone, pan, phone_enc, pan_enc, phone_bidx, pan_bidx = row
-    assert phone is None and pan is None              # legacy plaintext columns unused
+    phone_enc, pan_enc, phone_bidx, pan_bidx = row
     assert phone_enc and b"9876543210" not in bytes(phone_enc)
     assert pan_enc and b"ABCDE1234F" not in bytes(pan_enc)
     assert phone_bidx == crypto.blind_index("9876543210")

@@ -86,10 +86,7 @@ class Candidate(TenantScopedMixin, Base):
     phone_bidx: Mapped[bytes | None] = mapped_column(sa.LargeBinary)
     pan_enc: Mapped[str | None] = mapped_column(EncryptedStr, deferred=True)
     pan_bidx: Mapped[bytes | None] = mapped_column(sa.LargeBinary)
-    # Plaintext columns retained during expand/contract; dropped in the contract
-    # migration once all code reads/writes the encrypted columns.
-    phone: Mapped[str | None] = mapped_column(sa.Text)
-    pan: Mapped[str | None] = mapped_column(sa.Text)
+    # (legacy plaintext phone/pan columns dropped in migration 0008 — contract)
     skills: Mapped[list[str] | None] = mapped_column(ARRAY(sa.Text))
     total_exp: Mapped[float | None] = mapped_column(sa.Numeric)
     resume_s3_key: Mapped[str | None] = mapped_column(sa.Text)

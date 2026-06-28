@@ -444,11 +444,15 @@ bottom of the dated sections. Updated at the end of **every** session.
 - **Migrations:** `0006` expand (add `*_enc`/`*_bidx`), `0007` backfill + dedup uniques. Local up→down→up + idempotency clean; ciphertext verified plaintext-free; **57 tests pass** (+ crypto round-trip, ciphertext-at-rest, dedup 409, masked admin list).
 - **Infra (STOP-4, applied):** `Project/pii.tf` — KMS CMK (rotation on) + `alias/sps-pii-dev`, `sps-shared-dev-pii-index-key` secret, IAM (task: GenerateDataKey+Decrypt on the CMK + GetSecretValue on the index secret; execution: GetSecretValue). Backend + migrate task defs wired `PII_KMS_KEY_ID` + `PII_INDEX_KEY`. `terraform apply` ran BEFORE the push (CI fetches the live task def). STOP-1 DDL shown + approved.
 - **Key mode:** KMS in the deployed app/migrate tasks; LOCAL fixed-key for the local loop/tests (no AWS).
-- **Deploy 2 (pending):** `0008` contract migration to drop the legacy plaintext `phone`/`pan` columns — written only after deploy 1 verified.
-- **Status:** ✅ deploy 1 — app layer encrypted; plaintext columns retained until contract.
+- **Deploy 1 LIVE-VERIFIED on dev RDS + dev KMS** (one-off Fargate probe via the migrate task def, since deployed-dev has no login): ciphertext-at-rest (KMS envelope) ✓, decrypt round-trip (KMS Decrypt) ✓, dedup blind-index unique 409 ✓, admin mask ✓, probe row cleaned up.
+- **Status:** ✅ deploy 1 — app layer encrypted + live-verified; plaintext columns retained until contract.
+
+### PII encryption — deploy 2: contract (drop plaintext) ✅
+- `0008` drops legacy `staffing.candidates.phone` / `pan`. Model plaintext mappings + the test_pii plaintext assertion removed. Local up→down→up clean; **57 tests pass** on the contracted schema. STOP-1 DDL (2× DROP COLUMN) shown + approved; gated on deploy-1 live verification.
+- Prod note (documented in the migration): a live-traffic contract needs an intermediate "unmap" deploy first; dev has no candidate traffic so the rollover window is a non-issue.
+- **Status:** ✅ deploy 2 — plaintext PII columns removed; PII now exists only as KMS-encrypted ciphertext + HMAC blind indexes.
 
 ## Pending / next steps
-- [ ] **PII encryption deploy 2 (contract)** — `0008` drop plaintext `candidates.phone`/`pan` after deploy 1 is verified live.
 - [ ] **DPDP export should include the principal's own PII** (phone/pan) once app-layer encryption lands (currently omitted).
 - [ ] **Erasure execution** — build the reviewed cascade/redaction that fulfils a `pending` erasure request (mechanism records only today).
 - [ ] **Real DPDP/consent legal copy** — replace `[LEGAL COPY TBD]` + bump `policy_version` before any real-user launch (STOP-3).
