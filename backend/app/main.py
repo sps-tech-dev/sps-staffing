@@ -13,7 +13,7 @@ from .routers import ai as ai_router
 from .routers import privacy as privacy_router
 from .routers import register as register_router
 
-app = FastAPI(title="SPS Technosoft API", version="0.1.0")
+app = FastAPI(title="SPS Technosoft API", version="0.1.1")
 
 # Tenant isolation model (see docs/DECISIONS.md): tenant_id comes from the verified
 # JWT (authoritative), set per-request by the get_current_context dependency on
