@@ -113,3 +113,25 @@ class Application(TwoAxisMixin, Base):
     )
     stage: Mapped[str] = mapped_column(sa.Text, nullable=False, server_default=sa.text("'sourced'"))
     owner_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+
+
+# Submission to client (Part 5): submissions(application_id, client_feedback, status)
+SUBMISSION_STATUSES = ("submitted", "under_review", "shortlisted", "rejected")
+_SUB_SQL = ", ".join(f"'{s}'" for s in SUBMISSION_STATUSES)
+
+
+class Submission(TwoAxisMixin, Base):
+    __tablename__ = "submissions"
+    __table_args__ = (
+        bu_check("submissions"),
+        sa.CheckConstraint(f"status IN ({_SUB_SQL})", name="ck_submissions_status"),
+        sa.Index("ix_submissions_tenant_bu", "tenant_id", "business_unit_id"),
+        sa.Index("ix_submissions_application_id", "application_id"),
+        {"schema": SCHEMA},
+    )
+    application_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), sa.ForeignKey(f"{SCHEMA}.applications.id"), nullable=False
+    )
+    status: Mapped[str] = mapped_column(sa.Text, nullable=False, server_default=sa.text("'submitted'"))
+    client_feedback: Mapped[str | None] = mapped_column(sa.Text)
+    submitted_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))

@@ -490,6 +490,12 @@ bottom of the dated sections. Updated at the end of **every** session.
 - **Tests: 69 pass** (anonymize + blind-index clearing, retention, audit, legal-hold gate, approved-gate, purge no-op).
 - **Status:** ✅ built + locally verified; applying 0010 + deploying.
 
+### Staffing — Submissions (submit to client + feedback + status) ✅
+- **Backend:** `staffing.submissions` (two-axis, FK→applications, status CHECK submitted/under_review/shortlisted/rejected, client_feedback, submitted_by). Endpoints (staff-gated, idempotent, audited): `POST /api/applications/{id}/submissions`, `GET /api/applications/{id}/submissions`, `GET /api/submissions` (dashboard w/ candidate+job), `PATCH /api/submissions/{id}` (feedback/status). Migration `0011` (STOP-1 DDL approved). New router `app/routers/workflow.py`.
+- **Frontend:** `/employer/submissions` (list + inline status/feedback) + "Submit to client" action on pipeline cards + nav item. Responsive, loading/empty/error.
+- **Tests: 72 pass** (+ submit/feedback/dashboard, bad-status 422, staff-gate 403). Migration up/down/up clean.
+- **Status:** ✅ applied + deployed.
+
 ## Pending / next steps
 
 ➡️ **The canonical, durable register of ALL outstanding/deferred items is

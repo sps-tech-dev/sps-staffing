@@ -12,6 +12,7 @@ from .routers import admin as admin_router
 from .routers import ai as ai_router
 from .routers import privacy as privacy_router
 from .routers import register as register_router
+from .routers import workflow as workflow_router
 
 app = FastAPI(title="SPS Technosoft API", version="0.1.1")
 
@@ -28,6 +29,7 @@ app.include_router(admin_router.router, prefix="/api/admin", tags=["admin"])
 app.include_router(ai_router.router, prefix="/api/ai", tags=["ai"])
 app.include_router(privacy_router.router, prefix="/api/privacy", tags=["privacy"])
 app.include_router(register_router.router, prefix="/api/register", tags=["register"])
+app.include_router(workflow_router.router, prefix="/api", tags=["workflow"])
 
 
 # ── Canonical error envelope (Master Architecture Part 31) ───────

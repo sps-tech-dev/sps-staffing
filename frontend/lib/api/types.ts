@@ -60,3 +60,9 @@ export interface RegistrationConfig {
   notices: { data_processing: string; marketing: string };
 }
 export interface RegistrationResult { id: string; status: string; policy_version: string; }
+
+// Staffing workflow
+export interface Submission {
+  id: string; application_id: string; status: string; client_feedback: string | null;
+  created_at: string | null; candidate?: string; job?: string;
+}

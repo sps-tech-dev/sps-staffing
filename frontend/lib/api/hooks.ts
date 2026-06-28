@@ -5,6 +5,7 @@ import type {
   AdminCandidate, AdminClient, AdminJobRow, AiSummary, AuditRow, CandidateOverview,
   ConsentState, DpdpRequestRow, EmployeeOverview, EmployerOverview, FeatureFlags,
   Job, JobPipeline, Paginated, PipelineRow, RegistrationConfig, RegistrationResult,
+  Submission,
 } from "./types";
 
 const PAGE = 20;
@@ -142,6 +143,26 @@ export function useRegisterCandidate() {
   return useMutation({
     mutationFn: (body: Record<string, unknown>) =>
       api<RegistrationResult>("/register/candidate", { method: "POST", body: JSON.stringify(body) }),
+  });
+}
+
+// ── Staffing workflow: submissions ──────────────────────────────
+export function useSubmissions() {
+  return useQuery({ queryKey: ["submissions"], queryFn: () => api<Submission[]>("/submissions"), retry: false });
+}
+export function useCreateSubmission() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (appId: string) => api<Submission>(`/applications/${appId}/submissions`, { method: "POST" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["submissions"] }),
+  });
+}
+export function useUpdateSubmission() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: { id: string; status?: string; client_feedback?: string }) =>
+      api<Submission>(`/submissions/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["submissions"] }),
   });
 }
 
