@@ -135,3 +135,27 @@ class Submission(TwoAxisMixin, Base):
     status: Mapped[str] = mapped_column(sa.Text, nullable=False, server_default=sa.text("'submitted'"))
     client_feedback: Mapped[str | None] = mapped_column(sa.Text)
     submitted_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+
+
+# Offer (Part 5): offers(application_id, ctc, joining_date, rtr_signed_at) + acceptance
+OFFER_STATUSES = ("draft", "released", "accepted", "declined", "withdrawn")
+_OFFER_SQL = ", ".join(f"'{s}'" for s in OFFER_STATUSES)
+
+
+class Offer(TwoAxisMixin, Base):
+    __tablename__ = "offers"
+    __table_args__ = (
+        bu_check("offers"),
+        sa.CheckConstraint(f"status IN ({_OFFER_SQL})", name="ck_offers_status"),
+        sa.Index("ix_offers_tenant_bu", "tenant_id", "business_unit_id"),
+        sa.Index("ix_offers_application_id", "application_id"),
+        {"schema": SCHEMA},
+    )
+    application_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), sa.ForeignKey(f"{SCHEMA}.applications.id"), nullable=False
+    )
+    ctc: Mapped[float | None] = mapped_column(sa.Numeric)          # annual CTC (INR)
+    joining_date: Mapped[datetime.date | None] = mapped_column(sa.Date)
+    status: Mapped[str] = mapped_column(sa.Text, nullable=False, server_default=sa.text("'draft'"))
+    rtr_signed_at: Mapped[datetime.datetime | None] = mapped_column(sa.DateTime(timezone=True))  # Right-to-Represent
+    accepted_at: Mapped[datetime.datetime | None] = mapped_column(sa.DateTime(timezone=True))

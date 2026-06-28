@@ -4,7 +4,7 @@ import { api } from "./client";
 import type {
   AdminCandidate, AdminClient, AdminJobRow, AiSummary, AuditRow, CandidateOverview,
   ConsentState, DpdpRequestRow, EmployeeOverview, EmployerOverview, FeatureFlags,
-  Job, JobPipeline, Paginated, PipelineRow, RegistrationConfig, RegistrationResult,
+  Job, JobPipeline, Offer, Paginated, PipelineRow, RegistrationConfig, RegistrationResult,
   Submission,
 } from "./types";
 
@@ -163,6 +163,26 @@ export function useUpdateSubmission() {
     mutationFn: ({ id, ...body }: { id: string; status?: string; client_feedback?: string }) =>
       api<Submission>(`/submissions/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["submissions"] }),
+  });
+}
+
+// ── Staffing workflow: offers ───────────────────────────────────
+export function useOffers() {
+  return useQuery({ queryKey: ["offers"], queryFn: () => api<Offer[]>("/offers"), retry: false });
+}
+export function useCreateOffer() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (appId: string) => api<Offer>(`/applications/${appId}/offers`, { method: "POST", body: JSON.stringify({}) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["offers"] }),
+  });
+}
+export function useUpdateOffer() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: { id: string; status?: string; ctc?: number; joining_date?: string; rtr_signed?: boolean }) =>
+      api<Offer>(`/offers/${id}`, { method: "PATCH", body: JSON.stringify(body) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["offers"] }),
   });
 }
 

@@ -66,3 +66,8 @@ export interface Submission {
   id: string; application_id: string; status: string; client_feedback: string | null;
   created_at: string | null; candidate?: string; job?: string;
 }
+export interface Offer {
+  id: string; application_id: string; ctc: number | null; joining_date: string | null;
+  status: string; rtr_signed_at: string | null; accepted_at: string | null;
+  created_at: string | null; candidate?: string; job?: string;
+}

@@ -496,6 +496,12 @@ bottom of the dated sections. Updated at the end of **every** session.
 - **Tests: 72 pass** (+ submit/feedback/dashboard, bad-status 422, staff-gate 403). Migration up/down/up clean.
 - **Status:** ✅ applied + deployed.
 
+### Staffing — Offers (CTC, joining date, RTR / acceptance) ✅
+- **Backend:** `staffing.offers` (two-axis, FK→applications, ctc, joining_date, status CHECK draft/released/accepted/declined/withdrawn, rtr_signed_at, accepted_at). Endpoints (staff-gated, idempotent, audited): `POST /api/applications/{id}/offers`, `GET /api/applications/{id}/offers`, `GET /api/offers` (dashboard), `PATCH /api/offers/{id}` (status/CTC/joining/RTR/acceptance — sets accepted_at on accept, rtr_signed_at on RTR). Migration `0012` (STOP-1 DDL approved).
+- **Frontend:** `/employer/offers` (CTC+joining inputs, status, mark-RTR, accept) + "Offer" action on pipeline cards + nav item.
+- **Tests: 75 pass** (+ create/RTR/acceptance/dashboard, bad-status 422, staff-gate). Migration up/down/up clean.
+- **Status:** ✅ applied + deployed.
+
 ## Pending / next steps
 
 ➡️ **The canonical, durable register of ALL outstanding/deferred items is

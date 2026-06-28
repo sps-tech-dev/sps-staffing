@@ -2,6 +2,7 @@
 invoices / vendors in later slices). Two-axis scoped, staff-gated, idempotent."""
 from __future__ import annotations
 
+import datetime
 import uuid
 
 from fastapi import APIRouter, Depends, Header, HTTPException
@@ -15,9 +16,13 @@ from ..db import get_db
 from ..deps import get_current_context
 from ..idempotency import get_cached, store
 from ..models_staffing import (
-    SUBMISSION_STATUSES, Application, Candidate, Job, Submission,
+    OFFER_STATUSES, SUBMISSION_STATUSES, Application, Candidate, Job, Offer, Submission,
 )
 from .staffing import BU, _require_staff, _tid
+
+
+def _now():
+    return datetime.datetime.now(datetime.timezone.utc)
 
 router = APIRouter()
 
@@ -118,3 +123,106 @@ def update_submission(submission_id: uuid.UUID, body: FeedbackIn,
                 after={"status": s.status})
     db.commit()
     return _sub_dict(s)
+
+
+# ── offers ───────────────────────────────────────────────────────
+class OfferIn(BaseModel):
+    ctc: float | None = None
+    joining_date: datetime.date | None = None
+
+
+class OfferUpdateIn(BaseModel):
+    status: str | None = None
+    ctc: float | None = None
+    joining_date: datetime.date | None = None
+    rtr_signed: bool | None = None
+
+    @field_validator("status")
+    @classmethod
+    def _st(cls, v):
+        if v is not None and v not in OFFER_STATUSES:
+            raise ValueError(f"status must be one of {OFFER_STATUSES}")
+        return v
+
+
+def _offer_dict(o: Offer) -> dict:
+    return {"id": str(o.id), "application_id": str(o.application_id),
+            "ctc": float(o.ctc) if o.ctc is not None else None,
+            "joining_date": o.joining_date.isoformat() if o.joining_date else None,
+            "status": o.status,
+            "rtr_signed_at": o.rtr_signed_at.isoformat() if o.rtr_signed_at else None,
+            "accepted_at": o.accepted_at.isoformat() if o.accepted_at else None,
+            "created_at": o.created_at.isoformat() if o.created_at else None}
+
+
+@router.post("/applications/{app_id}/offers")
+def create_offer(app_id: uuid.UUID, body: OfferIn, ctx: RequestContext = Depends(get_current_context),
+                 db: Session = Depends(get_db), idempotency_key: str | None = Header(default=None)):
+    """Create an offer (draft) for an application."""
+    _require_staff(ctx)
+    if (c := get_cached(str(ctx.tenant_id), idempotency_key)):
+        return c
+    _app_or_404(db, ctx, app_id)
+    obj = Offer(tenant_id=_tid(ctx), business_unit_id=BU, application_id=app_id,
+                ctc=body.ctc, joining_date=body.joining_date, status="draft")
+    db.add(obj)
+    db.flush()
+    write_audit(db, ctx, "offer.create", "offer", obj.id, after={"application_id": str(app_id)})
+    db.commit()
+    res = _offer_dict(obj)
+    store(str(ctx.tenant_id), idempotency_key, res)
+    return res
+
+
+@router.get("/applications/{app_id}/offers")
+def list_app_offers(app_id: uuid.UUID, ctx: RequestContext = Depends(get_current_context),
+                    db: Session = Depends(get_db)):
+    _require_staff(ctx)
+    _app_or_404(db, ctx, app_id)
+    rows = db.execute(select(Offer).where(
+        Offer.tenant_id == _tid(ctx), Offer.business_unit_id == BU,
+        Offer.application_id == app_id, Offer.deleted_at.is_(None))
+        .order_by(Offer.created_at.desc())).scalars().all()
+    return [_offer_dict(o) for o in rows]
+
+
+@router.get("/offers")
+def list_offers(ctx: RequestContext = Depends(get_current_context), db: Session = Depends(get_db)):
+    """Offers dashboard — tenant+BU scoped, with candidate + job names."""
+    _require_staff(ctx)
+    rows = db.execute(
+        select(Offer, Candidate.full_name, Job.title)
+        .join(Application, Application.id == Offer.application_id)
+        .join(Candidate, Candidate.id == Application.candidate_id)
+        .join(Job, Job.id == Application.job_id)
+        .where(Offer.tenant_id == _tid(ctx), Offer.business_unit_id == BU, Offer.deleted_at.is_(None))
+        .order_by(Offer.created_at.desc())
+    ).all()
+    return [{**_offer_dict(o), "candidate": name, "job": title} for o, name, title in rows]
+
+
+@router.patch("/offers/{offer_id}")
+def update_offer(offer_id: uuid.UUID, body: OfferUpdateIn,
+                 ctx: RequestContext = Depends(get_current_context), db: Session = Depends(get_db)):
+    """Update offer: status, CTC, joining date, RTR-signed / acceptance tracking."""
+    _require_staff(ctx)
+    o = db.execute(select(Offer).where(
+        Offer.id == offer_id, Offer.tenant_id == _tid(ctx),
+        Offer.business_unit_id == BU, Offer.deleted_at.is_(None))).scalar_one_or_none()
+    if o is None:
+        raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "Offer not found"})
+    before = {"status": o.status}
+    if body.ctc is not None:
+        o.ctc = body.ctc
+    if body.joining_date is not None:
+        o.joining_date = body.joining_date
+    if body.rtr_signed:
+        o.rtr_signed_at = _now()
+    if body.status is not None:
+        o.status = body.status
+        if body.status == "accepted" and o.accepted_at is None:
+            o.accepted_at = _now()
+    db.flush()
+    write_audit(db, ctx, "offer.update", "offer", o.id, before=before, after={"status": o.status})
+    db.commit()
+    return _offer_dict(o)
