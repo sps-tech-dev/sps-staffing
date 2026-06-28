@@ -132,6 +132,8 @@ resource "aws_ecs_task_definition" "backend" {
         { name = "S3_BUCKET", value = aws_s3_bucket.storage.bucket },
         # PII envelope encryption: non-secret CMK id (key material stays in KMS).
         { name = "PII_KMS_KEY_ID", value = aws_kms_key.pii.arn },
+        # hCaptcha public site key (non-secret). Empty → frontend uses the test key.
+        { name = "HCAPTCHA_SITEKEY", value = var.hcaptcha_sitekey },
       ]
       # Secrets injected from Secrets Manager (never plaintext in the task def).
       # The BACKEND connects as the least-privilege `sps_app` role (app-db secret)
@@ -141,6 +143,8 @@ resource "aws_ecs_task_definition" "backend" {
         { name = "DB_USER", valueFrom = "${aws_secretsmanager_secret.app_db.arn}:username::" },
         { name = "DB_PASSWORD", valueFrom = "${aws_secretsmanager_secret.app_db.arn}:password::" },
         { name = "PII_INDEX_KEY", valueFrom = "${aws_secretsmanager_secret.pii_index_key.arn}:index_key::" },
+        # hCaptcha secret — seeded EMPTY (app stays in test mode); real key set out-of-band.
+        { name = "HCAPTCHA_SECRET", valueFrom = "${aws_secretsmanager_secret.hcaptcha.arn}:secret::" },
       ]
       logConfiguration = {
         logDriver = "awslogs"

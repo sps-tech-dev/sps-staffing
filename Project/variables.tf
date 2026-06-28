@@ -92,3 +92,9 @@ variable "backend_desired_count" {
   description = "Desired number of backend tasks (set 0 to pause Fargate cost)"
   default     = 1
 }
+
+variable "hcaptcha_sitekey" {
+  type        = string
+  description = "hCaptcha PUBLIC site key for registration (non-secret). Empty = frontend uses the hCaptcha test key (test mode)."
+  default     = ""
+}
