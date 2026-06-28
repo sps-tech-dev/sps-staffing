@@ -131,6 +131,22 @@ Last refreshed: 2026-06-28.
 - **Blocks:** GST-compliant AWS invoicing.
 - **Trigger:** account-admin pass.
 
+### E4. CI deploy OIDC retry-storm (transient failures burn ~16 min)
+- **What:** the `deploy` job's `Configure AWS credentials (OIDC)` step can intermittently fail
+  with `Could not assume role with OIDC: Token expired` and then keep retrying
+  `AssumeRoleWithWebIdentity` **past the 15-min OIDC token TTL** — observed ~16 min of doomed
+  retries before failing the run (seen 2026-06-28 on the export-PII deploy; the next run with no
+  changes succeeded → transient infra, not config).
+- **Why deferred:** transient/low-frequency; non-blocking.
+- **Blocks:** nothing functional — but wastes a CI run and currently needs a **version-bump
+  workaround** to retrigger (see below).
+- **Fix options to record:** (a) **bound/fast-fail** the `configure-aws-credentials` retries
+  (e.g. `retry-max-attempts`/lower timeout) so a run doesn't retry past the token TTL — fail fast
+  instead; (b) grant **repo-admin re-run rights** so a transient failure can be re-run with
+  `gh run rerun --failed` instead of pushing an empty/version-bump commit (empty commits don't
+  trip the `paths` filter, so a real no-op change is currently required to retrigger).
+- **Trigger:** next time CI/`.github/workflows/deploy-dev.yml` is touched.
+
 ---
 
 ## Minor / future options (non-blocking)
