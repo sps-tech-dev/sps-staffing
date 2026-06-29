@@ -256,10 +256,10 @@ export function SiteWidgets() {
         onClick={() => setChatOpen((v) => !v)}
         aria-label={chatOpen ? "Close chat" : "Chat with us"}
         aria-expanded={chatOpen}
-        className="fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full text-white shadow-xl transition-transform hover:scale-105"
+        className="fixed bottom-6 right-6 z-50 flex h-11 w-11 items-center justify-center rounded-full text-white shadow-xl transition-transform hover:scale-105"
         style={{ background: "linear-gradient(135deg, #0A1628, #1B5FE8)" }}
       >
-        {chatOpen ? <X size={22} /> : <MessageSquare size={22} />}
+        {chatOpen ? <X size={20} /> : <MessageSquare size={20} />}
       </button>
 
       <AnimatePresence>
