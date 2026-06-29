@@ -701,6 +701,21 @@ dark video-hero marketing site above was **superseded** by a faithful port of a 
 - Verified: `tsc`/`eslint`/`next build` clean (37/37), all 8 routes + /login + /register/client = 200, portals
   (/client,/employer,/candidate) still 307→login. **NOT deployed.**
 
+#### Marketing — round-3 fixes (local only) ✅
+- **Header logo bigger + no tagline:** the supplied horizontal PNG had the "STAFFING · IT SERVICES · EDTECH"
+  tagline baked in (and the cube spans full height, so a plain crop would clip it). Generated a clean
+  tagline-free lockup `public/sps-logo-header.png` (PIL: erased the tagline band right-of-cube/below-wordmark,
+  tight-cropped → 2192×446) and enlarged it in the header (`h-9` → `h-12`).
+- **Marquee seamless:** replaced the flex `gap-6` on the track with a per-item `mr-6` so each of the two copies
+  includes its trailing space — the copies now tile exactly at `translateX(-50%)`, removing the stutter/pause
+  after the last logo. Constant, gap-free right-to-left flow.
+- **Equal value cards:** "Built on Values That Last" cards now `h-full` (and the `FadeIn` grid item `h-full`),
+  so all four are equal height regardless of text length (grid already equalizes width).
+- **Consistent inner heroes:** added a shared `PageHero` that reuses the Home hero's exact blue treatment
+  (gradient + radial glow + dot pattern + bottom fade) at `min-h-screen`; `/services`, `/about`, `/career`,
+  `/contact` now use it (Career keeps its role-filter buttons via `children`).
+- Verified: `tsc`/`eslint`/`next build` clean (37/37); all routes 200; portals still 307→login. **NOT deployed.**
+
 ## Pending / next steps
 
 ➡️ **The canonical, durable register of ALL outstanding/deferred items is

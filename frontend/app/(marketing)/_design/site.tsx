@@ -31,6 +31,41 @@ export function FadeIn({ children, delay = 0, className = "" }: { children: Reac
   );
 }
 
+// ── Shared inner-page hero — matches the Home hero's blue treatment + full height ──
+function PageHero({ badge, title, subtitle, children }: { badge?: React.ReactNode; title: React.ReactNode; subtitle?: React.ReactNode; children?: React.ReactNode }) {
+  return (
+    <section className="relative min-h-screen flex items-center overflow-hidden pt-16" style={{ background: "linear-gradient(135deg, #0A1628 0%, #0D2150 60%, #112068 100%)" }}>
+      <div className="absolute inset-0 opacity-10" style={{ backgroundImage: "radial-gradient(circle at 20% 80%, #1A56DB 0%, transparent 50%), radial-gradient(circle at 80% 20%, #2563EB 0%, transparent 50%)" }} />
+      <div className="absolute inset-0" style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Ccircle cx='30' cy='30' r='1'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E\")" }} />
+      <div className="max-w-4xl mx-auto px-6 py-20 text-center relative z-10 w-full">
+        {badge && (
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}
+            className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-semibold mb-6"
+            style={{ background: "rgba(26, 86, 219, 0.2)", color: "#93BBFF", border: "1px solid rgba(26, 86, 219, 0.3)" }}>
+            {badge}
+          </motion.div>
+        )}
+        <motion.h1 initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.1 }}
+          className="text-5xl lg:text-6xl font-extrabold text-white leading-tight tracking-tight mb-6" style={{ fontFamily: "'Outfit', sans-serif" }}>
+          {title}
+        </motion.h1>
+        {subtitle && (
+          <motion.p initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.2 }}
+            className="text-lg leading-relaxed max-w-2xl mx-auto" style={{ color: "#8FA3C0" }}>
+            {subtitle}
+          </motion.p>
+        )}
+        {children && (
+          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.3 }} className="mt-8">
+            {children}
+          </motion.div>
+        )}
+      </div>
+      <div className="absolute bottom-0 left-0 right-0 h-16" style={{ background: "linear-gradient(to top, #F0F4FA, transparent)" }} />
+    </section>
+  );
+}
+
 // ── Navbar ──────────────────────────────────────────────────────────────────
 export function Navbar() {
   const [open, setOpen] = useState(false);
@@ -57,7 +92,7 @@ export function Navbar() {
     <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${scrolled ? "bg-white shadow-md" : "bg-white/95 backdrop-blur-sm"}`} style={{ fontFamily: "'Outfit', sans-serif" }}>
       <div className="max-w-7xl mx-auto px-6 flex items-center justify-between h-16">
         <Link href="/" className="flex items-center">
-          <img src="/sps-logo-horizontal-1920.png" alt="SPSTechnosoft" className="h-9 w-auto" />
+          <img src="/sps-logo-header.png" alt="SPSTechnosoft" className="h-12 w-auto" />
         </Link>
 
         <div className="hidden md:flex items-center gap-1">
@@ -453,12 +488,14 @@ export function HomePage() {
           {/* edge fades */}
           <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-24" style={{ background: "linear-gradient(to right, #0A1628, transparent)" }} />
           <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-24" style={{ background: "linear-gradient(to left, #0A1628, transparent)" }} />
-          {/* track: two identical copies → loops seamlessly at -50% */}
-          <div className="marquee-track flex w-max gap-6 will-change-transform">
+          {/* track: two identical copies → loops seamlessly at -50%. Per-item right
+              margin (not flex gap) so each copy includes its trailing space — the two
+              copies tile exactly, with no jump or pause at the seam. */}
+          <div className="marquee-track flex w-max will-change-transform">
             {[...clients, ...clients].map((name, i) => (
               <div
                 key={i}
-                className="shrink-0 rounded-xl px-8 py-4 text-center font-semibold text-sm whitespace-nowrap"
+                className="mr-6 shrink-0 rounded-xl px-8 py-4 text-center font-semibold text-sm whitespace-nowrap"
                 style={{ background: "rgba(255,255,255,0.05)", color: "#8FA3C0" }}
                 aria-hidden={i >= clients.length}
               >
@@ -511,8 +548,8 @@ export function HomePage() {
           </FadeIn>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {values.map(({ icon: Icon, title, desc }, i) => (
-              <FadeIn key={title} delay={i * 0.1}>
-                <div className="rounded-2xl p-6 text-center" style={{ background: "#F0F4FA", border: "1px solid rgba(10,22,40,0.06)" }}>
+              <FadeIn key={title} delay={i * 0.1} className="h-full">
+                <div className="h-full rounded-2xl p-6 text-center" style={{ background: "#F0F4FA", border: "1px solid rgba(10,22,40,0.06)" }}>
                   <div className="w-14 h-14 rounded-2xl mx-auto mb-4 flex items-center justify-center" style={{ background: "linear-gradient(135deg, #0A1628, #1A56DB)" }}>
                     <Icon size={24} className="text-white" />
                   </div>
@@ -609,23 +646,11 @@ export function ServicesPage() {
 
   return (
     <div style={{ fontFamily: "'DM Sans', sans-serif" }}>
-      <div className="pt-16" style={{ background: "linear-gradient(135deg, #0A1628, #0D2150)" }}>
-        <div className="max-w-7xl mx-auto px-6 py-20 text-center">
-          <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5 }}
-            className="inline-block text-xs font-bold uppercase tracking-widest mb-4 px-3 py-1 rounded-full"
-            style={{ background: "rgba(26,86,219,0.2)", color: "#93BBFF", border: "1px solid rgba(26,86,219,0.3)" }}>
-            Our Services
-          </motion.span>
-          <motion.h1 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.1 }}
-            className="text-5xl font-extrabold text-white mb-4" style={{ fontFamily: "'Outfit', sans-serif" }}>
-            Three Verticals. One Mission.
-          </motion.h1>
-          <motion.p initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.2 }}
-            className="text-lg max-w-2xl mx-auto" style={{ color: "#8FA3C0" }}>
-            Explore our service verticals and discover how SPSTechnosoft can accelerate your organization's growth across talent, learning, and technology.
-          </motion.p>
-        </div>
-      </div>
+      <PageHero
+        badge={<><Zap size={12} /> Our Services</>}
+        title={<>Three Verticals. One Mission.</>}
+        subtitle="Explore our service verticals and discover how SPSTechnosoft can accelerate your organization's growth across talent, learning, and technology."
+      />
 
       <div className="bg-white">
         {services.map(({ icon: Icon, title, tagline, color, bg, to, image, overview, capabilities }, idx) => (
@@ -1112,18 +1137,11 @@ export function AboutPage() {
 
   return (
     <div style={{ fontFamily: "'DM Sans', sans-serif" }}>
-      <div className="pt-16" style={{ background: "linear-gradient(135deg, #0A1628, #1A2F6B)" }}>
-        <div className="max-w-7xl mx-auto px-6 py-20 text-center">
-          <motion.h1 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}
-            className="text-5xl font-extrabold text-white mb-4" style={{ fontFamily: "'Outfit', sans-serif" }}>
-            The People Behind SPSTechnosoft
-          </motion.h1>
-          <motion.p initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.2 }}
-            className="text-lg max-w-2xl mx-auto" style={{ color: "#8FA3C0" }}>
-            SPSTechnosoft was built by practitioners — people who have worked in the same roles, industries, and pressures as our clients. That empathy is our competitive advantage.
-          </motion.p>
-        </div>
-      </div>
+      <PageHero
+        badge={<><Users size={12} /> About Us</>}
+        title={<>The People Behind SPSTechnosoft</>}
+        subtitle="SPSTechnosoft was built by practitioners — people who have worked in the same roles, industries, and pressures as our clients. That empathy is our competitive advantage."
+      />
 
       {/* Directors */}
       <section className="py-24 bg-white">
@@ -1298,28 +1316,21 @@ export function CareerPage() {
 
   return (
     <div style={{ fontFamily: "'DM Sans', sans-serif" }}>
-      <div className="pt-16" style={{ background: "linear-gradient(135deg, #0A1628, #0D2150)" }}>
-        <div className="max-w-7xl mx-auto px-6 py-20 text-center">
-          <motion.h1 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}
-            className="text-5xl font-extrabold text-white mb-4" style={{ fontFamily: "'Outfit', sans-serif" }}>
-            Your Next Role Starts Here
-          </motion.h1>
-          <motion.p initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.2 }}
-            className="text-lg max-w-2xl mx-auto mb-6" style={{ color: "#8FA3C0" }}>
-            We hire for remote, contract, and permanent roles across technology, finance, and operations. And if you're a student, our internship programme gives you real industry experience on live projects.
-          </motion.p>
-          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.3 }}
-            className="flex flex-wrap gap-3 justify-center">
-            {filters.map(f => (
-              <button key={f} onClick={() => setFilter(f)}
-                className="px-5 py-2 rounded-xl text-sm font-semibold transition-all duration-200"
-                style={filter === f ? { background: "#1A56DB", color: "white" } : { background: "rgba(255,255,255,0.1)", color: "#93BBFF" }}>
-                {f}
-              </button>
-            ))}
-          </motion.div>
+      <PageHero
+        badge={<><Briefcase size={12} /> Careers</>}
+        title={<>Your Next Role Starts Here</>}
+        subtitle="We hire for remote, contract, and permanent roles across technology, finance, and operations. And if you're a student, our internship programme gives you real industry experience on live projects."
+      >
+        <div className="flex flex-wrap gap-3 justify-center">
+          {filters.map(f => (
+            <button key={f} onClick={() => setFilter(f)}
+              className="px-5 py-2 rounded-xl text-sm font-semibold transition-all duration-200"
+              style={filter === f ? { background: "#1A56DB", color: "white" } : { background: "rgba(255,255,255,0.1)", color: "#93BBFF" }}>
+              {f}
+            </button>
+          ))}
         </div>
-      </div>
+      </PageHero>
 
       {/* Job Listings */}
       <section className="py-20 bg-white">
@@ -1457,18 +1468,11 @@ export function ContactPage() {
 
   return (
     <div style={{ fontFamily: "'DM Sans', sans-serif" }}>
-      <div className="pt-16" style={{ background: "linear-gradient(135deg, #0A1628, #0D2150)" }}>
-        <div className="max-w-7xl mx-auto px-6 py-20 text-center">
-          <motion.h1 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}
-            className="text-5xl font-extrabold text-white mb-4" style={{ fontFamily: "'Outfit', sans-serif" }}>
-            Let's Talk
-          </motion.h1>
-          <motion.p initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.2 }}
-            className="text-lg max-w-xl mx-auto" style={{ color: "#8FA3C0" }}>
-            Whether you want to hire, learn, or build — we'd love to hear from you. Fill out the form or reach us directly.
-          </motion.p>
-        </div>
-      </div>
+      <PageHero
+        badge={<><MessageSquare size={12} /> Contact</>}
+        title={<>Let's Talk</>}
+        subtitle="Whether you want to hire, learn, or build — we'd love to hear from you. Fill out the form or reach us directly."
+      />
 
       <section className="py-24" style={{ background: "#F0F4FA" }}>
         <div className="max-w-7xl mx-auto px-6 grid grid-cols-1 lg:grid-cols-3 gap-12">
