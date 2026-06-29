@@ -653,6 +653,38 @@ backend/auth/migrations touched. Built + run locally; deploy is a separate later
 - **Status:** ✅ built + verified locally at `localhost:3000`. **NOT deployed** — deploy is the next
   separate step (frontend has no deploy target yet — see PENDING C1).
 
+### Marketing — replaced with user-provided Figma design (light theme, multi-page) ✅ (local only — NOT deployed)
+Per the user's direction ("make the site look like this + replace Stratum → SPSTechnosoft"), the
+dark video-hero marketing site above was **superseded** by a faithful port of a Figma Make export
+(`Create Home Page Content.zip`). Frontend-only; backend/auth/portals untouched.
+- **Source:** Figma Make export (Vite + React, `motion/react`, lucide, **no shadcn components used** —
+  plain Tailwind + inline hex). Ported into Next.js as one client module `app/(marketing)/_design/
+  site.tsx` (exports `Navbar`, `Footer`, `FadeIn` + 8 page components), with thin server route pages
+  re-exporting each (so per-page `metadata` works).
+- **Conversion (scripted):** `react-router` → Next (`Link href`, `usePathname`, dropped
+  `HashRouter`/`Routes`/`ScrollToTop`; `NavLink` → active-aware `Link`); `motion/react` →
+  `framer-motion`; **all "Stratum" → "SPSTechnosoft"** (27 occurrences); fixed a latent design bug
+  (`Smartphone` icon used but never imported); added `"use client"`. **Images + copy are used verbatim
+  from the design** (17 Unsplash URLs, all section text).
+- **Look:** light canvas `#F0F4FA`, navy `#0A1628` + accent blue `#1A56DB`, **Outfit** headings + **DM
+  Sans** body (Google Fonts `@import` in `globals.css`). Fixed white navbar (solidifies on scroll,
+  mobile hamburger), dark footer.
+- **Routes (8):** `/` (home: gradient hero, stats, who-we-are, 3 verticals, clients, testimonials,
+  values, CTA), `/services`, `/services/staffing`, `/services/education`, `/services/it`, `/about`
+  (story + leadership), `/career` (roles + filter), `/contact` (**stub form — `setSubmitted(true)`, no
+  backend**). Old video-hero pages (`/staffing-and-recruitment`, `/academy`, `/consulting`) + their
+  components removed.
+- **Note:** this design is a pure marketing site — **no login entry points** (the earlier staffing-page
+  login buttons are not in this design). The app portals (`/login`, `/client`, `/employer`,
+  `/register/client`, candidate) are **unchanged and still reachable directly**; wiring login back into
+  the marketing chrome can be added on request.
+- **Quality:** `tsc` clean · `eslint` clean (site.tsx uses a file-level disable for `no-img-element` +
+  `no-unescaped-entities`, appropriate for ported design copy/imagery; 2 pre-existing unrelated
+  warnings in `lib/nav.ts`) · `next build` ✓ (37/37). `npm run dev` → all 8 routes 200, branding =
+  SPSTechnosoft (0 "Stratum"), existing app routes/portals intact (login 200, guarded portals 307).
+  The hero video assets in `public/video/` remain in the repo (unused by this design).
+- **Status:** ✅ ported + verified locally at `localhost:3000`. **NOT deployed.**
+
 ## Pending / next steps
 
 ➡️ **The canonical, durable register of ALL outstanding/deferred items is
