@@ -756,6 +756,26 @@ dark video-hero marketing site above was **superseded** by a faithful port of a 
 - All hero images are verified-loading Unsplash URLs. `tsc`/`eslint`/`next build` clean (37/37); routes
   200; auth/portals untouched (307→login). **NOT deployed.**
 
+#### Marketing — global widgets: scroll-to-top + chat (local only) ✅
+- **Reference pattern:** `Reference/spstechnosoft-portal/` implements scroll-to-top as a **footer "Back to
+  top" button** (`window.scrollTo({ top: 0, behavior: 'smooth' })`) plus a navbar `scrollY > 40`
+  threshold for the solid-on-scroll header; it has **no chatbot** (grep found none). Adapted the
+  scroll-to-top into a **floating FAB** (appears past `scrollY > 400`, re-skinned to our brand); built the
+  chat widget fresh.
+- **Component:** `components/marketing/site-widgets.tsx` (`<SiteWidgets/>`), rendered **only** from
+  `app/(marketing)/layout.tsx` → shows on every public page (Home, About, Services, the 3 vertical detail
+  pages, Career, Contact, staffing) and **never** on the app portals (`(portal)`), registration/login
+  (`(auth)`), or admin (`(admin)`) — they're separate route groups.
+  - **Scroll-to-top:** floating button bottom-right (`bottom-24`), appears after 400px, smooth-scrolls to
+    top (`behavior:'auto'` when reduced-motion), `aria-label`, hidden while the chat panel is open so they
+    never overlap.
+  - **Chat widget:** brand-gradient FAB (`bottom-6`) → opens a panel (`role="dialog"`, Esc to close,
+    `aria-expanded`) with a greeting, a short message form that **composes a `mailto:`** (FRONT-END ONLY —
+    no AI/LLM/paid backend), and Email + WhatsApp quick links. Structured so a real backend can be added
+    later. WhatsApp number is a placeholder.
+- Verified: `tsc`/`eslint`/`next build` clean (37/37); chat present on all 8 marketing routes, absent on
+  `/login`, `/register`, `/register/client`; portals still 307→login. **NOT deployed.**
+
 ## Pending / next steps
 
 ➡️ **The canonical, durable register of ALL outstanding/deferred items is
