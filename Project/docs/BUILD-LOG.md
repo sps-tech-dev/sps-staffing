@@ -737,6 +737,25 @@ dark video-hero marketing site above was **superseded** by a faithful port of a 
 - Verified: `tsc`/`eslint`/`next build` clean (37/37); all routes 200; auth/portals untouched
   (307→login). **NOT deployed.**
 
+#### Marketing — round-5 fixes: white header + image heroes on every page (local only) ✅
+- **Header reverted to white:** solid white (`bg-white` scrolled / `bg-white/95` blur at top) with the
+  **dark logo** (cube mark + navy "SPS" / blue "Technosoft") and **dark nav links** (active
+  `#1B5FE8`/`#E8EFFE`), logo left, nav right. (Undid the transparent-over-hero version.)
+- **Inner-page heroes now image + page-specific content:** generalized `PageHero` into the Home-hero
+  2-column treatment (min-h-screen, gradient + glow + dots + bottom fade) with an optional **per-page
+  image** (rounded, shadow, gradient scrim) + a **floating accent badge**, and page-specific badge +
+  heading + intro copy:
+  - `/about` — company-story intro + team image + "7+ Years" badge
+  - `/services` — three-verticals intro + collaboration image + "3 Verticals" badge
+  - `/career` — join-us intro + team image + "Intern → Hire" badge (role-filter buttons kept)
+  - `/contact` — get-in-touch intro + office image + "< 4 hrs" response badge
+- **Vertical detail heroes:** `/services/staffing` now uses an image + content hero (recruiter/candidate
+  image + "30 Days" / "80K+" floating cards) consistent with Home and its blue theme; `/services/education`
+  and `/services/it` already had image heroes (gold / navy themed) — unchanged. Per-vertical color
+  theming preserved throughout.
+- All hero images are verified-loading Unsplash URLs. `tsc`/`eslint`/`next build` clean (37/37); routes
+  200; auth/portals untouched (307→login). **NOT deployed.**
+
 ## Pending / next steps
 
 ➡️ **The canonical, durable register of ALL outstanding/deferred items is

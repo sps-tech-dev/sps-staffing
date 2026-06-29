@@ -31,35 +31,64 @@ export function FadeIn({ children, delay = 0, className = "" }: { children: Reac
   );
 }
 
-// ── Shared inner-page hero — matches the Home hero's blue treatment + full height ──
-function PageHero({ badge, title, subtitle, children }: { badge?: React.ReactNode; title: React.ReactNode; subtitle?: React.ReactNode; children?: React.ReactNode }) {
+// ── Shared inner-page hero — Home-hero treatment with a per-page image + content ──
+function PageHero({
+  badge, title, subtitle, children, image, imageAlt,
+  gradient = "linear-gradient(135deg, #0A1628 0%, #0D2150 60%, #112068 100%)",
+  glow1 = "#1A56DB", glow2 = "#2563EB", badgeColor = "#93BBFF", float,
+}: {
+  badge?: React.ReactNode; title: React.ReactNode; subtitle?: React.ReactNode; children?: React.ReactNode;
+  image?: string; imageAlt?: string; gradient?: string; glow1?: string; glow2?: string; badgeColor?: string;
+  float?: { label: string; value: string; color?: string };
+}) {
+  const hasImage = Boolean(image);
   return (
-    <section className="relative min-h-screen flex items-center overflow-hidden pt-16" style={{ background: "linear-gradient(135deg, #0A1628 0%, #0D2150 60%, #112068 100%)" }}>
-      <div className="absolute inset-0 opacity-10" style={{ backgroundImage: "radial-gradient(circle at 20% 80%, #1A56DB 0%, transparent 50%), radial-gradient(circle at 80% 20%, #2563EB 0%, transparent 50%)" }} />
+    <section className="relative min-h-screen flex items-center overflow-hidden pt-16" style={{ background: gradient }}>
+      <div className="absolute inset-0 opacity-10" style={{ backgroundImage: `radial-gradient(circle at 20% 80%, ${glow1} 0%, transparent 50%), radial-gradient(circle at 80% 20%, ${glow2} 0%, transparent 50%)` }} />
       <div className="absolute inset-0" style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Ccircle cx='30' cy='30' r='1'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E\")" }} />
-      <div className="max-w-4xl mx-auto px-6 py-20 text-center relative z-10 w-full">
-        {badge && (
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}
-            className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-semibold mb-6"
-            style={{ background: "rgba(26, 86, 219, 0.2)", color: "#93BBFF", border: "1px solid rgba(26, 86, 219, 0.3)" }}>
-            {badge}
-          </motion.div>
-        )}
-        <motion.h1 initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.1 }}
-          className="text-5xl lg:text-6xl font-extrabold text-white leading-tight tracking-tight mb-6" style={{ fontFamily: "'Outfit', sans-serif" }}>
-          {title}
-        </motion.h1>
-        {subtitle && (
-          <motion.p initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.2 }}
-            className="text-lg leading-relaxed max-w-2xl mx-auto" style={{ color: "#8FA3C0" }}>
-            {subtitle}
-          </motion.p>
-        )}
-        {children && (
-          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.3 }} className="mt-8">
-            {children}
-          </motion.div>
-        )}
+      <div className="max-w-7xl mx-auto px-6 py-20 relative z-10 w-full">
+        <div className={hasImage ? "grid grid-cols-1 lg:grid-cols-2 gap-16 items-center" : "max-w-4xl mx-auto text-center"}>
+          <div className={hasImage ? "" : "mx-auto"}>
+            {badge && (
+              <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}
+                className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-semibold mb-6"
+                style={{ background: `${glow1}33`, color: badgeColor, border: `1px solid ${glow1}4D` }}>
+                {badge}
+              </motion.div>
+            )}
+            <motion.h1 initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.1 }}
+              className="text-5xl lg:text-6xl font-extrabold text-white leading-tight tracking-tight mb-6" style={{ fontFamily: "'Outfit', sans-serif" }}>
+              {title}
+            </motion.h1>
+            {subtitle && (
+              <motion.p initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.2 }}
+                className={`text-lg leading-relaxed ${hasImage ? "max-w-lg" : "max-w-2xl mx-auto"}`} style={{ color: "#8FA3C0" }}>
+                {subtitle}
+              </motion.p>
+            )}
+            {children && (
+              <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.3 }} className="mt-8">
+                {children}
+              </motion.div>
+            )}
+          </div>
+
+          {hasImage && (
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.8, delay: 0.2 }}
+              className="hidden lg:block relative">
+              <div className="relative rounded-2xl overflow-hidden shadow-2xl" style={{ aspectRatio: "4/3" }}>
+                <img src={image} alt={imageAlt ?? ""} className="w-full h-full object-cover" />
+                <div className="absolute inset-0" style={{ background: "linear-gradient(to bottom, transparent 55%, rgba(10,22,40,0.45))" }} />
+              </div>
+              {float && (
+                <div className="absolute -bottom-6 -left-6 bg-white rounded-2xl shadow-xl p-4">
+                  <p className="text-xs font-semibold" style={{ color: "#0A1628" }}>{float.label}</p>
+                  <p className="text-lg font-bold" style={{ color: float.color ?? glow1 }}>{float.value}</p>
+                </div>
+              )}
+            </motion.div>
+          )}
+        </div>
       </div>
       <div className="absolute bottom-0 left-0 right-0 h-16" style={{ background: "linear-gradient(to top, #F0F4FA, transparent)" }} />
     </section>
@@ -89,11 +118,11 @@ export function Navbar() {
   ];
 
   return (
-    <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${scrolled || open ? "bg-[#0A1628]/85 backdrop-blur-md border-b border-white/10" : "bg-transparent"}`} style={{ fontFamily: "'Outfit', sans-serif" }}>
+    <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${scrolled ? "bg-white shadow-md" : "bg-white/95 backdrop-blur-sm"}`} style={{ fontFamily: "'Outfit', sans-serif" }}>
       <div className="max-w-7xl mx-auto px-6 flex items-center justify-between h-16">
         <Link href="/" className="flex items-center gap-2.5">
           <img src="/sps-logo-mark-512.png" alt="" aria-hidden className="w-9 h-9" />
-          <span className="text-xl font-bold tracking-tight leading-none text-white" style={{ fontFamily: "'Outfit', sans-serif" }}>SPS<span style={{ color: "#5B8FFF" }}>Technosoft</span></span>
+          <span className="text-xl font-bold tracking-tight leading-none" style={{ fontFamily: "'Outfit', sans-serif", color: "#0A1628" }}>SPS<span style={{ color: "#1B5FE8" }}>Technosoft</span></span>
         </Link>
 
         <div className="hidden md:flex items-center gap-1">
@@ -103,7 +132,7 @@ export function Navbar() {
               <Link
                 key={l.to}
                 href={l.to}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${isActive ? "bg-white/15 text-white" : "text-white/75 hover:text-white hover:bg-white/10"}`}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${isActive ? "text-[#1B5FE8] bg-[#E8EFFE]" : "text-[#0A1628] hover:bg-[#F0F4FA]"}`}
               >
                 {l.label}
               </Link>
@@ -111,15 +140,15 @@ export function Navbar() {
           })}
         </div>
 
-        <button onClick={() => setOpen(!open)} className="md:hidden p-2 rounded-lg text-white hover:bg-white/10">
+        <button onClick={() => setOpen(!open)} className="md:hidden p-2 rounded-lg text-[#0A1628] hover:bg-[#F0F4FA]">
           {open ? <X size={20} /> : <Menu size={20} />}
         </button>
       </div>
 
       {open && (
-        <div className="md:hidden border-t border-white/10 bg-[#0A1628]/95 px-6 py-4 flex flex-col gap-1">
+        <div className="md:hidden border-t border-[#DDE4F0] bg-white px-6 py-4 flex flex-col gap-1">
           {links.map(l => (
-            <Link key={l.to} href={l.to} className="px-4 py-2.5 rounded-lg text-sm font-medium text-white/80 hover:bg-white/10 hover:text-white">{l.label}</Link>
+            <Link key={l.to} href={l.to} className="px-4 py-2.5 rounded-lg text-sm font-medium text-[#0A1628] hover:bg-[#F0F4FA]">{l.label}</Link>
           ))}
         </div>
       )}
@@ -649,8 +678,11 @@ export function ServicesPage() {
     <div style={{ fontFamily: "'DM Sans', sans-serif" }}>
       <PageHero
         badge={<><Zap size={12} /> Our Services</>}
-        title={<>Three Verticals. One Mission.</>}
-        subtitle="Explore our service verticals and discover how SPSTechnosoft can accelerate your organization's growth across talent, learning, and technology."
+        title={<>Three Verticals.<br />One Mission.</>}
+        subtitle="Explore our service verticals and discover how SPSTechnosoft can accelerate your organization's growth across talent, learning, and technology — all on one platform."
+        image="https://images.unsplash.com/photo-1542744173-8e7e53415bb0?w=800&h=600&fit=crop&auto=format"
+        imageAlt="SPSTechnosoft team collaborating on client solutions"
+        float={{ label: "Connected services", value: "3 Verticals" }}
       />
 
       <div className="bg-white">
@@ -738,20 +770,21 @@ export function StaffingPage() {
                 </Link>
               </div>
             </motion.div>
-            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.7, delay: 0.2 }}
-              className="hidden lg:grid grid-cols-2 gap-4">
-              {[
-                { label: "Candidate Database", value: "80K+", icon: Database, color: "#1B5FE8" },
-                { label: "Avg. Time to Fill", value: "30 Days", icon: Clock, color: "#60A5FA" },
-                { label: "Offer Acceptance Rate", value: "91%", icon: BadgeCheck, color: "#1B5FE8" },
-                { label: "Roles Placed", value: "600+", icon: UserCheck, color: "#60A5FA" },
-              ].map(({ label, value, icon: Icon, color }) => (
-                <div key={label} className="rounded-2xl p-5" style={{ background: "rgba(255,255,255,0.07)" }}>
-                  <Icon size={22} style={{ color }} className="mb-3" />
-                  <p className="text-2xl font-extrabold text-white mb-1" style={{ fontFamily: "'Outfit', sans-serif" }}>{value}</p>
-                  <p className="text-xs" style={{ color: "#8FA3C0" }}>{label}</p>
-                </div>
-              ))}
+            <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.8, delay: 0.2 }}
+              className="hidden lg:block relative">
+              <div className="relative rounded-2xl overflow-hidden shadow-2xl" style={{ aspectRatio: "4/3" }}>
+                <img src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=800&h=600&fit=crop&auto=format"
+                  alt="Recruiter interviewing a candidate" className="w-full h-full object-cover" />
+                <div className="absolute inset-0" style={{ background: "linear-gradient(to bottom, transparent 55%, rgba(10,22,40,0.45))" }} />
+              </div>
+              <div className="absolute -bottom-6 -left-6 bg-white rounded-2xl shadow-xl p-4">
+                <p className="text-xs font-semibold" style={{ color: "#0A1628" }}>Avg. Time to Fill</p>
+                <p className="text-lg font-bold" style={{ color: "#1B5FE8" }}>30 Days</p>
+              </div>
+              <div className="absolute -top-4 -right-4 bg-white rounded-2xl shadow-xl p-4">
+                <p className="text-xs font-semibold" style={{ color: "#0A1628" }}>Candidate Database</p>
+                <p className="text-lg font-bold" style={{ color: "#1B5FE8" }}>80K+</p>
+              </div>
             </motion.div>
           </div>
         </div>
@@ -1151,6 +1184,9 @@ export function AboutPage() {
         badge={<><Users size={12} /> About Us</>}
         title={<>The People Behind SPSTechnosoft</>}
         subtitle="SPSTechnosoft was built by practitioners — people who have worked in the same roles, industries, and pressures as our clients. That empathy is our competitive advantage."
+        image="https://images.unsplash.com/photo-1531482615713-2afd69097998?w=800&h=600&fit=crop&auto=format"
+        imageAlt="The SPSTechnosoft team at work"
+        float={{ label: "Since 2017", value: "7+ Years" }}
       />
 
       {/* Directors */}
@@ -1330,8 +1366,11 @@ export function CareerPage() {
         badge={<><Briefcase size={12} /> Careers</>}
         title={<>Your Next Role Starts Here</>}
         subtitle="We hire for remote, contract, and permanent roles across technology, finance, and operations. And if you're a student, our internship programme gives you real industry experience on live projects."
+        image="https://images.unsplash.com/photo-1521737604893-d14cc237f11d?w=800&h=600&fit=crop&auto=format"
+        imageAlt="A collaborative team at SPSTechnosoft"
+        float={{ label: "Ways to join", value: "Intern → Hire" }}
       >
-        <div className="flex flex-wrap gap-3 justify-center">
+        <div className="flex flex-wrap gap-3">
           {filters.map(f => (
             <button key={f} onClick={() => setFilter(f)}
               className="px-5 py-2 rounded-xl text-sm font-semibold transition-all duration-200"
@@ -1482,6 +1521,9 @@ export function ContactPage() {
         badge={<><MessageSquare size={12} /> Contact</>}
         title={<>Let's Talk</>}
         subtitle="Whether you want to hire, learn, or build — we'd love to hear from you. Fill out the form or reach us directly."
+        image="https://images.unsplash.com/photo-1497366754035-f200968a6e72?w=800&h=600&fit=crop&auto=format"
+        imageAlt="The SPSTechnosoft office workspace"
+        float={{ label: "Avg. response", value: "< 4 hrs" }}
       />
 
       <section className="py-24" style={{ background: "#F0F4FA" }}>
