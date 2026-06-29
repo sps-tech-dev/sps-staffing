@@ -13,7 +13,7 @@ import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { ArrowUp, MessageSquare, X, Send } from "lucide-react";
 
 const ACCENT = "#1B5FE8";        // shared accent for BOTH floating widgets
-const EMAIL = "hello@spstechnosoft.com";
+const EMAIL = "info@spstechnosoft.com";
 const EASE: [number, number, number, number] = [0.22, 1, 0.36, 1];
 
 type LinkItem = { label: string; href: string };

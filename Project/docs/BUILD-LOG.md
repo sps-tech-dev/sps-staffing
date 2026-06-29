@@ -786,6 +786,26 @@ dark video-hero marketing site above was **superseded** by a faithful port of a 
   chat accent** (`#1B5FE8`). All copy is in a `TOPICS` map so a real backend can be added later. Lint/tsc/
   build clean (37/37); scoping unchanged (marketing only). **NOT deployed.**
 
+#### Marketing — round-6 fixes: contact details, LinkedIn, footer spacing, staffing image (local only) ✅
+- **Footer column spacing** tightened: the 4-col grid gap `gap-10` → `gap-x-6 gap-y-10` (closer columns,
+  balanced; keeps vertical spacing for the mobile stack).
+- **Contact details updated everywhere** (footer + `/contact` info panel + the contact-form phone
+  placeholder + the chat widget's `EMAIL`): **email `info@spstechnosoft.com`**, **phone `+91-8920756557`**,
+  **location `Vadodara, Gujarat` (serving clients globally)**. The About company line is now
+  "Vadodara-based". (One `Bengaluru` remains only in a **sample job listing** on `/career` — demo data, not
+  our contact info — left intentionally.)
+- **LinkedIn** → `https://www.linkedin.com/company/spstechnosoft/` with `target="_blank"
+  rel="noopener noreferrer"`: footer social icon (now an objects array; LinkedIn opens new-tab, the other
+  social icons keep `#` placeholders + `aria-label`s) and the three About "Connect on LinkedIn" links.
+- **Staffing image** — replaced the badly-cropped Unsplash photo with the user-provided
+  `public/staffing-team.webp` ("Find the Right People" graphic) across all three uses (Home "What We
+  Deliver" card, `/services` card, `/services/staffing` hero). On the short Home card the crop now uses
+  `object-position: center 30%` (added a per-card `imgPos`) so the subject/graphic isn't cut off; the
+  larger 16/10 and 4/3 containers keep it centered.
+- Verified: `tsc`/`eslint`/`next build` clean (37/37); contact values live on home + contact; LinkedIn href
+  + new-tab attrs present; `/staffing-team.webp` serves 200; routes 200; auth/portals untouched
+  (307→login). **NOT deployed.**
+
 ## Pending / next steps
 
 ➡️ **The canonical, durable register of ALL outstanding/deferred items is

@@ -161,7 +161,7 @@ export function Footer() {
   return (
     <footer style={{ background: "#0A1628", fontFamily: "'DM Sans', sans-serif" }} className="text-white">
       <div className="max-w-7xl mx-auto px-6 py-16">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-10">
           <div>
             <div className="flex items-center gap-2.5 mb-4">
               <img src="/sps-logo-mark-512.png" alt="" aria-hidden className="w-9 h-9" />
@@ -171,8 +171,15 @@ export function Footer() {
               Empowering organizations with talent, technology, and training — one solution at a time.
             </p>
             <div className="flex gap-3 mt-5">
-              {[Linkedin, Twitter, Instagram, Facebook].map((Icon, i) => (
-                <a key={i} href="#" className="w-9 h-9 rounded-lg flex items-center justify-center transition-all duration-200 hover:bg-[#1A56DB]" style={{ background: "rgba(255,255,255,0.08)" }}>
+              {[
+                { Icon: Linkedin, label: "LinkedIn", href: "https://www.linkedin.com/company/spstechnosoft/", external: true },
+                { Icon: Twitter, label: "Twitter", href: "#", external: false },
+                { Icon: Instagram, label: "Instagram", href: "#", external: false },
+                { Icon: Facebook, label: "Facebook", href: "#", external: false },
+              ].map(({ Icon, label, href, external }) => (
+                <a key={label} href={href} aria-label={label}
+                  {...(external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+                  className="w-9 h-9 rounded-lg flex items-center justify-center transition-all duration-200 hover:bg-[#1A56DB]" style={{ background: "rgba(255,255,255,0.08)" }}>
                   <Icon size={15} />
                 </a>
               ))}
@@ -218,15 +225,15 @@ export function Footer() {
             <ul className="space-y-3">
               <li className="flex items-start gap-3">
                 <Mail size={15} className="mt-0.5 shrink-0" style={{ color: "#1A56DB" }} />
-                <span className="text-sm" style={{ color: "#8FA3C0" }}>hello@stratumgroup.in</span>
+                <span className="text-sm" style={{ color: "#8FA3C0" }}>info@spstechnosoft.com</span>
               </li>
               <li className="flex items-start gap-3">
                 <Phone size={15} className="mt-0.5 shrink-0" style={{ color: "#1A56DB" }} />
-                <span className="text-sm" style={{ color: "#8FA3C0" }}>+91 98765 43210</span>
+                <span className="text-sm" style={{ color: "#8FA3C0" }}>+91-8920756557</span>
               </li>
               <li className="flex items-start gap-3">
                 <MapPin size={15} className="mt-0.5 shrink-0" style={{ color: "#1A56DB" }} />
-                <span className="text-sm" style={{ color: "#8FA3C0" }}>Bengaluru, India — serving clients globally</span>
+                <span className="text-sm" style={{ color: "#8FA3C0" }}>Vadodara, Gujarat — serving clients globally</span>
               </li>
             </ul>
           </div>
@@ -408,7 +415,7 @@ export function HomePage() {
                 A Growth Partner Across<br />Talent, Learning & Technology
               </h2>
               <p className="text-base leading-relaxed mb-5" style={{ color: "#5A6B8A" }}>
-                Founded in 2017, SPSTechnosoft Group is a Bengaluru-based multi-vertical firm that operates at the intersection of human capital and technology. We exist to answer one question for every client: <em>how do you grow faster and smarter?</em>
+                Founded in 2017, SPSTechnosoft Group is a Vadodara-based multi-vertical firm that operates at the intersection of human capital and technology. We exist to answer one question for every client: <em>how do you grow faster and smarter?</em>
               </p>
               <p className="text-base leading-relaxed mb-6" style={{ color: "#5A6B8A" }}>
                 Whether you need your next engineering hire in 10 days, want to upskill a 200-person workforce, or need a technology partner to modernize your infrastructure — SPSTechnosoft delivers with the same obsession for quality across all three verticals.
@@ -450,7 +457,8 @@ export function HomePage() {
                 title: "Staffing & Recruitment",
                 color: "#1B5FE8",
                 bg: "#E8EFFE",
-                image: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=600&h=400&fit=crop&auto=format",
+                image: "/staffing-team.webp",
+                imgPos: "center 30%",
                 desc: "End-to-end talent acquisition across technology, finance, and operations verticals. From sourcing to onboarding, we own the process.",
                 points: ["Permanent, Contract & Remote Hiring", "AI-Monitored Pre-Screening", "80K+ Candidate Database", "30-Day Average Placement"],
                 to: "/services/staffing",
@@ -475,11 +483,11 @@ export function HomePage() {
                 points: ["Custom Software Development", "Cloud & DevOps Solutions", "AI/ML Integration", "Digital Transformation Advisory"],
                 to: "/services/it",
               },
-            ].map(({ icon: Icon, title, color, bg, image, desc, points, to }, i) => (
+            ].map(({ icon: Icon, title, color, bg, image, imgPos, desc, points, to }, i) => (
               <FadeIn key={title} delay={i * 0.15}>
                 <div className="group rounded-2xl overflow-hidden bg-white shadow-md hover:shadow-xl transition-all duration-300 flex flex-col" style={{ border: "1px solid rgba(10,22,40,0.08)" }}>
                   <div className="relative h-48 overflow-hidden">
-                    <img src={image} alt={title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                    <img src={image} alt={title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" style={{ objectPosition: imgPos ?? "center" }} />
                     <div className="absolute inset-0" style={{ background: `linear-gradient(to bottom, transparent 40%, ${color}CC)` }} />
                   </div>
                   <div className="p-6 flex flex-col flex-1">
@@ -625,7 +633,7 @@ export function ServicesPage() {
       color: "#1B5FE8",
       bg: "#E8EFFE",
       to: "/services/staffing",
-      image: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=800&h=500&fit=crop&auto=format",
+      image: "/staffing-team.webp",
       overview: "We help startups and enterprises build high-performance teams through a meticulous, AI-assisted hiring process. Our 80,000+ candidate database and dedicated industry recruiters reduce time-to-hire without compromising on quality.",
       capabilities: [
         { icon: UserCheck, title: "Permanent Hiring", desc: "Full-time placements with 60-day replacement guarantee." },
@@ -773,7 +781,7 @@ export function StaffingPage() {
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.8, delay: 0.2 }}
               className="hidden lg:block relative">
               <div className="relative rounded-2xl overflow-hidden shadow-2xl" style={{ aspectRatio: "4/3" }}>
-                <img src="https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=800&h=600&fit=crop&auto=format"
+                <img src="/staffing-team.webp"
                   alt="Recruiter interviewing a candidate" className="w-full h-full object-cover" />
                 <div className="absolute inset-0" style={{ background: "linear-gradient(to bottom, transparent 55%, rgba(10,22,40,0.45))" }} />
               </div>
@@ -1160,21 +1168,21 @@ export function AboutPage() {
       role: "Founder & CEO",
       image: "https://images.unsplash.com/photo-1560250097-0b93528c311a?w=400&h=400&fit=crop&auto=format",
       bio: "With 18 years across talent management and organizational consulting, Rajan founded SPSTechnosoft to build the kind of hiring partner he wished had existed during his corporate career. He's passionate about creating structures that let people and organizations do their best work.",
-      linkedin: "#",
+      linkedin: "https://www.linkedin.com/company/spstechnosoft/",
     },
     {
       name: "Deepa Anand",
       role: "Co-Founder & COO",
       image: "https://images.unsplash.com/photo-1573496799652-408c2ac9fe98?w=400&h=400&fit=crop&auto=format",
       bio: "Deepa brings operational rigor and a sharp eye for culture-fit to SPSTechnosoft's day-to-day. Before co-founding SPSTechnosoft, she led talent acquisition at two unicorn startups. She oversees SPSTechnosoft's delivery quality, client relationships, and EdTech vertical.",
-      linkedin: "#",
+      linkedin: "https://www.linkedin.com/company/spstechnosoft/",
     },
     {
       name: "Aryan Shah",
       role: "CTO & Head of IT Consulting",
       image: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&h=400&fit=crop&auto=format",
       bio: "Aryan leads SPSTechnosoft's technology vertical and internal engineering. A full-stack architect with experience at top product companies, he built SPSTechnosoft's proprietary candidate screening platform and is the driving force behind the company's AI-first internal systems.",
-      linkedin: "#",
+      linkedin: "https://www.linkedin.com/company/spstechnosoft/",
     },
   ];
 
@@ -1207,7 +1215,7 @@ export function AboutPage() {
                     <h3 className="text-lg font-bold" style={{ fontFamily: "'Outfit', sans-serif", color: "#0A1628" }}>{name}</h3>
                     <p className="text-xs font-semibold mb-3" style={{ color: "#1A56DB" }}>{role}</p>
                     <p className="text-sm leading-relaxed mb-4" style={{ color: "#5A6B8A" }}>{bio}</p>
-                    <a href={linkedin} className="inline-flex items-center gap-2 text-xs font-semibold transition-colors hover:opacity-70" style={{ color: "#0A1628" }}>
+                    <a href={linkedin} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-xs font-semibold transition-colors hover:opacity-70" style={{ color: "#0A1628" }}>
                       <Linkedin size={14} /> Connect on LinkedIn
                     </a>
                   </div>
@@ -1534,9 +1542,9 @@ export function ContactPage() {
             <div>
               <h3 className="text-xl font-bold mb-4" style={{ fontFamily: "'Outfit', sans-serif", color: "#0A1628" }}>Reach Us Directly</h3>
               {[
-                { icon: Mail, label: "Email", value: "hello@stratumgroup.in", sub: "Replies within 4 business hours" },
-                { icon: Phone, label: "Phone", value: "+91 98765 43210", sub: "Mon–Sat, 9 AM – 7 PM IST" },
-                { icon: MapPin, label: "Office", value: "Koramangala, Bengaluru", sub: "Karnataka, India – 560034" },
+                { icon: Mail, label: "Email", value: "info@spstechnosoft.com", sub: "Replies within 4 business hours" },
+                { icon: Phone, label: "Phone", value: "+91-8920756557", sub: "Mon–Sat, 9 AM – 7 PM IST" },
+                { icon: MapPin, label: "Office", value: "Vadodara, Gujarat", sub: "Serving clients globally" },
               ].map(({ icon: Icon, label, value, sub }) => (
                 <div key={label} className="flex items-start gap-4 p-4 rounded-xl bg-white shadow-sm mb-3" style={{ border: "1px solid rgba(10,22,40,0.08)" }}>
                   <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0" style={{ background: "#E8EFFE" }}>
@@ -1582,7 +1590,7 @@ export function ContactPage() {
                       {[
                         { key: "name", label: "Full Name", placeholder: "Priya Sharma", type: "text" },
                         { key: "email", label: "Email Address", placeholder: "priya@company.com", type: "email" },
-                        { key: "phone", label: "Phone Number", placeholder: "+91 98765 43210", type: "tel" },
+                        { key: "phone", label: "Phone Number", placeholder: "+91-8920756557", type: "tel" },
                         { key: "subject", label: "Subject", placeholder: "How can we help?", type: "text" },
                       ].map(({ key, label, placeholder, type }) => (
                         <div key={key}>
