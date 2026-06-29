@@ -716,6 +716,27 @@ dark video-hero marketing site above was **superseded** by a faithful port of a 
   `/contact` now use it (Career keeps its role-filter buttons via `children`).
 - Verified: `tsc`/`eslint`/`next build` clean (37/37); all routes 200; portals still 307→login. **NOT deployed.**
 
+#### Marketing — round-4 fixes: per-vertical color system + transparent header (local only) ✅
+- **Header = footer-matched + transparent:** the header logo now matches the footer exactly (cube mark
+  `sps-logo-mark-512.png` `w-9 h-9` + "SPSTechnosoft" `text-xl` wordmark, flex-centered → wordmark
+  cleanly vertically aligned with the cube). The header background is **transparent over the hero**
+  (white logo/nav) and **solidifies to navy (`#0A1628`/85 + blur) on scroll** — it now merges into the
+  blue hero instead of sitting on a white bar. (Removed the now-unused combined `sps-logo-header.png`.)
+- **Per-vertical color system tied to the logo's three cube faces** — applied to BOTH the vertical's
+  card (Home "What We Deliver" + `/services`) AND its detail-page theme:
+  - **Staffing → Blue `#1B5FE8`** (person/top face)
+  - **EdTech & Academy → Gold `#E8A020`** (graduation-cap face; was green)
+  - **IT Services & Consulting → Navy `#0D1B3E`** (code `<>` face; was purple)
+  Each card uses its own face color (icon/accent/border/hover/Learn-More); each detail page's accents
+  (badge, buttons, highlights, checks, CTAs) pick up its face color. Decorative multi-color sets (login
+  role cards, hiring-engagement cards, IT service-portfolio icons) intentionally stay varied.
+- **Vertical detail-page heroes** (`/services/staffing`, `/services/education`, `/services/it`) now use
+  the **full `min-h-screen` hero treatment** (gradient + radial glow + dot pattern + bottom fade,
+  matching the other inner pages) — **tinted per vertical**: staffing blue, education gold (warm-dark
+  gradient + gold accents), IT deep-navy (with light/white accents so they read on the dark hero).
+- Verified: `tsc`/`eslint`/`next build` clean (37/37); all routes 200; auth/portals untouched
+  (307→login). **NOT deployed.**
+
 ## Pending / next steps
 
 ➡️ **The canonical, durable register of ALL outstanding/deferred items is

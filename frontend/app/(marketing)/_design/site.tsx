@@ -89,10 +89,11 @@ export function Navbar() {
   ];
 
   return (
-    <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${scrolled ? "bg-white shadow-md" : "bg-white/95 backdrop-blur-sm"}`} style={{ fontFamily: "'Outfit', sans-serif" }}>
+    <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${scrolled || open ? "bg-[#0A1628]/85 backdrop-blur-md border-b border-white/10" : "bg-transparent"}`} style={{ fontFamily: "'Outfit', sans-serif" }}>
       <div className="max-w-7xl mx-auto px-6 flex items-center justify-between h-16">
-        <Link href="/" className="flex items-center">
-          <img src="/sps-logo-header.png" alt="SPSTechnosoft" className="h-12 w-auto" />
+        <Link href="/" className="flex items-center gap-2.5">
+          <img src="/sps-logo-mark-512.png" alt="" aria-hidden className="w-9 h-9" />
+          <span className="text-xl font-bold tracking-tight leading-none text-white" style={{ fontFamily: "'Outfit', sans-serif" }}>SPS<span style={{ color: "#5B8FFF" }}>Technosoft</span></span>
         </Link>
 
         <div className="hidden md:flex items-center gap-1">
@@ -102,7 +103,7 @@ export function Navbar() {
               <Link
                 key={l.to}
                 href={l.to}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${isActive ? "text-[#1A56DB] bg-[#E8EFFE]" : "text-[#0A1628] hover:bg-[#F0F4FA]"}`}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${isActive ? "bg-white/15 text-white" : "text-white/75 hover:text-white hover:bg-white/10"}`}
               >
                 {l.label}
               </Link>
@@ -110,15 +111,15 @@ export function Navbar() {
           })}
         </div>
 
-        <button onClick={() => setOpen(!open)} className="md:hidden p-2 rounded-lg hover:bg-[#F0F4FA]">
+        <button onClick={() => setOpen(!open)} className="md:hidden p-2 rounded-lg text-white hover:bg-white/10">
           {open ? <X size={20} /> : <Menu size={20} />}
         </button>
       </div>
 
       {open && (
-        <div className="md:hidden border-t border-[#DDE4F0] bg-white px-6 py-4 flex flex-col gap-1">
+        <div className="md:hidden border-t border-white/10 bg-[#0A1628]/95 px-6 py-4 flex flex-col gap-1">
           {links.map(l => (
-            <Link key={l.to} href={l.to} className="px-4 py-2.5 rounded-lg text-sm font-medium text-[#0A1628] hover:bg-[#F0F4FA]">{l.label}</Link>
+            <Link key={l.to} href={l.to} className="px-4 py-2.5 rounded-lg text-sm font-medium text-white/80 hover:bg-white/10 hover:text-white">{l.label}</Link>
           ))}
         </div>
       )}
@@ -418,7 +419,7 @@ export function HomePage() {
               {
                 icon: Users,
                 title: "Staffing & Recruitment",
-                color: "#1A56DB",
+                color: "#1B5FE8",
                 bg: "#E8EFFE",
                 image: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=600&h=400&fit=crop&auto=format",
                 desc: "End-to-end talent acquisition across technology, finance, and operations verticals. From sourcing to onboarding, we own the process.",
@@ -428,8 +429,8 @@ export function HomePage() {
               {
                 icon: BookOpen,
                 title: "Education, Training & Internships",
-                color: "#059669",
-                bg: "#D1FAE5",
+                color: "#E8A020",
+                bg: "#FBEFD7",
                 image: "https://images.unsplash.com/photo-1523580494863-6f3031224c94?w=600&h=400&fit=crop&auto=format",
                 desc: "From college internships on live projects to enterprise L&D programmes — we build capability at every career stage.",
                 points: ["Live Industry Project Experience", "Corporate Upskilling Modules", "EdTech Certification Tracks", "Campus-to-Corporate Pipeline"],
@@ -438,8 +439,8 @@ export function HomePage() {
               {
                 icon: Monitor,
                 title: "IT Services & Consulting",
-                color: "#7C3AED",
-                bg: "#EDE9FE",
+                color: "#0D1B3E",
+                bg: "#E6E9F1",
                 image: "https://images.unsplash.com/photo-1518770660439-4636190af475?w=600&h=400&fit=crop&auto=format",
                 desc: "Custom software, cloud migrations, AI integration, and digital transformation — engineered for measurable business outcomes.",
                 points: ["Custom Software Development", "Cloud & DevOps Solutions", "AI/ML Integration", "Digital Transformation Advisory"],
@@ -592,7 +593,7 @@ export function ServicesPage() {
       icon: Users,
       title: "Staffing & Recruitment",
       tagline: "The right talent, placed with precision.",
-      color: "#1A56DB",
+      color: "#1B5FE8",
       bg: "#E8EFFE",
       to: "/services/staffing",
       image: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=800&h=500&fit=crop&auto=format",
@@ -610,8 +611,8 @@ export function ServicesPage() {
       icon: BookOpen,
       title: "Education, Training & Internships",
       tagline: "Building the workforce of tomorrow, today.",
-      color: "#059669",
-      bg: "#D1FAE5",
+      color: "#E8A020",
+      bg: "#FBEFD7",
       to: "/services/education",
       image: "https://images.unsplash.com/photo-1523580494863-6f3031224c94?w=800&h=500&fit=crop&auto=format",
       overview: "Our EdTech vertical bridges the gap between academic knowledge and industry expectation. College students gain hands-on experience through live organizational projects, while enterprises upskill their teams with structured, outcome-driven L&D programmes.",
@@ -628,8 +629,8 @@ export function ServicesPage() {
       icon: Monitor,
       title: "IT Services & Consulting",
       tagline: "Technology solutions built for business outcomes.",
-      color: "#7C3AED",
-      bg: "#EDE9FE",
+      color: "#0D1B3E",
+      bg: "#E6E9F1",
       to: "/services/it",
       image: "https://images.unsplash.com/photo-1518770660439-4636190af475?w=800&h=500&fit=crop&auto=format",
       overview: "SPSTechnosoft's IT consulting team brings together software engineers, cloud architects, and AI specialists to help organizations modernize, automate, and scale. We don't just build software — we solve the business problem behind the technology requirement.",
@@ -697,7 +698,7 @@ export function ServicesPage() {
 // ── STAFFING DETAIL PAGE ────────────────────────────────────────────────────
 export function StaffingPage() {
   const hiringTypes = [
-    { type: "Permanent Hiring", icon: Briefcase, color: "#1A56DB", desc: "Long-term placements with a structured fit process and 60-day replacement guarantee. Ideal for core team roles.", features: ["Full lifecycle recruitment", "Culture-fit assessment", "60-day replacement guarantee", "Onboarding support"] },
+    { type: "Permanent Hiring", icon: Briefcase, color: "#1B5FE8", desc: "Long-term placements with a structured fit process and 60-day replacement guarantee. Ideal for core team roles.", features: ["Full lifecycle recruitment", "Culture-fit assessment", "60-day replacement guarantee", "Onboarding support"] },
     { type: "Contract Staffing", icon: Clock, color: "#D97706", desc: "Flexible talent for defined project durations. Pre-vetted professionals available within 5 business days.", features: ["Rapid deployment", "Project-aligned contracts", "Pay-per-use model", "Extension options"] },
     { type: "Remote Hiring", icon: Globe, color: "#059669", desc: "Distributed team building with thorough remote-work capability assessment. Geography is no barrier.", features: ["Remote-first candidates", "Time-zone aligned sourcing", "Communication-skills testing", "Async work readiness check"] },
   ];
@@ -713,24 +714,26 @@ export function StaffingPage() {
 
   return (
     <div style={{ fontFamily: "'DM Sans', sans-serif" }}>
-      <div className="pt-16" style={{ background: "linear-gradient(135deg, #0A1628, #0D2150)" }}>
-        <div className="max-w-7xl mx-auto px-6 py-20">
+      <section className="relative min-h-screen flex items-center overflow-hidden pt-16" style={{ background: "linear-gradient(135deg, #0A1628 0%, #0D2150 55%, #0F3A93 100%)" }}>
+        <div className="absolute inset-0 opacity-10" style={{ backgroundImage: "radial-gradient(circle at 20% 80%, #1B5FE8 0%, transparent 50%), radial-gradient(circle at 80% 20%, #2563EB 0%, transparent 50%)" }} />
+        <div className="absolute inset-0" style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Ccircle cx='30' cy='30' r='1'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E\")" }} />
+        <div className="max-w-7xl mx-auto px-6 py-20 relative z-10 w-full">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
               <Link href="/services" className="inline-flex items-center gap-1.5 text-xs font-semibold mb-6 hover:opacity-70" style={{ color: "#93BBFF" }}>
                 ← Services
               </Link>
-              <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold mb-4" style={{ background: "rgba(26,86,219,0.2)", color: "#93BBFF" }}>
+              <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold mb-4" style={{ background: "rgba(27,95,232,0.2)", color: "#93BBFF", border: "1px solid rgba(27,95,232,0.3)" }}>
                 <Users size={12} /> Staffing & Recruitment
               </span>
-              <h1 className="text-5xl font-extrabold text-white mb-4 leading-tight" style={{ fontFamily: "'Outfit', sans-serif" }}>
+              <h1 className="text-5xl lg:text-6xl font-extrabold text-white mb-6 leading-tight tracking-tight" style={{ fontFamily: "'Outfit', sans-serif" }}>
                 Hire Better.<br />Hire Faster.
               </h1>
               <p className="text-lg mb-8" style={{ color: "#8FA3C0" }}>
                 End-to-end recruitment across permanent, contract, and remote roles — powered by a proprietary candidate database and an AI-assisted screening pipeline.
               </p>
               <div className="flex gap-4">
-                <Link href="/contact" className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold text-white" style={{ background: "#1A56DB" }}>
+                <Link href="/contact" className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold text-white" style={{ background: "#1B5FE8" }}>
                   Hire With Us <ArrowRight size={16} />
                 </Link>
               </div>
@@ -738,10 +741,10 @@ export function StaffingPage() {
             <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.7, delay: 0.2 }}
               className="hidden lg:grid grid-cols-2 gap-4">
               {[
-                { label: "Candidate Database", value: "80K+", icon: Database, color: "#1A56DB" },
-                { label: "Avg. Time to Fill", value: "30 Days", icon: Clock, color: "#D97706" },
-                { label: "Offer Acceptance Rate", value: "91%", icon: BadgeCheck, color: "#059669" },
-                { label: "Roles Placed", value: "600+", icon: UserCheck, color: "#7C3AED" },
+                { label: "Candidate Database", value: "80K+", icon: Database, color: "#1B5FE8" },
+                { label: "Avg. Time to Fill", value: "30 Days", icon: Clock, color: "#60A5FA" },
+                { label: "Offer Acceptance Rate", value: "91%", icon: BadgeCheck, color: "#1B5FE8" },
+                { label: "Roles Placed", value: "600+", icon: UserCheck, color: "#60A5FA" },
               ].map(({ label, value, icon: Icon, color }) => (
                 <div key={label} className="rounded-2xl p-5" style={{ background: "rgba(255,255,255,0.07)" }}>
                   <Icon size={22} style={{ color }} className="mb-3" />
@@ -752,19 +755,20 @@ export function StaffingPage() {
             </motion.div>
           </div>
         </div>
-      </div>
+        <div className="absolute bottom-0 left-0 right-0 h-16" style={{ background: "linear-gradient(to top, #F0F4FA, transparent)" }} />
+      </section>
 
       {/* Portal access — login entry points (routes into the existing auth/portals) */}
       <section className="py-20" style={{ background: "#F0F4FA" }}>
         <div className="max-w-7xl mx-auto px-6">
           <FadeIn className="text-center mb-12">
-            <span className="inline-block text-xs font-bold uppercase tracking-widest mb-3 px-3 py-1 rounded-full" style={{ background: "#E8EFFE", color: "#1A56DB" }}>Portal Access</span>
+            <span className="inline-block text-xs font-bold uppercase tracking-widest mb-3 px-3 py-1 rounded-full" style={{ background: "#E8EFFE", color: "#1B5FE8" }}>Portal Access</span>
             <h2 className="text-4xl font-extrabold mb-3" style={{ fontFamily: "'Outfit', sans-serif", color: "#0A1628" }}>Sign In to Your Portal</h2>
             <p className="text-base max-w-xl mx-auto" style={{ color: "#5A6B8A" }}>Three roles, three workspaces — all on the secure SPSTechnosoft platform.</p>
           </FadeIn>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {[
-              { icon: Building2, title: "Client Login", desc: "Review submissions, run your pipeline, release offers.", href: "/login?role=client", color: "#1A56DB", bg: "#E8EFFE" },
+              { icon: Building2, title: "Client Login", desc: "Review submissions, run your pipeline, release offers.", href: "/login?role=client", color: "#1B5FE8", bg: "#E8EFFE" },
               { icon: UserCheck, title: "Candidate Login", desc: "Track your applications and interview schedule.", href: "/login?role=candidate", color: "#059669", bg: "#D1FAE5" },
               { icon: Briefcase, title: "Employee Login", desc: "Recruiters & staff — manage requisitions and delivery.", href: "/login?role=employee", color: "#7C3AED", bg: "#EDE9FE" },
             ].map(({ icon: Icon, title, desc, href, color, bg }, i) => (
@@ -783,7 +787,7 @@ export function StaffingPage() {
             ))}
           </div>
           <FadeIn delay={0.15}>
-            <div className="mt-8 flex flex-col items-center justify-between gap-4 rounded-2xl p-7 sm:flex-row" style={{ background: "linear-gradient(135deg, #0A1628, #1A56DB)" }}>
+            <div className="mt-8 flex flex-col items-center justify-between gap-4 rounded-2xl p-7 sm:flex-row" style={{ background: "linear-gradient(135deg, #0A1628, #1B5FE8)" }}>
               <div className="text-center sm:text-left">
                 <h3 className="text-lg font-bold text-white" style={{ fontFamily: "'Outfit', sans-serif" }}>New here? Hiring for a role?</h3>
                 <p className="text-sm" style={{ color: "#B9C7E0" }}>Register your company and post your first job — we&apos;ll take it from there.</p>
@@ -873,7 +877,7 @@ export function StaffingPage() {
                     <div className="text-4xl font-extrabold leading-none" style={{ fontFamily: "'Outfit', sans-serif", color: "#E8EFFE" }}>{step}</div>
                     <div>
                       <div className="w-9 h-9 rounded-xl flex items-center justify-center mb-3" style={{ background: "#E8EFFE" }}>
-                        <Icon size={18} style={{ color: "#1A56DB" }} />
+                        <Icon size={18} style={{ color: "#1B5FE8" }} />
                       </div>
                       <h4 className="font-bold mb-2" style={{ fontFamily: "'Outfit', sans-serif", color: "#0A1628" }}>{title}</h4>
                       <p className="text-sm leading-relaxed" style={{ color: "#5A6B8A" }}>{desc}</p>
@@ -890,7 +894,7 @@ export function StaffingPage() {
         <FadeIn>
           <h2 className="text-3xl font-extrabold mb-4" style={{ fontFamily: "'Outfit', sans-serif", color: "#0A1628" }}>Ready to Find Your Next Great Hire?</h2>
           <p className="text-sm mb-6" style={{ color: "#5A6B8A" }}>Share your requirement and our team will reach out within 24 hours.</p>
-          <Link href="/contact" className="inline-flex items-center gap-2 px-7 py-3.5 rounded-xl text-sm font-semibold text-white" style={{ background: "#1A56DB" }}>
+          <Link href="/contact" className="inline-flex items-center gap-2 px-7 py-3.5 rounded-xl text-sm font-semibold text-white" style={{ background: "#1B5FE8" }}>
             Submit a Requirement <ArrowRight size={16} />
           </Link>
         </FadeIn>
@@ -903,21 +907,23 @@ export function StaffingPage() {
 export function EducationPage() {
   return (
     <div style={{ fontFamily: "'DM Sans', sans-serif" }}>
-      <div className="pt-16" style={{ background: "linear-gradient(135deg, #064E3B, #065F46)" }}>
-        <div className="max-w-7xl mx-auto px-6 py-20">
-          <Link href="/services" className="inline-flex items-center gap-1.5 text-xs font-semibold mb-6 hover:opacity-70" style={{ color: "#6EE7B7" }}>← Services</Link>
+      <section className="relative min-h-screen flex items-center overflow-hidden pt-16" style={{ background: "linear-gradient(135deg, #1A1408 0%, #2E2207 50%, #5A3F0B 100%)" }}>
+        <div className="absolute inset-0 opacity-10" style={{ backgroundImage: "radial-gradient(circle at 20% 80%, #E8A020 0%, transparent 50%), radial-gradient(circle at 80% 20%, #F59E0B 0%, transparent 50%)" }} />
+        <div className="absolute inset-0" style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Ccircle cx='30' cy='30' r='1'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E\")" }} />
+        <div className="max-w-7xl mx-auto px-6 py-20 relative z-10 w-full">
+          <Link href="/services" className="inline-flex items-center gap-1.5 text-xs font-semibold mb-6 hover:opacity-70" style={{ color: "#F6C667" }}>← Services</Link>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
-              <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold mb-4" style={{ background: "rgba(16,185,129,0.2)", color: "#6EE7B7" }}>
+              <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold mb-4" style={{ background: "rgba(232,160,32,0.2)", color: "#F6C667", border: "1px solid rgba(232,160,32,0.3)" }}>
                 <BookOpen size={12} /> Education, Training & Internships
               </span>
-              <h1 className="text-5xl font-extrabold text-white mb-4 leading-tight" style={{ fontFamily: "'Outfit', sans-serif" }}>
+              <h1 className="text-5xl lg:text-6xl font-extrabold text-white mb-6 leading-tight tracking-tight" style={{ fontFamily: "'Outfit', sans-serif" }}>
                 Real Projects.<br />Real Skills.<br />Real Careers.
               </h1>
-              <p className="text-lg mb-8" style={{ color: "#A7F3D0" }}>
+              <p className="text-lg mb-8" style={{ color: "#E8C98A" }}>
                 We bridge the gap between classroom and career — giving students hands-on industry experience and giving enterprises the talent pipeline they need.
               </p>
-              <Link href="/contact" className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold text-white" style={{ background: "#059669" }}>
+              <Link href="/contact" className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold" style={{ background: "#E8A020", color: "#0A1628" }}>
                 Enroll Now <ArrowRight size={16} />
               </Link>
             </motion.div>
@@ -928,7 +934,8 @@ export function EducationPage() {
             </motion.div>
           </div>
         </div>
-      </div>
+        <div className="absolute bottom-0 left-0 right-0 h-16" style={{ background: "linear-gradient(to top, #F0F4FA, transparent)" }} />
+      </section>
 
       <section className="py-20 bg-white">
         <div className="max-w-7xl mx-auto px-6">
@@ -963,16 +970,16 @@ export function EducationPage() {
               },
             ].map(({ title, icon: Icon, desc, points }, i) => (
               <FadeIn key={title} delay={i * 0.1}>
-                <div className="rounded-2xl p-7 h-full" style={{ background: "#F0F4FA", border: "1px solid rgba(5,150,105,0.15)" }}>
-                  <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-4" style={{ background: "#D1FAE5" }}>
-                    <Icon size={22} style={{ color: "#059669" }} />
+                <div className="rounded-2xl p-7 h-full" style={{ background: "#F0F4FA", border: "1px solid rgba(232,160,32,0.15)" }}>
+                  <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-4" style={{ background: "#FBEFD7" }}>
+                    <Icon size={22} style={{ color: "#E8A020" }} />
                   </div>
                   <h3 className="text-lg font-bold mb-3" style={{ fontFamily: "'Outfit', sans-serif", color: "#0A1628" }}>{title}</h3>
                   <p className="text-sm leading-relaxed mb-4" style={{ color: "#5A6B8A" }}>{desc}</p>
                   <ul className="space-y-2">
                     {points.map(p => (
                       <li key={p} className="flex items-center gap-2 text-xs" style={{ color: "#5A6B8A" }}>
-                        <CheckCircle size={13} style={{ color: "#059669" }} />
+                        <CheckCircle size={13} style={{ color: "#E8A020" }} />
                         {p}
                       </li>
                     ))}
@@ -988,10 +995,10 @@ export function EducationPage() {
         <FadeIn>
           <h2 className="text-3xl font-extrabold mb-4" style={{ fontFamily: "'Outfit', sans-serif", color: "#0A1628" }}>Interested in Our Programmes?</h2>
           <div className="flex flex-wrap gap-4 justify-center">
-            <Link href="/contact" className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold text-white" style={{ background: "#059669" }}>
+            <Link href="/contact" className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold text-white" style={{ background: "#E8A020" }}>
               Enquire for Internships <ArrowRight size={16} />
             </Link>
-            <Link href="/contact" className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold" style={{ color: "#059669", border: "2px solid #059669" }}>
+            <Link href="/contact" className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold" style={{ color: "#E8A020", border: "2px solid #E8A020" }}>
               Partner as a College
             </Link>
           </div>
@@ -1004,34 +1011,36 @@ export function EducationPage() {
 // ── IT SERVICES DETAIL PAGE ─────────────────────────────────────────────────
 export function ITServicesPage() {
   const services = [
-    { icon: Code2, title: "Custom Software Development", desc: "Scalable, maintainable web and mobile applications built with modern stacks — React, Node.js, Python, Flutter, and more.", color: "#7C3AED" },
+    { icon: Code2, title: "Custom Software Development", desc: "Scalable, maintainable web and mobile applications built with modern stacks — React, Node.js, Python, Flutter, and more.", color: "#0D1B3E" },
     { icon: Cloud, title: "Cloud & DevOps Engineering", desc: "End-to-end cloud migration and managed infrastructure on AWS, Azure, and GCP, with automated CI/CD pipelines.", color: "#2563EB" },
     { icon: Brain, title: "AI & Machine Learning", desc: "Intelligent automation, predictive analytics, NLP-powered tools, and computer vision solutions for enterprise needs.", color: "#0891B2" },
     { icon: Database, title: "Data Engineering & BI", desc: "Modern data pipelines, warehouses (Snowflake, BigQuery), and interactive BI dashboards for data-driven decisions.", color: "#059669" },
     { icon: Smartphone, title: "Mobile App Development", desc: "Cross-platform iOS and Android apps with exceptional UX, built to perform at scale.", color: "#D97706" },
     { icon: Shield, title: "Security & Compliance", desc: "Application security audits, penetration testing, VAPT, and compliance readiness for GDPR, ISO 27001.", color: "#DC2626" },
-    { icon: RefreshCcw, title: "Digital Transformation", desc: "Strategic advisory and execution for legacy system modernization, process automation, and tech stack evolution.", color: "#7C3AED" },
+    { icon: RefreshCcw, title: "Digital Transformation", desc: "Strategic advisory and execution for legacy system modernization, process automation, and tech stack evolution.", color: "#0D1B3E" },
     { icon: Cpu, title: "Embedded & IoT Solutions", desc: "Hardware-software integration for smart devices, industrial IoT, and connected product ecosystems.", color: "#0891B2" },
   ];
 
   return (
     <div style={{ fontFamily: "'DM Sans', sans-serif" }}>
-      <div className="pt-16" style={{ background: "linear-gradient(135deg, #2E1065, #4C1D95)" }}>
-        <div className="max-w-7xl mx-auto px-6 py-20">
-          <Link href="/services" className="inline-flex items-center gap-1.5 text-xs font-semibold mb-6 hover:opacity-70" style={{ color: "#C4B5FD" }}>← Services</Link>
+      <section className="relative min-h-screen flex items-center overflow-hidden pt-16" style={{ background: "linear-gradient(135deg, #05080F 0%, #0A1628 55%, #0D1B3E 100%)" }}>
+        <div className="absolute inset-0 opacity-10" style={{ backgroundImage: "radial-gradient(circle at 20% 80%, #5B8FFF 0%, transparent 50%), radial-gradient(circle at 80% 20%, #3B6FD9 0%, transparent 50%)" }} />
+        <div className="absolute inset-0" style={{ backgroundImage: "url(\"data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Ccircle cx='30' cy='30' r='1'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E\")" }} />
+        <div className="max-w-7xl mx-auto px-6 py-20 relative z-10 w-full">
+          <Link href="/services" className="inline-flex items-center gap-1.5 text-xs font-semibold mb-6 hover:opacity-70" style={{ color: "#9FB4E6" }}>← Services</Link>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
-              <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold mb-4" style={{ background: "rgba(124,58,237,0.2)", color: "#C4B5FD" }}>
+              <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold mb-4" style={{ background: "rgba(91,143,255,0.18)", color: "#9FB4E6", border: "1px solid rgba(91,143,255,0.3)" }}>
                 <Monitor size={12} /> IT Services & Consulting
               </span>
-              <h1 className="text-5xl font-extrabold text-white mb-4 leading-tight" style={{ fontFamily: "'Outfit', sans-serif" }}>
+              <h1 className="text-5xl lg:text-6xl font-extrabold text-white mb-6 leading-tight tracking-tight" style={{ fontFamily: "'Outfit', sans-serif" }}>
                 Technology That<br />Drives Business.
               </h1>
-              <p className="text-lg mb-8" style={{ color: "#DDD6FE" }}>
+              <p className="text-lg mb-8" style={{ color: "#AEC2EA" }}>
                 From product build to AI integration to cloud infrastructure — SPSTechnosoft's IT consulting team engineers solutions that solve real business problems.
               </p>
               <div className="flex gap-4">
-                <Link href="/contact" className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold text-white" style={{ background: "#7C3AED" }}>
+                <Link href="/contact" className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold" style={{ background: "white", color: "#0D1B3E" }}>
                   Start a Project <ArrowRight size={16} />
                 </Link>
               </div>
@@ -1043,7 +1052,8 @@ export function ITServicesPage() {
             </motion.div>
           </div>
         </div>
-      </div>
+        <div className="absolute bottom-0 left-0 right-0 h-16" style={{ background: "linear-gradient(to top, #F0F4FA, transparent)" }} />
+      </section>
 
       <section className="py-24 bg-white">
         <div className="max-w-7xl mx-auto px-6">
@@ -1082,7 +1092,7 @@ export function ITServicesPage() {
               "AI-assisted code review and QA tooling",
             ].map(item => (
               <div key={item} className="flex items-center gap-3 py-2.5" style={{ borderBottom: "1px solid rgba(10,22,40,0.06)" }}>
-                <Zap size={15} style={{ color: "#7C3AED" }} />
+                <Zap size={15} style={{ color: "#0D1B3E" }} />
                 <span className="text-sm" style={{ color: "#5A6B8A" }}>{item}</span>
               </div>
             ))}
@@ -1100,7 +1110,7 @@ export function ITServicesPage() {
         <FadeIn>
           <h2 className="text-3xl font-extrabold mb-4" style={{ fontFamily: "'Outfit', sans-serif", color: "#0A1628" }}>Have a Project in Mind?</h2>
           <p className="text-sm mb-6" style={{ color: "#5A6B8A" }}>Share your brief and our consulting team will respond with a discovery call within 48 hours.</p>
-          <Link href="/contact" className="inline-flex items-center gap-2 px-7 py-3.5 rounded-xl text-sm font-semibold text-white" style={{ background: "#7C3AED" }}>
+          <Link href="/contact" className="inline-flex items-center gap-2 px-7 py-3.5 rounded-xl text-sm font-semibold text-white" style={{ background: "#0D1B3E" }}>
             Request a Consultation <ArrowRight size={16} />
           </Link>
         </FadeIn>
