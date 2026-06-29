@@ -111,10 +111,10 @@ export function Navbar() {
 
   const links = [
     { to: "/", label: "Home" },
+    { to: "/about", label: "About" },
     { to: "/services", label: "Services" },
     { to: "/career", label: "Careers" },
     { to: "/contact", label: "Contact" },
-    { to: "/about", label: "About" },
   ];
 
   return (
