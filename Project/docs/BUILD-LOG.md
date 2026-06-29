@@ -775,6 +775,16 @@ dark video-hero marketing site above was **superseded** by a faithful port of a 
     later. WhatsApp number is a placeholder.
 - Verified: `tsc`/`eslint`/`next build` clean (37/37); chat present on all 8 marketing routes, absent on
   `/login`, `/register`, `/register/client`; portals still 307→login. **NOT deployed.**
+- **Round-2 — replaced the contact widget with a RULE-BASED chat assistant** (still zero-cost, front-end
+  only, no backend/API/LLM). Menu-driven: opens with a greeting + quick-reply **chips** (Our Services,
+  Staffing, EdTech, IT, Careers, Contact, How to get started); each chip shows a **pre-written** answer
+  (accurate to our 3 verticals — no invented services/prices) + a link button to the relevant page;
+  "Our Services" **branches** into the 3 verticals; every branch offers "☰ Back to menu". Free-text input
+  uses **simple keyword matching** (job/hire→staffing, course/training→edtech, software/cloud→IT, etc.)
+  with a graceful fallback (re-show menu + contact link). Conversational UI (assistant/user bubbles,
+  `aria-live`, `role="dialog"`, Esc, keyboard, reduced-motion). The **scroll-to-top button now shares the
+  chat accent** (`#1B5FE8`). All copy is in a `TOPICS` map so a real backend can be added later. Lint/tsc/
+  build clean (37/37); scoping unchanged (marketing only). **NOT deployed.**
 
 ## Pending / next steps
 
