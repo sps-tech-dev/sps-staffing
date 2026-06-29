@@ -685,6 +685,22 @@ dark video-hero marketing site above was **superseded** by a faithful port of a 
   The hero video assets in `public/video/` remain in the repo (unused by this design).
 - **Status:** ✅ ported + verified locally at `localhost:3000`. **NOT deployed.**
 
+#### Marketing — round-2 fixes (local only) ✅
+- **Real logo:** `public/sps-logo-horizontal-1920.png` (full lockup) in the header, `public/sps-logo-mark-512.png`
+  (cube mark) in the footer; replaced the placeholder cube+wordmark. Brand reads **"SPSTechnosoft"** (one word) —
+  removed the stray period after the wordmark in both header and footer.
+- **Header:** removed the "Get in Touch" button; nav (Home · Services · Careers · Contact · About) is now right-aligned
+  (logo left). Mobile hamburger menu also drops the CTA.
+- **Login entries on `/services/staffing`:** new "Portal Access" band with three distinct buttons — **Client / Candidate /
+  Employee Login** → `/login?role=client|candidate|employee` (existing auth → /client, candidate dashboard, /employer) —
+  plus a **Post a Job** CTA → `/register/client`. Corporate pages stay login-free.
+- **Home:** avg. placement time **12 → 30 days** (hero badge + the staffing-card claim + staffing stat, kept consistent);
+  removed the hero "Explore Services" / "Talk to Us" buttons (closing CTA band unchanged); removed the broken/404 inset
+  image in "Who We Are" (and its container); "Trusted by industry leaders" is now a continuous **right-to-left marquee**
+  (CSS `@keyframes marquee` in globals.css, two copies for a seamless loop, pause-on-hover, reduced-motion → static).
+- Verified: `tsc`/`eslint`/`next build` clean (37/37), all 8 routes + /login + /register/client = 200, portals
+  (/client,/employer,/candidate) still 307→login. **NOT deployed.**
+
 ## Pending / next steps
 
 ➡️ **The canonical, durable register of ALL outstanding/deferred items is

@@ -39,3 +39,14 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 h1,h2,h3,h4 { font-family: var(--font-display), sans-serif; }
+
+/* Marketing client marquee — continuous right-to-left loop (two copies → seamless). */
+@keyframes marquee {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+.marquee-track { animation: marquee 32s linear infinite; }
+.marquee-track:hover { animation-play-state: paused; }
+@media (prefers-reduced-motion: reduce) {
+  .marquee-track { animation: none; }
+}

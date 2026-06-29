@@ -12,7 +12,7 @@ import {
   MessageSquare, Video, Handshake, ChevronRight, MapPin, Building2,
   Lightbulb, Rocket, HeartHandshake, BadgeCheck, Search,
   Instagram, Facebook, ArrowUpRight, Quote, FlaskConical, Cpu,
-  Layers, RefreshCcw, Smartphone
+  RefreshCcw, Smartphone
 } from "lucide-react";
 
 // ── Scroll to top on route change ──────────────────────────────────────────
@@ -48,19 +48,16 @@ export function Navbar() {
   const links = [
     { to: "/", label: "Home" },
     { to: "/services", label: "Services" },
-    { to: "/about", label: "About" },
     { to: "/career", label: "Careers" },
     { to: "/contact", label: "Contact" },
+    { to: "/about", label: "About" },
   ];
 
   return (
     <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${scrolled ? "bg-white shadow-md" : "bg-white/95 backdrop-blur-sm"}`} style={{ fontFamily: "'Outfit', sans-serif" }}>
       <div className="max-w-7xl mx-auto px-6 flex items-center justify-between h-16">
-        <Link href="/" className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "linear-gradient(135deg, #0A1628, #1A56DB)" }}>
-            <Layers size={16} className="text-white" />
-          </div>
-          <span className="text-xl font-bold tracking-tight" style={{ color: "#0A1628" }}>SPSTechnosoft<span style={{ color: "#1A56DB" }}>.</span></span>
+        <Link href="/" className="flex items-center">
+          <img src="/sps-logo-horizontal-1920.png" alt="SPSTechnosoft" className="h-9 w-auto" />
         </Link>
 
         <div className="hidden md:flex items-center gap-1">
@@ -78,12 +75,6 @@ export function Navbar() {
           })}
         </div>
 
-        <div className="hidden md:flex items-center gap-3">
-          <Link href="/contact" className="px-5 py-2.5 rounded-lg text-sm font-semibold text-white transition-all duration-200 hover:opacity-90 hover:shadow-lg" style={{ background: "linear-gradient(135deg, #0A1628, #1A56DB)" }}>
-            Get in Touch
-          </Link>
-        </div>
-
         <button onClick={() => setOpen(!open)} className="md:hidden p-2 rounded-lg hover:bg-[#F0F4FA]">
           {open ? <X size={20} /> : <Menu size={20} />}
         </button>
@@ -94,9 +85,6 @@ export function Navbar() {
           {links.map(l => (
             <Link key={l.to} href={l.to} className="px-4 py-2.5 rounded-lg text-sm font-medium text-[#0A1628] hover:bg-[#F0F4FA]">{l.label}</Link>
           ))}
-          <Link href="/contact" className="mt-2 px-5 py-2.5 rounded-lg text-sm font-semibold text-white text-center" style={{ background: "linear-gradient(135deg, #0A1628, #1A56DB)" }}>
-            Get in Touch
-          </Link>
         </div>
       )}
     </nav>
@@ -110,11 +98,9 @@ export function Footer() {
       <div className="max-w-7xl mx-auto px-6 py-16">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10">
           <div>
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: "linear-gradient(135deg, #1A56DB, #2563EB)" }}>
-                <Layers size={16} className="text-white" />
-              </div>
-              <span className="text-xl font-bold" style={{ fontFamily: "'Outfit', sans-serif" }}>SPSTechnosoft<span style={{ color: "#1A56DB" }}>.</span></span>
+            <div className="flex items-center gap-2.5 mb-4">
+              <img src="/sps-logo-mark-512.png" alt="" aria-hidden className="w-9 h-9" />
+              <span className="text-xl font-bold" style={{ fontFamily: "'Outfit', sans-serif" }}>SPSTechnosoft</span>
             </div>
             <p className="text-sm leading-relaxed" style={{ color: "#8FA3C0" }}>
               Empowering organizations with talent, technology, and training — one solution at a time.
@@ -263,18 +249,6 @@ export function HomePage() {
               SPSTechnosoft Group connects top talent with growing organizations, equips students with industry-ready skills, and delivers technology consulting that transforms businesses.
             </motion.p>
 
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.3 }}
-              className="flex flex-wrap gap-4">
-              <Link href="/services" className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold text-white transition-all duration-200 hover:opacity-90 hover:shadow-xl hover:shadow-blue-900/40"
-                style={{ background: "linear-gradient(135deg, #1A56DB, #2563EB)" }}>
-                Explore Services <ArrowRight size={16} />
-              </Link>
-              <Link href="/contact" className="inline-flex items-center gap-2 px-6 py-3 rounded-xl text-sm font-semibold transition-all duration-200 hover:bg-white/10"
-                style={{ color: "white", border: "1px solid rgba(255,255,255,0.2)" }}>
-                Talk to Us
-              </Link>
-            </motion.div>
-
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.8, delay: 0.5 }}
               className="flex items-center gap-6 mt-10">
               <div className="flex -space-x-2">
@@ -308,7 +282,7 @@ export function HomePage() {
               </div>
               <div>
                 <p className="text-xs font-semibold" style={{ color: "#0A1628" }}>Avg. Placement Time</p>
-                <p className="text-lg font-bold" style={{ color: "#1A56DB" }}>12 Days</p>
+                <p className="text-lg font-bold" style={{ color: "#1A56DB" }}>30 Days</p>
               </div>
             </div>
 
@@ -354,10 +328,6 @@ export function HomePage() {
               <div className="rounded-2xl overflow-hidden shadow-xl">
                 <img src="https://images.unsplash.com/photo-1522202176988-66273c2fd55f?w=700&h=500&fit=crop&auto=format"
                   alt="SPSTechnosoft team working together" className="w-full object-cover" style={{ aspectRatio: "7/5" }} />
-              </div>
-              <div className="absolute -bottom-8 -right-8 w-40 h-40 rounded-2xl overflow-hidden border-4 border-white shadow-lg">
-                <img src="https://images.unsplash.com/photo-1543269665-7821e259ef87?w=300&h=300&fit=crop&auto=format"
-                  alt="Office environment" className="w-full h-full object-cover" />
               </div>
               <div className="absolute -top-4 -left-4 bg-[#1A56DB] text-white rounded-2xl p-4 shadow-lg">
                 <p className="text-3xl font-extrabold" style={{ fontFamily: "'Outfit', sans-serif" }}>7+</p>
@@ -417,7 +387,7 @@ export function HomePage() {
                 bg: "#E8EFFE",
                 image: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=600&h=400&fit=crop&auto=format",
                 desc: "End-to-end talent acquisition across technology, finance, and operations verticals. From sourcing to onboarding, we own the process.",
-                points: ["Permanent, Contract & Remote Hiring", "AI-Monitored Pre-Screening", "80K+ Candidate Database", "12-Day Average Placement"],
+                points: ["Permanent, Contract & Remote Hiring", "AI-Monitored Pre-Screening", "80K+ Candidate Database", "30-Day Average Placement"],
                 to: "/services/staffing",
               },
               {
@@ -472,19 +442,30 @@ export function HomePage() {
         </div>
       </section>
 
-      {/* ── Our Customers ── */}
-      <section className="py-20" style={{ background: "#0A1628" }}>
+      {/* ── Our Customers (continuous right-to-left marquee) ── */}
+      <section className="py-20 overflow-hidden" style={{ background: "#0A1628" }}>
         <div className="max-w-7xl mx-auto px-6 text-center">
           <FadeIn>
             <p className="text-sm font-semibold uppercase tracking-widest mb-10" style={{ color: "#5A6B8A" }}>Trusted by industry leaders across sectors</p>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-6">
-              {clients.map((name) => (
-                <div key={name} className="rounded-xl px-6 py-4 text-center font-semibold text-sm transition-all duration-200 hover:bg-[#1A56DB]/20" style={{ background: "rgba(255,255,255,0.05)", color: "#8FA3C0" }}>
-                  {name}
-                </div>
-              ))}
-            </div>
           </FadeIn>
+        </div>
+        <div className="relative">
+          {/* edge fades */}
+          <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-24" style={{ background: "linear-gradient(to right, #0A1628, transparent)" }} />
+          <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-24" style={{ background: "linear-gradient(to left, #0A1628, transparent)" }} />
+          {/* track: two identical copies → loops seamlessly at -50% */}
+          <div className="marquee-track flex w-max gap-6 will-change-transform">
+            {[...clients, ...clients].map((name, i) => (
+              <div
+                key={i}
+                className="shrink-0 rounded-xl px-8 py-4 text-center font-semibold text-sm whitespace-nowrap"
+                style={{ background: "rgba(255,255,255,0.05)", color: "#8FA3C0" }}
+                aria-hidden={i >= clients.length}
+              >
+                {name}
+              </div>
+            ))}
+          </div>
         </div>
       </section>
 
@@ -733,7 +714,7 @@ export function StaffingPage() {
               className="hidden lg:grid grid-cols-2 gap-4">
               {[
                 { label: "Candidate Database", value: "80K+", icon: Database, color: "#1A56DB" },
-                { label: "Avg. Time to Fill", value: "12 Days", icon: Clock, color: "#D97706" },
+                { label: "Avg. Time to Fill", value: "30 Days", icon: Clock, color: "#D97706" },
                 { label: "Offer Acceptance Rate", value: "91%", icon: BadgeCheck, color: "#059669" },
                 { label: "Roles Placed", value: "600+", icon: UserCheck, color: "#7C3AED" },
               ].map(({ label, value, icon: Icon, color }) => (
@@ -747,6 +728,48 @@ export function StaffingPage() {
           </div>
         </div>
       </div>
+
+      {/* Portal access — login entry points (routes into the existing auth/portals) */}
+      <section className="py-20" style={{ background: "#F0F4FA" }}>
+        <div className="max-w-7xl mx-auto px-6">
+          <FadeIn className="text-center mb-12">
+            <span className="inline-block text-xs font-bold uppercase tracking-widest mb-3 px-3 py-1 rounded-full" style={{ background: "#E8EFFE", color: "#1A56DB" }}>Portal Access</span>
+            <h2 className="text-4xl font-extrabold mb-3" style={{ fontFamily: "'Outfit', sans-serif", color: "#0A1628" }}>Sign In to Your Portal</h2>
+            <p className="text-base max-w-xl mx-auto" style={{ color: "#5A6B8A" }}>Three roles, three workspaces — all on the secure SPSTechnosoft platform.</p>
+          </FadeIn>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {[
+              { icon: Building2, title: "Client Login", desc: "Review submissions, run your pipeline, release offers.", href: "/login?role=client", color: "#1A56DB", bg: "#E8EFFE" },
+              { icon: UserCheck, title: "Candidate Login", desc: "Track your applications and interview schedule.", href: "/login?role=candidate", color: "#059669", bg: "#D1FAE5" },
+              { icon: Briefcase, title: "Employee Login", desc: "Recruiters & staff — manage requisitions and delivery.", href: "/login?role=employee", color: "#7C3AED", bg: "#EDE9FE" },
+            ].map(({ icon: Icon, title, desc, href, color, bg }, i) => (
+              <FadeIn key={title} delay={i * 0.1}>
+                <Link href={href} className="group flex h-full flex-col items-center rounded-2xl bg-white p-7 text-center shadow-md transition-all duration-300 hover:shadow-xl" style={{ border: "1px solid rgba(10,22,40,0.08)" }}>
+                  <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-4" style={{ background: bg }}>
+                    <Icon size={26} style={{ color }} />
+                  </div>
+                  <h3 className="text-xl font-bold mb-2" style={{ fontFamily: "'Outfit', sans-serif", color: "#0A1628" }}>{title}</h3>
+                  <p className="text-sm mb-5 flex-1" style={{ color: "#5A6B8A" }}>{desc}</p>
+                  <span className="inline-flex w-full items-center justify-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold text-white" style={{ background: color }}>
+                    {title} <ArrowRight size={15} />
+                  </span>
+                </Link>
+              </FadeIn>
+            ))}
+          </div>
+          <FadeIn delay={0.15}>
+            <div className="mt-8 flex flex-col items-center justify-between gap-4 rounded-2xl p-7 sm:flex-row" style={{ background: "linear-gradient(135deg, #0A1628, #1A56DB)" }}>
+              <div className="text-center sm:text-left">
+                <h3 className="text-lg font-bold text-white" style={{ fontFamily: "'Outfit', sans-serif" }}>New here? Hiring for a role?</h3>
+                <p className="text-sm" style={{ color: "#B9C7E0" }}>Register your company and post your first job — we&apos;ll take it from there.</p>
+              </div>
+              <Link href="/register/client" className="inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-xl px-6 py-3 text-sm font-semibold" style={{ background: "white", color: "#0A1628" }}>
+                Post a Job <ArrowRight size={16} />
+              </Link>
+            </div>
+          </FadeIn>
+        </div>
+      </section>
 
       {/* Hiring Types */}
       <section className="py-20 bg-white">
