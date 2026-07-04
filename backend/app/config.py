@@ -74,6 +74,11 @@ class Settings(BaseSettings):
     test_retake_cooldown_days: int = 30  # TEST_RETAKE_COOLDOWN_DAYS (after a fail)
     test_max_snapshots: int = 500        # TEST_MAX_SNAPSHOTS (proctoring uploads per test)
 
+    # Commercial layer (B.9). Fee model is founder-confirmed (Part 0-FEE): base =
+    # ANNUAL CTC, 15% flat default before tax, client-level override, GST/TDS inert.
+    placement_guarantee_days: int = 60   # PLACEMENT_GUARANTEE_DAYS
+    invoice_overdue_days: int = 30       # INVOICE_OVERDUE_DAYS (dunning detection)
+
     # DPDP erasure auto-purge retention period (days). DELIBERATELY None — auto-purge
     # is a STUB pending legally-confirmed retention periods (GST/TDS/DPDP). Never guess.
     dpdp_retention_days: int | None = None   # DPDP_RETENTION_DAYS

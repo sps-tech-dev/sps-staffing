@@ -40,6 +40,9 @@ class Client(TwoAxisMixin, Base):
     name: Mapped[str] = mapped_column(sa.Text, nullable=False)
     industry: Mapped[str | None] = mapped_column(sa.Text)
     status: Mapped[str] = mapped_column(sa.Text, nullable=False, server_default=sa.text("'active'"))
+    # B.9 (0028): CLIENT-level placement-fee override. Resolution order:
+    # per-invoice override → client.fee_percent → global default 15.
+    fee_percent: Mapped[float] = mapped_column(sa.Numeric, nullable=False, server_default=sa.text("15"))
 
 
 class Job(TwoAxisMixin, Base):
@@ -412,6 +415,47 @@ class InterviewSlot(Base):
     )
 
 
+PLACEMENT_STATUSES = ("active", "in_guarantee", "cleared", "breached", "replaced")
+_PLC_SQL = ", ".join(f"'{s}'" for s in PLACEMENT_STATUSES)
+
+
+class Placement(TwoAxisMixin, Base):
+    # B.9: the revenue object. offered_ctc = ANNUAL CTC (INR), founder-confirmed
+    # (Part 0-FEE): fee = annual_ctc × resolved fee_percent / 100. `status` is the
+    # MATERIALIZED state (active → cleared|breached → replaced); the guarantee
+    # position is always DERIVABLE from joined_on/guarantee_until on read — the
+    # sweep job only materializes; a missed run self-heals on the next pass.
+    # ('in_guarantee' is in the CHECK for forward-compat; the code derives it and
+    # stores 'active' during the window.)
+    __tablename__ = "placements"
+    __table_args__ = (
+        bu_check("placements"),
+        sa.CheckConstraint(f"status IN ({_PLC_SQL})", name="ck_placements_status"),
+        sa.CheckConstraint("guarantee_until >= joined_on", name="ck_placements_guarantee_order"),
+        sa.Index("ix_placements_application_id", "application_id"),
+        sa.Index("ix_placements_guarantee_until", "guarantee_until"),
+        {"schema": SCHEMA},
+    )
+    application_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), sa.ForeignKey(f"{SCHEMA}.applications.id"), nullable=False
+    )
+    client_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), sa.ForeignKey(f"{SCHEMA}.clients.id")
+    )
+    candidate_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), sa.ForeignKey(f"{SCHEMA}.candidates.id"), nullable=False
+    )
+    recruiter_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))  # commission attribution
+    offered_ctc: Mapped[float] = mapped_column(sa.Numeric, nullable=False)      # ANNUAL CTC (INR)
+    joined_on: Mapped[datetime.date] = mapped_column(sa.Date, nullable=False)
+    guarantee_until: Mapped[datetime.date] = mapped_column(sa.Date, nullable=False)
+    status: Mapped[str] = mapped_column(sa.Text, nullable=False, server_default=sa.text("'active'"))
+    breach_reason: Mapped[str | None] = mapped_column(sa.Text)
+    replacement_for: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), sa.ForeignKey(f"{SCHEMA}.placements.id")
+    )  # no-double-fee: a replacement placement raises NO invoice
+
+
 # Invoice (Part 5): invoices(client_id, placement_id, amount, status). Placement =
 # the placed application (accepted offer). The 15% placement fee is the SPS business
 # term (configurable per invoice). GST/TDS are TAX rates that are NULL until legally
@@ -445,6 +489,12 @@ class Invoice(TwoAxisMixin, Base):
     tds_percent: Mapped[float | None] = mapped_column(sa.Numeric)
     tds_amount: Mapped[float | None] = mapped_column(sa.Numeric)
     total_amount: Mapped[float | None] = mapped_column(sa.Numeric)
+    # B.9 (0028): placement linkage + no-double-fee + credit-note STRUCTURE (GST inert)
+    placement_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), sa.ForeignKey(f"{SCHEMA}.placements.id"))
+    is_replacement: Mapped[bool] = mapped_column(sa.Boolean, nullable=False,
+                                                 server_default=sa.text("false"))
+    credit_note_of: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))  # soft self-ref
     currency: Mapped[str] = mapped_column(sa.Text, nullable=False, server_default=sa.text("'INR'"))
     status: Mapped[str] = mapped_column(sa.Text, nullable=False, server_default=sa.text("'draft'"))
 
