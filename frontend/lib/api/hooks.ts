@@ -430,17 +430,25 @@ function moveCard(data: JobPipeline | undefined, appId: string, toStage: string)
   return { ...data, stages };
 }
 
-/** Optimistic stage move (Slice 4) — updates the board immediately, reverts on
- *  error (e.g. a 409 illegal transition from the server), reconciles on settle. */
-export function useChangeStage(jobId: string | null) {
+/** F2b: optimistic-locked stage move — THE shim is retired. Every change goes
+ *  through POST /applications/{id}/transition with expected_version (the F2a
+ *  field); the server's CAS answers 409 STALE_STATE if the board moved under us,
+ *  and the guard answers ILLEGAL_TRANSITION / RTR_REQUIRED / reason errors.
+ *  Board updates optimistically and reverts + reconciles on any error. */
+export function useTransitionStage(jobId: string | null) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ appId, stage }: { appId: string; stage: string }) =>
-      api(`/applications/${appId}/stage`, { method: "PATCH", body: JSON.stringify({ stage }) }),
-    onMutate: async ({ appId, stage }) => {
+    mutationFn: ({ appId, toStage, expectedVersion, reason }:
+        { appId: string; toStage: string; expectedVersion: number; reason?: string }) =>
+      api(`/applications/${appId}/transition`, {
+        method: "POST",
+        body: JSON.stringify({ to_stage: toStage, expected_version: expectedVersion,
+                               ...(reason ? { reason } : {}) }),
+      }),
+    onMutate: async ({ appId, toStage }) => {
       await qc.cancelQueries({ queryKey: ["pipeline", jobId] });
       const prev = qc.getQueryData<JobPipeline>(["pipeline", jobId]);
-      qc.setQueryData<JobPipeline | undefined>(["pipeline", jobId], (old) => moveCard(old, appId, stage));
+      qc.setQueryData<JobPipeline | undefined>(["pipeline", jobId], (old) => moveCard(old, appId, toStage));
       return { prev };
     },
     onError: (_e, _v, ctx) => {
@@ -450,6 +458,16 @@ export function useChangeStage(jobId: string | null) {
       qc.invalidateQueries({ queryKey: ["pipeline", jobId] });
       qc.invalidateQueries({ queryKey: ["employer", "overview"] });
     },
+  });
+}
+
+/** F2b side panel: a candidate's append-only timeline (staff-only endpoint). */
+export function useCandidateTimeline(candidateId: string | null) {
+  return useQuery({
+    queryKey: ["candidate-timeline", candidateId],
+    queryFn: () => api<import("./types").TimelineEvent[]>(`/candidates/${candidateId}/timeline`),
+    enabled: !!candidateId,
+    retry: false,
   });
 }
 

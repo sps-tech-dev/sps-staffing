@@ -14,7 +14,13 @@ export interface Job {
 }
 export interface PipelineRow {
   id: string; job_id: string; candidate_id: string; stage: string;
-  candidate: { id: string; full_name: string; email: string | null };
+  version: number;   // F2a: optimistic-lock token for POST /transition
+  candidate: { id: string; full_name: string; email: string | null;
+               skills?: string[] | null; total_exp?: number | null };
+}
+
+export interface TimelineEvent {
+  event_type: string; occurred_at: string; payload?: Record<string, unknown>;
 }
 export interface JobPipeline {
   job: Job;
