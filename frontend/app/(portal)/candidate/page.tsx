@@ -41,17 +41,14 @@ export default function CandidateDashboard() {
                   <EmptyState
                     icon={<Briefcase size={28} />}
                     title="No applications yet"
-                    hint="Browse jobs and apply — your applications will appear here."
+                    hint="Applications placed by our recruiting team appear here with live stages."
                   />
                 ) : (
                   <div className="divide-y divide-cardline">
                     {data.recent.map((r) => (
                       <div key={r.id} className="flex items-center justify-between py-3">
                         <span className="text-sm text-ink">{r.job}</span>
-                        <div className="flex items-center gap-4">
-                          <StatusPill status={r.status} />
-                          <span className="text-xs text-muted">{r.updatedAt}</span>
-                        </div>
+                        <StatusPill status={r.stage} />
                       </div>
                     ))}
                   </div>

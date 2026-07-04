@@ -1,6 +1,11 @@
 export interface CandidateOverview {
   applications: number; interviews: number; offers: number; profileComplete: number;
-  recent: { id: string; job: string; status: string; updatedAt: string }[];
+  recent: { id: string; job: string; stage: string }[];
+}
+
+/** F3a: the session user's applications with live B.5 stages. */
+export interface MyApplication {
+  id: string; job_id: string; job: string; stage: string; applied_at: string | null;
 }
 export interface EmployerOverview {
   openJobs: number; inPipeline: number; interviews: number; placements: number;

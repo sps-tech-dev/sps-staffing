@@ -480,3 +480,22 @@ export function useFounderOverview() {
     retry: false,
   });
 }
+
+/** F3b: this candidate's applications with LIVE stages (empty for an unlinked
+ *  login — a valid state, rendered as a friendly empty, never an error). */
+export function useMyApplications() {
+  return useQuery({
+    queryKey: ["me", "applications"],
+    queryFn: () => api<import("./types").MyApplication[]>("/me/applications"),
+    retry: false,
+  });
+}
+
+/** F3b: open roles for the candidate Jobs tab (authenticated, tenant-scoped). */
+export function useBrowseJobs() {
+  return useQuery({
+    queryKey: ["browse-jobs"],
+    queryFn: () => api<Job[]>("/jobs?status=open"),
+    retry: false,
+  });
+}
