@@ -28,6 +28,7 @@ from ..db import get_db
 from ..idempotency import get_cached, store
 from ..models import ClientRegistrationRequest, Consent, Tenant
 from ..models_staffing import Candidate
+from ..timeline import EventType, emit_timeline
 from ..validation import normalize_phone, validate_email, validate_name, validate_pan
 from .privacy import POLICY_TEXT, POLICY_VERSION
 
@@ -127,6 +128,8 @@ def register_candidate(body: RegistrationIn, request: Request, db: Session = Dep
 
     ctx = RequestContext(tenant_id=str(tenant.id), business_unit_id="STAFFING", user_id=None)
     write_audit(db, ctx, "candidate.register", "candidate", cand.id)
+    emit_timeline(db, candidate_id=cand.id, event_type=EventType.REGISTRATION,
+                  payload={"source": "self_registration"}, ctx=ctx)
     try:
         db.commit()
     except IntegrityError:

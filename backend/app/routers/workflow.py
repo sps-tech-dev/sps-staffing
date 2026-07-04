@@ -20,6 +20,7 @@ from ..models_staffing import (
     OFFER_STATUSES, SUBMISSION_STATUSES, VENDOR_STATUSES, VENDOR_SUB_STATUSES,
     Application, Candidate, Interview, Invoice, Job, Offer, Submission, Vendor, VendorSubmission,
 )
+from ..timeline import EventType, emit_timeline
 from .staffing import BU, _require_staff, _tid
 
 
@@ -72,6 +73,8 @@ def create_submission(app_id: uuid.UUID, ctx: RequestContext = Depends(get_curre
     db.add(obj)
     db.flush()
     write_audit(db, ctx, "submission.create", "submission", obj.id, after={"application_id": str(app_id)})
+    emit_timeline(db, candidate_id=appn.candidate_id, event_type=EventType.SUBMISSION,
+                  payload={"submission_id": str(obj.id), "application_id": str(app_id)}, ctx=ctx)
     db.commit()
     res = _sub_dict(obj)
     store(str(ctx.tenant_id), idempotency_key, res)
@@ -172,6 +175,8 @@ def create_offer(app_id: uuid.UUID, body: OfferIn, ctx: RequestContext = Depends
     db.add(obj)
     db.flush()
     write_audit(db, ctx, "offer.create", "offer", obj.id, after={"application_id": str(app_id)})
+    emit_timeline(db, candidate_id=appn.candidate_id, event_type=EventType.OFFER,
+                  payload={"offer_id": str(obj.id), "application_id": str(app_id)}, ctx=ctx)
     db.commit()
     res = _offer_dict(obj)
     store(str(ctx.tenant_id), idempotency_key, res)
@@ -291,6 +296,10 @@ def create_interview(app_id: uuid.UUID, body: InterviewIn, ctx: RequestContext =
     db.add(obj)
     db.flush()
     write_audit(db, ctx, "interview.create", "interview", obj.id, after={"application_id": str(app_id)})
+    emit_timeline(db, candidate_id=appn.candidate_id, event_type=EventType.INTERVIEW,
+                  payload={"interview_id": str(obj.id), "application_id": str(app_id),
+                           "scheduled_at": body.scheduled_at.isoformat() if body.scheduled_at else None,
+                           "mode": obj.mode}, ctx=ctx)
     db.commit()
     res = _iv_dict(obj)
     store(str(ctx.tenant_id), idempotency_key, res)

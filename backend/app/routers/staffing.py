@@ -19,7 +19,8 @@ from ..crypto import blind_index
 from ..db import get_db
 from ..deps import get_current_context
 from ..idempotency import get_cached, store
-from ..models_staffing import Application, Candidate, Client, Job
+from ..models_staffing import Application, Candidate, CandidateTimeline, Client, Job
+from ..timeline import EventType, emit_timeline
 from ..validation import normalize_phone, validate_email, validate_name, validate_pan
 
 router = APIRouter()
@@ -180,6 +181,31 @@ def list_candidates(q: str | None = Query(default=None), ctx: RequestContext = D
     return [_cand_dict(c) for c in rows]
 
 
+@router.get("/candidates/{candidate_id}/timeline")
+def candidate_timeline(candidate_id: uuid.UUID, event_type: str | None = Query(default=None),
+                       ctx: RequestContext = Depends(get_current_context),
+                       db: Session = Depends(get_db)):
+    """Chronological (oldest-first) append-only history for a candidate (B.2).
+
+    STAFF-ONLY: _require_staff also rejects client-portal sessions (client_id
+    bound) — a client must never read a candidate's internal timeline.
+    """
+    _require_staff(ctx)
+    cand = db.execute(select(Candidate).where(Candidate.id == candidate_id,
+                                              Candidate.tenant_id == _tid(ctx))).scalar_one_or_none()
+    if cand is None:
+        raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "Candidate not found"})
+    stmt = select(CandidateTimeline).where(CandidateTimeline.tenant_id == _tid(ctx),
+                                           CandidateTimeline.candidate_id == candidate_id)
+    if event_type:
+        stmt = stmt.where(CandidateTimeline.event_type == event_type)
+    rows = db.execute(stmt.order_by(CandidateTimeline.occurred_at.asc(),
+                                    CandidateTimeline.id.asc())).scalars().all()
+    return [{"id": r.id, "event_type": r.event_type, "payload": r.payload,
+             "actor_id": str(r.actor_id) if r.actor_id else None,
+             "occurred_at": r.occurred_at.isoformat()} for r in rows]
+
+
 # ── jobs ─────────────────────────────────────────────────────────
 @router.post("/jobs")
 def create_job(body: JobIn, ctx: RequestContext = Depends(get_current_context),
@@ -248,6 +274,9 @@ def create_application(body: ApplicationIn, ctx: RequestContext = Depends(get_cu
     db.add(obj); db.flush()
     write_audit(db, ctx, "application.create", "application", obj.id,
                 after={"job_id": str(body.job_id), "candidate_id": str(body.candidate_id), "stage": "sourced"})
+    emit_timeline(db, candidate_id=body.candidate_id, event_type=EventType.APPLICATION,
+                  payload={"application_id": str(obj.id), "job_id": str(body.job_id),
+                           "stage": "sourced"}, ctx=ctx)
     db.commit(); db.refresh(obj)
     res = _app_dict(obj); store(str(ctx.tenant_id), idempotency_key, res); return res
 
@@ -268,6 +297,9 @@ def change_stage(app_id: uuid.UUID, body: StageIn, ctx: RequestContext = Depends
     before = {"stage": app.stage}
     app.stage = body.stage
     write_audit(db, ctx, "application.stage_change", "application", app.id, before=before, after={"stage": body.stage})
+    emit_timeline(db, candidate_id=app.candidate_id, event_type=EventType.STAGE_CHANGE,
+                  payload={"application_id": str(app.id), "from": before["stage"],
+                           "to": body.stage}, ctx=ctx)
     db.commit()
     return _app_dict(app)
 

@@ -23,6 +23,7 @@ from ..db import get_db
 from ..deps import get_current_context
 from ..idempotency import get_cached, store
 from ..models_staffing import Candidate
+from ..timeline import EventType, emit_timeline
 from .staffing import _require_staff, _tid
 
 router = APIRouter()
@@ -86,8 +87,8 @@ def _process_confirmed_upload(db: Session, ctx: RequestContext, cand: Candidate,
     write_audit(db, ctx, "candidate.resume_upload", "candidate", cand.id,
                 after={"resume_s3_key": key, "size_bytes": len(data),
                        "text_extracted": cand.resume_text is not None})
-    # TODO(B.2): emit_timeline(cand.id, "ResumeUpload", {...}) once the candidate
-    # timeline event store exists. Deliberately NOT built in B.1.
+    emit_timeline(db, candidate_id=cand.id, event_type=EventType.RESUME_UPLOAD,
+                  payload={"resume_s3_key": key}, ctx=ctx)
     return {"id": str(cand.id), "resume_s3_key": key,
             "resume_uploaded_at": cand.resume_uploaded_at.isoformat(),
             "text_extracted": cand.resume_text is not None}
