@@ -5,6 +5,7 @@ tenant-scoped (talent pool). Writes honor Idempotency-Key and require a staff ro
 """
 from __future__ import annotations
 
+import re
 import uuid
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
@@ -184,6 +185,54 @@ def list_candidates(q: str | None = Query(default=None), ctx: RequestContext = D
         stmt = stmt.where(Candidate.full_name.ilike(f"%{q}%"))
     rows = db.execute(stmt.order_by(Candidate.created_at.desc()).limit(50)).scalars().all()
     return [_cand_dict(c) for c in rows]
+
+
+@router.get("/candidates/search")
+def search_candidates(q: str | None = Query(default=None),
+                      skills: str | None = Query(default=None, description="CSV of required skills (@> all)"),
+                      exp_min: float | None = Query(default=None, ge=0),
+                      exp_max: float | None = Query(default=None, ge=0),
+                      ctx: RequestContext = Depends(get_current_context),
+                      db: Session = Depends(get_db)):
+    """Talent-pool search (B.4): Postgres FTS over the maintained search_doc
+    (name weight A > skills B > resume_text C, 'simple' config) + structured
+    filters. STAFF-ONLY — clients reach candidates only via their own scoped
+    submissions, never the pool. Returns MASKED cards (no email/phone/pan).
+
+    location / notice_period filters: columns absent on candidates — skipped
+    until those fields exist (same discipline as ProfileUpdate in B.2).
+    """
+    _require_staff(ctx)
+    stmt = select(Candidate).where(Candidate.tenant_id == _tid(ctx),
+                                   Candidate.deleted_at.is_(None))
+    tsq = None
+    if q and q.strip():
+        # websearch grammar: whitespace = AND, `or` = OR, -word = NOT, "..." = phrase.
+        # The literal token AND is NOT an operator, and 'simple' has no stopwords, so
+        # "Python AND AWS" would search for the word "and" — strip standalone ANDs
+        # (identical semantics: whitespace already conjuncts).
+        q_norm = re.sub(r"\bAND\b", " ", q.strip(), flags=re.IGNORECASE)
+        tsq = func.websearch_to_tsquery("simple", q_norm)
+        stmt = stmt.where(Candidate.search_doc.op("@@")(tsq))
+    if skills:
+        wanted = [s.strip() for s in skills.split(",") if s.strip()]
+        if wanted:
+            stmt = stmt.where(Candidate.skills.contains(wanted))  # @> (GIN ix_candidates_skills)
+    if exp_min is not None:
+        stmt = stmt.where(Candidate.total_exp >= exp_min)
+    if exp_max is not None:
+        stmt = stmt.where(Candidate.total_exp <= exp_max)
+    if tsq is not None:
+        stmt = stmt.order_by(func.ts_rank(Candidate.search_doc, tsq).desc(),
+                             Candidate.created_at.desc())
+    else:
+        stmt = stmt.order_by(Candidate.created_at.desc())
+    rows = db.execute(stmt.limit(50)).scalars().all()
+    # masked cards — mirror the admin-list discipline: presence flags, never PII values
+    return [{"id": str(c.id), "full_name": c.full_name, "skills": c.skills,
+             "total_exp": float(c.total_exp) if c.total_exp is not None else None,
+             "has_phone": c.phone_bidx is not None, "has_pan": c.pan_bidx is not None,
+             "has_resume": c.resume_s3_key is not None} for c in rows]
 
 
 @router.get("/candidates/{candidate_id}/timeline")
