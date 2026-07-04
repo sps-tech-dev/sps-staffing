@@ -456,6 +456,74 @@ class Placement(TwoAxisMixin, Base):
     )  # no-double-fee: a replacement placement raises NO invoice
 
 
+VENDOR_COMMISSION_STATUSES = ("accrued", "paid", "void")
+_VC_SQL = ", ".join(f"'{s}'" for s in VENDOR_COMMISSION_STATUSES)
+
+
+class VendorContract(TwoAxisMixin, Base):
+    # B.13: contract base commission %. The contract valid AT placement.joined_on
+    # governs (rate locks at accrual — see VendorCommission).
+    __tablename__ = "vendor_contracts"
+    __table_args__ = (
+        bu_check("vendor_contracts"),
+        sa.CheckConstraint("status IN ('active','expired','terminated')",
+                           name="ck_vendor_contracts_status"),
+        sa.CheckConstraint("valid_until IS NULL OR valid_until >= valid_from",
+                           name="ck_vendor_contracts_window"),
+        sa.Index("ix_vendor_contracts_vendor", "vendor_id"),
+        {"schema": SCHEMA},
+    )
+    vendor_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), sa.ForeignKey(f"{SCHEMA}.vendors.id"), nullable=False)
+    base_commission_percent: Mapped[float] = mapped_column(sa.Numeric, nullable=False)
+    valid_from: Mapped[datetime.date] = mapped_column(sa.Date, nullable=False)
+    valid_until: Mapped[datetime.date | None] = mapped_column(sa.Date)
+    status: Mapped[str] = mapped_column(sa.Text, nullable=False, server_default=sa.text("'active'"))
+
+
+class VendorClientRate(TwoAxisMixin, Base):
+    # B.13: the CLIENT-DYNAMIC level — a vendor x client rate matrix (a table,
+    # not a column: N clients per vendor). Beats the contract base; beaten only
+    # by a per-placement override.
+    __tablename__ = "vendor_client_rates"
+    __table_args__ = (
+        bu_check("vendor_client_rates"),
+        sa.UniqueConstraint("vendor_id", "client_id", name="uq_vendor_client_rates"),
+        {"schema": SCHEMA},
+    )
+    vendor_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), sa.ForeignKey(f"{SCHEMA}.vendors.id"), nullable=False)
+    client_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), sa.ForeignKey(f"{SCHEMA}.clients.id"), nullable=False)
+    commission_percent: Mapped[float] = mapped_column(sa.Numeric, nullable=False)
+
+
+class VendorCommission(TwoAxisMixin, Base):
+    # B.13: MATERIALIZED commission ledger — the rate LOCK (valid-at-placement-
+    # date) requires a persisted row; also carries accrued->paid|void.
+    # UNIQUE(placement_id) = one commission per placement, structurally.
+    # base_amount = the PLACEMENT FEE (SPS earnings share), never CTC.
+    __tablename__ = "vendor_commissions"
+    __table_args__ = (
+        bu_check("vendor_commissions"),
+        sa.CheckConstraint(f"status IN ({_VC_SQL})", name="ck_vendor_commissions_status"),
+        sa.UniqueConstraint("placement_id", name="uq_vendor_commissions_placement"),
+        sa.Index("ix_vendor_commissions_vendor", "vendor_id"),
+        {"schema": SCHEMA},
+    )
+    vendor_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), sa.ForeignKey(f"{SCHEMA}.vendors.id"), nullable=False)
+    placement_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), sa.ForeignKey(f"{SCHEMA}.placements.id"), nullable=False)
+    resolved_percent: Mapped[float] = mapped_column(sa.Numeric, nullable=False)
+    base_amount: Mapped[float] = mapped_column(sa.Numeric, nullable=False)
+    commission_amount: Mapped[float] = mapped_column(sa.Numeric, nullable=False)
+    status: Mapped[str] = mapped_column(sa.Text, nullable=False, server_default=sa.text("'accrued'"))
+    void_reason: Mapped[str | None] = mapped_column(sa.Text)
+    computed_at: Mapped[datetime.datetime] = mapped_column(
+        sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False)
+
+
 # Invoice (Part 5): invoices(client_id, placement_id, amount, status). Placement =
 # the placed application (accepted offer). The 15% placement fee is the SPS business
 # term (configurable per invoice). GST/TDS are TAX rates that are NULL until legally

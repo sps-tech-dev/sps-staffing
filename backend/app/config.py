@@ -85,6 +85,11 @@ class Settings(BaseSettings):
     # ANNUAL CTC, 15% flat default before tax, client-level override, GST/TDS inert.
     placement_guarantee_days: int = 60   # PLACEMENT_GUARANTEE_DAYS
     invoice_overdue_days: int = 30       # INVOICE_OVERDUE_DAYS (dunning detection)
+    # B.13: GLOBAL vendor-commission default (% of the PLACEMENT FEE). Shipped
+    # None ON PURPOSE — with no override/client-rate/valid-contract, accrual is
+    # refused (409) rather than inventing a commercial term. Set the env when
+    # the founder names a number.
+    vendor_commission_default_percent: float | None = None  # VENDOR_COMMISSION_DEFAULT_PERCENT
 
     # DPDP erasure auto-purge retention period (days). DELIBERATELY None — auto-purge
     # is a STUB pending legally-confirmed retention periods (GST/TDS/DPDP). Never guess.
