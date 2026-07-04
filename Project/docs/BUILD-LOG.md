@@ -806,6 +806,58 @@ dark video-hero marketing site above was **superseded** by a faithful port of a 
   + new-tab attrs present; `/staffing-team.webp` serves 200; routes 200; auth/portals untouched
   (307→login). **NOT deployed.**
 
+## 2026-07-04 — B.1: Resume upload + text extraction + erasure S3 delete ✅ (deployed)
+
+First task off `SPS_MASTER_BUILD_PLAN.md` Part B. Planned → built → **STOP-1 approved** →
+deployed to dev → verified on real S3.
+
+- **Migration `0020_candidate_resume`** (STOP-1 approved before RDS): adds `resume_text text NULL`
+  + `resume_uploaded_at timestamptz NULL` to `staffing.candidates` (`resume_s3_key` existed since
+  0004 with no writer). Additive/reversible, metadata-only DDL; local `up→down→up` + idempotency
+  clean; applied to dev RDS by the pipeline (migrate-first, exit 0).
+- **`app/storage.py` (new):** presigned-URL-only S3 access (DECISIONS 2026-06-26) — PUT/GET presign
+  (300 s TTL, ContentType bound into the PUT signature), `head_object`/`get_object_bytes`/
+  `delete_object`, canonical key builder `tenant=<t>/business_unit=STAFFING/candidates/<c>/<uuid>.<ext>`.
+  boto3 client per call (moto/test friendly). Bucket never exposed; browsers never see AWS creds.
+- **`app/resume_parse.py` (new):** pure-Python extraction — PDF via `pdfminer.six`, DOCX via
+  `python-docx` (+`docx2txt` fallback), legacy `.doc` accepted but extracts empty (no pure-python
+  extractor; logged). Output capped 200k chars, control chars stripped; parse failure never fails
+  the upload. All deps pure-Python → ARM64 slim base builds clean.
+- **`app/routers/resumes.py` (new, staff-gated, tenant-scoped):**
+  - `POST /api/candidates/{id}/resume/presign` — validates content-type (pdf/doc/docx) + declared
+    size ≤ 10 MB → presigned PUT + key under the candidate's canonical prefix.
+  - `POST /api/candidates/{id}/resume/confirm` — **key must match this candidate's prefix**
+    (`KEY_MISMATCH` otherwise: can't confirm someone else's object); `head_object` proves the PUT
+    happened and re-checks the **real** size/type (presigned PUT can't bind size — violations are
+    deleted + 422); server-side download → synchronous text extraction (persistence seam is
+    worker-ready for B.10) → sets key/timestamp/text; `Idempotency-Key` + `write_audit`
+    (`candidate.resume_upload`) inside the txn. Timeline event = **TODO(B.2)** hook only.
+  - `GET /api/candidates/{id}/resume` — 300 s presigned GET; 404 when no resume.
+- **Erasure (PENDING C5 closed):** `_delete_resume_objects` is now real (`storage.delete_object`;
+  task role already had `s3:DeleteObject` — `Project/s3.tf`, verified not added); anonymize scrub
+  additionally nulls `resume_text` (extracted text is PII) + `resume_uploaded_at`.
+- **C5 config fix:** `settings.storage_bucket` now reads the **`S3_BUCKET`** env the task def
+  actually injects (AliasChoices; previously only `STORAGE_BUCKET` was read → deployed code would
+  have silently used a wrong default bucket name).
+- **Tests: 107 → 118** (`tests/test_resumes.py`, S3 mocked with moto): presign 401/403/422-type/
+  422-size; confirm sets key+timestamp+non-empty text (real PDF + DOCX fixtures); foreign-prefix
+  confirm rejected; missing-object confirm rejected; GET 404→presigned URL; cross-tenant candidate
+  404 (leak test); **erase deletes the S3 object + nulls all three columns**. Full suite green.
+- **Deploy:** commits `2b6f59f..5ce38d5` (5 logical groups) → pipeline run `28697269339` green
+  (migrate exit 0 → service stable → health check). Dev smoke: `/healthz` + `/readyz` ok; both new
+  endpoints 401 unauthenticated on `dev-api`.
+- **Real-S3 one-off verification (what moto can't prove):** `backend/scripts/verify_resume_s3.py`
+  run as a one-off Fargate task on the **backend** task def (task role + injected `S3_BUCKET` +
+  `sps_app` DB creds — the exact runtime path): probe candidate → presigned PUT (plain urllib, no
+  SDK creds client-side) → head/size → server-side download + extraction → persist to the 0020
+  columns on **dev RDS** → presigned GET byte-match → erasure-style delete (object gone, columns
+  nulled) → self-cleanup. **PASS, exit 0.** Bucket resolved to
+  `sps-shared-dev-storage-412058343855` from `S3_BUCKET` — the C5 fix proven live.
+- **Gotchas for next time:** (1) `docker cp` into the running container lands root-owned files —
+  `exec -u root rm -rf` before re-copying tests; (2) presigned URLs percent-encode `=` in keys —
+  compare via `urllib.parse.unquote`; (3) the runtime image excludes `tests/` by `.dockerignore`
+  (copy them in for in-container runs).
+
 ## Pending / next steps
 
 ➡️ **The canonical, durable register of ALL outstanding/deferred items is

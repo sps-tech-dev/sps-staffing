@@ -150,17 +150,7 @@ Last refreshed: 2026-06-28 (after client-internal roles / owner-scoped jobs — 
 - **Blocks:** nothing functional; removes a legacy lock table.
 - **Trigger:** any infra-cleanup pass.
 
-### C5. S3 resume object lifecycle (upload + erasure deletion) — surfaced by the erasure data-map
-- **What:** `staffing.candidates.resume_s3_key` points at a resume file in the storage bucket
-  (`sps-shared-dev-storage-<acct>`). Two gaps: (1) **no resume-upload code exists yet** (the column
-  has no writer); (2) **erasure must delete the S3 object**, not just the DB row — S3 is outside the
-  DB cascade. Minor note: `settings.storage_bucket` default (`sps-technosoft-dev-storage`) differs
-  from the real bucket; deployed uses the `S3_BUCKET` env (correct), so this only matters if the
-  default is ever relied on.
-- **Why deferred:** resume upload not built; erasure deletion gated on the B1 design decisions.
-- **Blocks:** complete erasure (resume PII would survive a DB-only erase); resume feature itself.
-- **Trigger:** when building resume upload (add S3 PII to the data map) AND when building erasure
-  execution (delete the S3 object as part of the cascade).
+### C5. S3 resume object lifecycle — ✅ RESOLVED 2026-07-04 (B.1; see Resolved section)
 
 ---
 
@@ -251,6 +241,17 @@ Last refreshed: 2026-06-28 (after client-internal roles / owner-scoped jobs — 
 ---
 
 ## Resolved (kept for history)
+- **C5: S3 resume object lifecycle (upload + extraction + erasure delete)** — RESOLVED 2026-07-04
+  (master plan **B.1**, migration `0020`): resume upload now exists — staff-gated
+  presign→PUT→confirm flow (`app/routers/resumes.py`, `app/storage.py`) writing
+  `resume_s3_key`/`resume_uploaded_at` + server-side text extraction (`app/resume_parse.py`,
+  pdfminer.six/python-docx) into `resume_text`; presigned GET for download. Erasure now
+  **deletes the S3 object** (`storage.delete_object`; task role already had `s3:DeleteObject`)
+  and nulls `resume_s3_key`/`resume_text`/`resume_uploaded_at` in the anonymize scrub
+  (extracted text is PII). The `settings.storage_bucket`/`S3_BUCKET` env mismatch is fixed
+  (AliasChoices — the field now reads the env ECS injects). Verified: 118 tests local (moto)
+  + one-off real-S3 probe on dev (`backend/scripts/verify_resume_s3.py`). **Remaining split
+  out:** the timeline `ResumeUpload` event is deferred to **B.2** (TODO hook in code).
 - **DPDP export now includes the principal's own decrypted PAN/phone** — RESOLVED 2026-06-28:
   `_export_bundle` undefers + decrypts `*_enc` for the principal's OWN candidates (matched by
   tenant+email); scope-tested (A's export has A's PII, zero of B's). Export is the privileged,
