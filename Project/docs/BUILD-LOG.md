@@ -957,6 +957,42 @@ Third Part-B task. STOP-1 approved **including two ratified deviations** (below)
   constraint without data loss; (2) orphaned-merge-event cleanup SQL (`NOT EXISTS candidate`)
   precisely targets probe rows without touching real merge history.
 
+## 2026-07-04 — B.4: Candidate search (Postgres FTS) ✅ (deployed + real-op proof)
+
+Fourth Part-B task. STOP-1 approved.
+
+- **Part-0 findings that shaped the build:** `search_doc` was already `tsvector` AND the GIN
+  index already existed (`ix_candidates_search`, 0004) → migration `0023_search_doc_trigger`
+  is **function + trigger + backfill only** (no duplicate index). Filter columns: `skills text[]`
+  + `total_exp numeric` exist (filters live); `location`/`notice_period` absent — **skipped**.
+- **Trigger (the erasure interplay rule, as implemented):** BEFORE INSERT OR UPDATE;
+  `deleted_at IS NOT NULL → search_doc := NULL` (never recompute), else recompute from
+  NON-encrypted fields only — `full_name` (weight A) + `skills` (B) + `left(resume_text,100k)`
+  (C), config **'simple'** (names + tech tokens + multilingual content; English stemming adds
+  variance without recall). Never touches email/*_enc — the index carries no PII beyond the
+  already-plaintext name. Side benefit: disable-on-request (soft-delete) now de-indexes
+  IMMEDIATELY, before anonymize. Backfill = no-op UPDATE firing the trigger.
+- **Endpoint** `GET /api/candidates/search` (staff-only, client-session 403, tenant +
+  `deleted_at IS NULL` scoped): `websearch_to_tsquery('simple', q)` with **standalone-AND
+  normalization** (gotcha: `AND` is NOT a websearch operator — whitespace is — and 'simple' has
+  no stopwords, so "Python AND AWS" would literally search "and"; the endpoint strips it,
+  semantics unchanged; `or`/`-word`/quoted phrases work natively). `ts_rank` desc + created_at
+  tiebreak, LIMIT 50; `skills` CSV → `@>` (existing GIN), `exp_min`/`exp_max` on total_exp.
+  **Masked cards:** name/skills/exp + presence flags (`has_phone`/`has_pan`/`has_resume`) —
+  never email/phone/pan.
+- **Tests: 135 → 143:** setweight order (name>skill>resume, exact order asserted), boolean +
+  exclusion, resume-only match, filters narrow + combine, trigger-on-update, **erasure interplay**
+  (real /api/privacy/erase → search_doc NULL + absent), tenant isolation both directions,
+  401/403 gates, masking (no PII keys, no plaintext leak). Manual over-the-wire: 14 ms local.
+- **Deploy + real-op proof:** commits `15dd402..c09b840` (3 groups) → pipeline run `28701422136`
+  green → probe as **sps_app on dev RDS** (`scripts/probe_search.py`): trigger populated
+  search_doc on INSERT (3/3) → **A>B>C ranking correct in 5.6 ms** (<300 ms target) → skills+exp
+  filter correct → **soft-delete → search_doc NULL + absent** ✅ — PASS, exit 0, self-cleaned (no
+  timeline rows created → no master cleanup needed). Smoke: `/readyz` ok, search 401 unauth.
+- **Test-hygiene gotcha:** a failed erasure-flow test can leave `dpdp_requests` FK'd to a test
+  user, aborting teardown and cascading FK errors into later fixtures — user-cleanup helpers now
+  delete dpdp_requests + memberships BEFORE the user (made `_mk_user` leftovers-robust).
+
 ## Pending / next steps
 
 ➡️ **The canonical, durable register of ALL outstanding/deferred items is
