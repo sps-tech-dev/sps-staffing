@@ -26,6 +26,18 @@ export const NAV: Record<Role, NavItem[]> = {
     { label: "Overview", href: "/employee", icon: LayoutDashboard },
     { label: "Requisitions", href: "/employee/queue", icon: ClipboardList },
     { label: "SLA", href: "/employee/sla", icon: Timer },
+    // F1: the staff delivery tools (re-homed from the stranded client role)
+    { label: "Pipeline", href: "/employer/pipeline", icon: KanbanSquare },
+    { label: "Jobs", href: "/employer/jobs", icon: Briefcase },
+    { label: "Submissions", href: "/employer/submissions", icon: Send },
+    { label: "Interviews", href: "/employer/interviews", icon: CalendarClock },
+    { label: "Offers", href: "/employer/offers", icon: FileSignature },
+    { label: "Invoices", href: "/employer/invoices", icon: Receipt },
+    { label: "Vendors", href: "/employer/vendors", icon: Building2 },
+    // F1: upcoming deep screens (ComingSoon placeholders until their slice)
+    { label: "Assessments", href: "/employee/assessments", icon: GraduationCap },
+    { label: "Placements", href: "/employee/placements", icon: Users },
+    { label: "CRM", href: "/employee/crm", icon: FileText },
   ],
   admin: [
     { label: "Dashboard", href: "/admin/dashboard", icon: LayoutDashboard },

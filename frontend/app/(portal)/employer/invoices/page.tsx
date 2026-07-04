@@ -20,7 +20,7 @@ export default function InvoicesPage() {
   const update = useUpdateInvoice();
 
   return (
-    <AppShell role="client" title="Invoices">
+    <AppShell role="employee" title="Invoices">
       <div className="mb-3 rounded-lg border border-[#E8A020]/40 bg-[#FFFBEB] px-3 py-2 text-xs text-[#8A5A00]">
         Placement fee (15%) is computed. <strong>GST/TDS are not applied until you enter a rate</strong> —
         statutory rates &amp; invoice-compliance specifics await legal confirmation.

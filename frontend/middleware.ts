@@ -6,7 +6,11 @@ import { readSessionFromCookie, type Role } from "@/lib/auth/session";
 const NEED: { prefix: string; role: Role; login: string }[] = [
   { prefix: "/client", role: "client", login: "/login?role=client" },
   { prefix: "/admin", role: "admin", login: "/login?role=admin" },
-  { prefix: "/employer", role: "client", login: "/login?role=client" },
+  // F1: /employer/* are STAFF delivery tools (pipeline, submissions, offers,
+  // invoices, vendors) — homed to the employee role. They were stranded on the
+  // client role after the client-portal split (clients bounce to /client, staff
+  // failed the role check -> unreachable by anyone). PENDING D4b resolved.
+  { prefix: "/employer", role: "employee", login: "/login?role=employee" },
   { prefix: "/employee", role: "employee", login: "/login?role=employee" },
   { prefix: "/candidate", role: "candidate", login: "/login?role=candidate" },
   { prefix: "/privacy-rights", role: "candidate", login: "/login?role=candidate" },

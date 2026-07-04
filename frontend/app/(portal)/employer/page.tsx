@@ -10,7 +10,7 @@ import { Briefcase, Users, CalendarCheck, CheckCircle2 } from "lucide-react";
 export default function EmployerDashboard() {
   const { data } = useEmployerOverview();
   return (
-    <AppShell role="client" title="Employer Dashboard">
+    <AppShell role="employee" title="Employer Dashboard">
       <KpiGrid items={[
         { value: data?.openJobs ?? "—", label: "Open jobs", icon: <Briefcase size={20}/>, accent:"#1B5FE8" },
         { value: data?.inPipeline ?? "—", label: "In pipeline", icon: <Users size={20}/>, accent:"#5B8FFF" },

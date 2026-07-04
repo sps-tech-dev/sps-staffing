@@ -23,7 +23,7 @@ export default function OffersPage() {
   const [invoiced, setInvoiced] = useState<Record<string, boolean>>({});
 
   return (
-    <AppShell role="client" title="Offers">
+    <AppShell role="employee" title="Offers">
       {isLoading ? (
         <div className="space-y-3">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-24" />)}</div>
       ) : isError || !data ? (

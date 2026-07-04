@@ -31,7 +31,7 @@ export default function VendorsPage() {
   }
 
   return (
-    <AppShell role="client" title="Vendors">
+    <AppShell role="employee" title="Vendors">
       <SectionCard title="Add vendor / sub-vendor">
         <form onSubmit={onCreate} className="flex flex-wrap items-end gap-2" noValidate>
           <label className="text-xs text-muted">Name

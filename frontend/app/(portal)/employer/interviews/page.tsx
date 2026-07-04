@@ -23,7 +23,7 @@ export default function InterviewsPage() {
   const update = useUpdateInterview();
 
   return (
-    <AppShell role="client" title="Interviews">
+    <AppShell role="employee" title="Interviews">
       {isLoading ? (
         <div className="space-y-3">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-24" />)}</div>
       ) : isError || !data ? (

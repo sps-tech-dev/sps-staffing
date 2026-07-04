@@ -21,7 +21,7 @@ export default function SubmissionsPage() {
   const [draft, setDraft] = useState<Record<string, string>>({});
 
   return (
-    <AppShell role="client" title="Submissions">
+    <AppShell role="employee" title="Submissions">
       {isLoading ? (
         <div className="space-y-3">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-20" />)}</div>
       ) : isError || !data ? (

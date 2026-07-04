@@ -452,3 +452,13 @@ export function useChangeStage(jobId: string | null) {
     },
   });
 }
+
+/** F1: founder KPI strip. 403 for a plain admin is EXPECTED — retry disabled so
+ *  the strip resolves to its hidden state immediately instead of hammering. */
+export function useFounderOverview() {
+  return useQuery({
+    queryKey: ["founder", "overview"],
+    queryFn: () => api<import("./types").FounderOverview>("/dashboard/founder/overview"),
+    retry: false,
+  });
+}

@@ -114,3 +114,11 @@ export interface ClientMe {
   user_id: string; role: string; client_id: string | null; client_role: ClientRole; business_unit: string | null;
 }
 export interface ClientTeamMember { user_id: string; email: string; name: string | null; role: "client_admin" | "client_manager"; is_self: boolean; }
+
+/** B.11 founder overview (aggregates only — the backend guard guarantees no PII). */
+export interface FounderOverview {
+  revenue_mtd: number; fees_billed_total: number; open_jobs: number;
+  candidates_total: number; placements_total: number; placements_in_guarantee: number;
+  pipeline_active: number; pipeline_funnel: Record<string, number>;
+  assessment_pass_rate: number | null; notifications: Record<string, number>;
+}

@@ -12,9 +12,28 @@ import { AiInsightsCard } from "@/components/ai/ai-insights-card";
 import type { PipelineRow } from "@/lib/api/types";
 import { KanbanSquare, Send, FileSignature, CalendarClock } from "lucide-react";
 
-// Active pipeline columns (Part 5). Drag a candidate card between columns to move
-// its stage; illegal transitions are rejected by the server (409) and revert.
-const COLUMNS = ["sourced", "screened", "assessed", "submitted", "interview", "offer", "placed"];
+// F1 (PENDING D5): columns speak the CURRENT B.5 stage vocabulary, rank-ordered.
+// The forward path renders as drag targets; terminal/hold stages render as
+// read-only tail columns. Illegal moves are rejected by the server-side guard
+// (409) and revert. NOTE: stage changes still go through the deprecated
+// last-write-wins PATCH shim — the pipeline rows don't expose `version` yet, so
+// optimistic-lock POST /transition is a tracked backend follow-up (PENDING).
+const COLUMNS = [
+  "applied", "screening", "aptitude_test", "aptitude_passed", "internal_interview",
+  "internal_passed", "rtr_pending", "submitted_to_client", "client_round_1",
+  "client_round_2", "client_round_3", "offer", "offer_accepted", "joined",
+];
+const TAIL_COLUMNS = ["guarantee", "invoiced", "paid", "on_hold", "withdrawn", "dropped", "aptitude_failed"];
+const LABEL: Record<string, string> = {
+  applied: "Applied", screening: "Screening", aptitude_test: "Aptitude Test",
+  aptitude_passed: "Aptitude Passed", aptitude_failed: "Aptitude Failed",
+  internal_interview: "Internal Interview", internal_passed: "Internal Passed",
+  rtr_pending: "RTR Pending", submitted_to_client: "Submitted to Client",
+  client_round_1: "Client Round 1", client_round_2: "Client Round 2",
+  client_round_3: "Client Round 3", offer: "Offer", offer_accepted: "Offer Accepted",
+  joined: "Joined", guarantee: "Guarantee", invoiced: "Invoiced", paid: "Paid",
+  on_hold: "On Hold", withdrawn: "Withdrawn", dropped: "Dropped",
+};
 
 function Card({ row, onSubmit, onOffer, onInterview, busy }: {
   row: PipelineRow; onSubmit: (id: string) => void; onOffer: (id: string) => void;
@@ -53,7 +72,7 @@ function Column({ stage, rows, onSubmit, onOffer, onInterview, busy }: {
     <div ref={setNodeRef}
       className={`rounded-xl border bg-card p-3 ${isOver ? "border-[#1B5FE8] ring-2 ring-[#1B5FE8]/30" : "border-cardline"}`}>
       <div className="mb-2 flex items-center justify-between">
-        <span className="text-xs font-semibold uppercase tracking-wide text-muted">{stage}</span>
+        <span className="text-xs font-semibold uppercase tracking-wide text-muted">{LABEL[stage] ?? stage}</span>
         <span className="text-xs text-muted">{rows.length}</span>
       </div>
       <div className="space-y-2">
@@ -114,7 +133,7 @@ export default function PipelinePage() {
   }
 
   return (
-    <AppShell role="client" title="Pipeline">
+    <AppShell role="employee" title="Pipeline">
       <SectionCard title="Select job">
         {!jobs || jobs.length === 0 ? (
           <EmptyState icon={<KanbanSquare size={28} />} title="No jobs yet" hint="Post a job to build a pipeline." />
@@ -135,12 +154,12 @@ export default function PipelinePage() {
       {jobId && (
         <div className="mt-6">
           {isLoading || !pipe ? (
-            <div className="grid gap-3 sm:grid-cols-3 xl:grid-cols-7">
+            <div className="grid grid-flow-col auto-cols-[minmax(180px,1fr)] gap-3 overflow-x-auto pb-2">
               {COLUMNS.map((c) => <Skeleton key={c} className="h-28" />)}
             </div>
           ) : (
             <DndContext sensors={sensors} onDragEnd={onDragEnd}>
-              <div className="grid grid-flow-col auto-cols-[minmax(180px,1fr)] gap-3 overflow-x-auto pb-2 xl:grid-flow-row xl:grid-cols-7">
+              <div className="grid grid-flow-col auto-cols-[minmax(190px,220px)] gap-3 overflow-x-auto pb-2">
                 {COLUMNS.map((stage) => (
                   <Column key={stage} stage={stage} rows={pipe.stages[stage] ?? []}
                           onSubmit={onSubmitToClient} onOffer={onMakeOffer} onInterview={onScheduleInterview}
@@ -148,6 +167,28 @@ export default function PipelinePage() {
                 ))}
               </div>
             </DndContext>
+          )}
+          {!isLoading && pipe && (
+            <div className="mt-4">
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted">Post-join & closed</p>
+              <div className="grid grid-flow-col auto-cols-[minmax(160px,200px)] gap-3 overflow-x-auto pb-2">
+                {TAIL_COLUMNS.map((stage) => (
+                  <div key={stage} className="rounded-xl border border-cardline bg-card p-3 opacity-90">
+                    <div className="mb-2 flex items-center justify-between">
+                      <span className="text-xs font-semibold uppercase tracking-wide text-muted">{LABEL[stage] ?? stage}</span>
+                      <span className="text-xs text-muted">{(pipe.stages[stage] ?? []).length}</span>
+                    </div>
+                    <div className="space-y-2">
+                      {(pipe.stages[stage] ?? []).length === 0
+                        ? <p className="py-2 text-center text-xs text-muted">—</p>
+                        : (pipe.stages[stage] ?? []).map((r) => (
+                          <div key={r.id} className="rounded-lg bg-page px-3 py-2 text-sm text-ink">{r.candidate.full_name}</div>
+                        ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
         </div>
       )}

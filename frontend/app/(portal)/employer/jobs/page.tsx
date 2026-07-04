@@ -26,7 +26,7 @@ export default function JobsPage() {
   }
 
   return (
-    <AppShell role="client" title="Jobs">
+    <AppShell role="employee" title="Jobs">
       <SectionCard title="Post a job">
         <form onSubmit={onSubmit} className="flex flex-col gap-3 sm:flex-row">
           <input
