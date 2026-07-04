@@ -1042,6 +1042,40 @@ addition, reopen rule all ratified). First migration that REWRITES existing stag
   leftover-robust; (3) NEW DEFERRAL: the local frontend kanban still sends old stage names —
   functionally broken against the new vocabulary until updated (PENDING D5).
 
+## 2026-07-04 — B.6: Internal evaluation rounds as gated stages ✅ (deployed + real-op proof)
+
+Sixth Part-B task — deliberately small: B.5 already owned the stages/graph/gate; B.6 adds the
+recording layer + the explicit invariant proof. STOP-1 approved (table storage + TestCompletion
+wiring, both per the stated defaults).
+
+- **Migration `0025_internal_evaluations`:** first-class R1/R2 records (round 1|2 CHECK,
+  pass|fail CHECK, evaluator_id, notes, occurred_at) + `(application_id, round)` index.
+  Normal-DML table — confirmed NOT in the append-only REVOKE list. `up→down→up` clean.
+- **`POST /api/applications/{id}/evaluations` {round, result, notes?, expected_version?}**
+  (staff, tenant-scoped, Idempotency-Key, audited): `(1,pass)→aptitude_passed`,
+  `(1,fail)→aptitude_failed` (both + **TestCompletion** timeline event — the constant waiting
+  since B.2; code-comments that B.7's engine becomes a second emitter), `(2,pass)→
+  internal_passed`, `(2,fail)→dropped` **via the guard's drop-with-reason path**
+  (`'failed internal technical'`). Stage effects EXCLUSIVELY through `pipeline.transition()`;
+  the evaluation row and the transition share ONE txn, so an illegal recording (guard 409)
+  rolls the record back — proven by test. Out-of-order rejection is the graph's own (no
+  parallel check to drift).
+- **THE INVARIANT (the point of the slice), proven twice:** parametrized test — from EVERY
+  pre-internal stage (applied, screening, aptitude_test, aptitude_passed, aptitude_failed,
+  internal_interview) a direct `/transition` to submitted_to_client → 409 ILLEGAL_TRANSITION;
+  the full legit path (R1 pass → internal_interview → R2 pass → rtr_pending → RTR → submit)
+  succeeds. No shortcut to submit exists.
+- **Tests: 156 → 168.** Manual over-the-wire walk PASS (shortcut 409 + full path).
+- **Deploy + real-op proof:** commits `de4f0e1..e145d21` (3 groups) → pipeline run
+  `28703300449` green (migrate exit 0) → probe as **sps_app on dev RDS**
+  (`scripts/probe_evaluations.py`): no-shortcut invariant ✅ → R1 pass → aptitude_passed +
+  TestCompletion row ✅ → R2 pass → RTR → submitted_to_client with 2 evaluation rows ✅ —
+  PASS exit 0 → master cleanup `timeline=8, rtr consents=1, remaining=0` (note: the probe's
+  'rtr' consent row is append-only for sps_app, so the master cleanup now also sweeps
+  orphaned rtr consents — pattern extended from B.2/B.3). Smoke: `/readyz` ok, endpoint 401.
+- **Gotcha:** any probe that exercises the RTR gate necessarily writes an immutable consents
+  row — master-cleanup JSON must include the orphaned-'rtr'-consent sweep, not just timeline.
+
 ## Pending / next steps
 
 ➡️ **The canonical, durable register of ALL outstanding/deferred items is
