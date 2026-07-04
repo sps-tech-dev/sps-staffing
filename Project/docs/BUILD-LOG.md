@@ -858,6 +858,49 @@ deployed to dev → verified on real S3.
   compare via `urllib.parse.unquote`; (3) the runtime image excludes `tests/` by `.dockerignore`
   (copy them in for in-container runs).
 
+## 2026-07-04 — B.2: Candidate timeline (append-only event store) ✅ (deployed + DB-proof)
+
+Second Part-B task. Planned → built → **STOP-1 approved** → deployed → **append-only proven
+on dev RDS as sps_app**.
+
+- **Migration `0021_candidate_timeline`** (STOP-1 approved): `staffing.candidate_timeline` —
+  bigserial PK, NO mixin (audit_logs shape, decision B), `tenant_id`/`business_unit_id`/
+  `candidate_id`/`event_type`/`payload jsonb '{}'`/`actor_id NULL`/`occurred_at now()`, composite
+  index `(candidate_id, occurred_at)`. Additive/reversible; local `up→down→up` + idempotency
+  clean; applied to dev RDS by the pipeline (migrate-first, exit 0).
+- **`app/timeline.py` (new):** `emit_timeline()` — INSERT-only, runs INSIDE the caller's txn
+  exactly like `write_audit()`, so the endpoint's Idempotency-Key guard covers it (a replayed
+  mutation returns the cached result before reaching the emit — proven by test). `EventType`
+  constants for the full Part-18 catalogue; payloads are non-PII by contract (ids/stages/keys only).
+- **Events wired now (7):** `Registration` (public register), `ResumeUpload` (B.1 TODO hook
+  replaced), `Application` (create), `StageChange` (from/to in payload), `Submission`, `Offer`,
+  `Interview` (workflow creates). **Deferred, constants only — NO fabricated call sites:**
+  `TestCompletion` → TODO(B.7 assessment engine); `Joining`/`GuaranteeCompletion` → TODO(B.9
+  placements); `ProfileUpdate` → skipped (no candidate-update endpoint exists yet).
+- **Read endpoint:** `GET /api/candidates/{id}/timeline` — staff-only (`_require_staff` also
+  rejects client-portal sessions → 403), tenant-scoped, chronological **ascending**
+  (`occurred_at asc, id asc`), optional `?event_type=` filter, 404 out of scope. Soft-deleted
+  candidates remain readable (erased/disabled people keep their de-identified history).
+- **Append-only enforcement:** `bootstrap_app_role.py` extended —
+  `REVOKE UPDATE, DELETE ON staffing.candidate_timeline FROM sps_app;` (+ comment on the
+  default-privileges trap: master's ALTER DEFAULT PRIVILEGES grants full DML on every NEW table,
+  so each new ledger MUST be added to the REVOKE list and the bootstrap re-run).
+- **Tests: 118 → 126** (`tests/test_timeline.py` + a ResumeUpload assertion in test_resumes):
+  emit-per-event; **idempotent replay appends exactly once**; asc ordering; `event_type` filter;
+  registration emit; tenant-isolation 404; candidate-role 403; **client-session 403** (real
+  client login). Manual over-the-wire check on local uvicorn: `["Application","StageChange"]`. ✅
+- **Deploy + DB proof (the sequence that matters):** commits `eb41b75..58f33fd` (4 groups) →
+  pipeline run `28699824127` green (migrate exit 0) → **bootstrap one-off task** (migrate
+  task-def + `APP_DB_SECRET_NAME`) exit 0 ("append-only on audit_logs/consents/candidate_timeline")
+  → **sps_app probe** (backend task-def, `scripts/probe_timeline_appendonly.py`): INSERT sentinel
+  OK (id=1); UPDATE → `(psycopg.errors.InsufficientPrivilege) permission denied for table
+  candidate_timeline`; DELETE → same error. **PASS, exit 0.** → **master cleanup** (migrate
+  task-def, python -c): `deleted=1 remaining=0` (audit_logs-precedent tidy-up). Dev smoke:
+  `/healthz`+`/readyz` ok, timeline endpoint 401 unauthenticated.
+- **Gotcha for next time:** the sentinel/probe pattern needs THREE one-off tasks (bootstrap as
+  master → probe as sps_app → cleanup as master) because sps_app cannot delete its own probe row
+  post-REVOKE — that's the feature working, not a bug.
+
 ## Pending / next steps
 
 ➡️ **The canonical, durable register of ALL outstanding/deferred items is
