@@ -1297,6 +1297,33 @@ Eleventh Part-B task — read-heavy, security-first. A NO-MIGRATION slice.
   keys deleted; probe audit rows kept — genuine access records). Smoke: `/readyz` ok, founder
   endpoint 401 unauth.
 
+## 2026-07-04 — B.12: CRM / lead management ✅ (deployed + real-op proof)
+
+Twelfth Part-B task — kept deliberately tight; the reuse shape is the point.
+
+- **SHARED SCHEMA (settled A):** `shared.leads` + `shared.activities` (migration
+  `0030_crm_leads`) — staffing BD uses them now; Consulting (B.18) reuses the SAME
+  tables/endpoints via `business_unit_id` scoping. Test + probe locked: a CONSULTING lead in
+  the same tenant is invisible to the STAFFING context (list AND direct fetch 404). Lead
+  contact fields are BUSINESS contacts (BD card data, same class as client/vendor contacts)
+  → plaintext, ratified. Normal-DML; REVOKE list untouched.
+- **MINI GUARD (settled B, pipeline.py shape):** `transition_lead()` is the only stage
+  writer — linear `new→qualified→proposal→negotiation→won`; `lost` from any non-terminal
+  WITH required reason (422 mirror of B.5 drop/withdraw); won/lost terminal; illegal 409;
+  every move drops an activity row + audit.
+- **Activities:** dedicated user-facing stream (`created`/`call`/`stage_change`/`converted` …
+  chronological per lead) — audit_logs is the system trail, candidate_timeline is
+  candidate-anchored; both wrong containers.
+- **CONVERT (settled C — staffing branch only):** requires `stage='won'` (409 otherwise);
+  creates one staffing client + optional job intake; **idempotent via
+  `converted_client_id`** — double convert returns the same client (COUNT==1 asserted on
+  real RDS). CONSULTING branch = 400 `NOT_BUILT` + TODO(B.18), same constants-only
+  discipline as B.2's deferred events.
+- **Tests: 224 → 230.** Manual walk PASS. Deploy: commits `c7785cb..986ad14` (3 groups) →
+  pipeline run `28710230404` green → probe as sps_app: stage walk ✅, lost-reason enforced ✅,
+  convert + double-convert n=1 ✅, BU-scoping invisibility ✅ — PASS exit 0, self-cleaned.
+  Smoke: `/readyz` ok, leads endpoint 401 unauth.
+
 ## Pending / next steps
 
 ➡️ **The canonical, durable register of ALL outstanding/deferred items is
