@@ -7,7 +7,9 @@ import uuid
 
 from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel, field_validator
+from sqlalchemy import delete as sa_delete
 from sqlalchemy import select
+from sqlalchemy import update as sa_update
 from sqlalchemy.orm import Session
 
 from ..audit import write_audit
@@ -21,6 +23,8 @@ from ..models_staffing import (
     Application, Candidate, Interview, Invoice, Job, Offer, Submission, Vendor, VendorSubmission,
 )
 from ..timeline import EventType, emit_timeline
+from .. import ics as ics_mod
+from ..models_staffing import InterviewSlot
 from .staffing import BU, _require_staff, _tid
 
 
@@ -257,6 +261,7 @@ class InterviewUpdateIn(BaseModel):
     status: str | None = None
     interviewer_name: str | None = None
     feedback: str | None = None
+    reason: str | None = None   # REQUIRED for no_show; optional context for rescheduled
 
     @field_validator("mode")
     @classmethod
@@ -350,15 +355,164 @@ def update_interview(interview_id: uuid.UUID, body: InterviewUpdateIn,
     if body.mode is not None:
         i.mode = body.mode
     if body.status is not None:
+        # B.8 rules: no_show REQUIRES a reason; rescheduled bumps the .ics SEQUENCE
+        # and re-opens slot proposal (old slots wiped, fresh .ics on the next choose).
+        if body.status == "no_show":
+            if not (body.reason and body.reason.strip()):
+                raise HTTPException(status_code=422, detail={
+                    "code": "REASON_REQUIRED", "message": "A reason is required for no_show"})
+            i.status_reason = body.reason.strip()
+        elif body.status == "rescheduled":
+            i.ics_sequence = i.ics_sequence + 1
+            i.status_reason = (body.reason or "").strip() or None
+            db.execute(sa_delete(InterviewSlot).where(InterviewSlot.interview_id == i.id))
+            appn = db.get(Application, i.application_id)
+            if appn is not None:
+                emit_timeline(db, candidate_id=appn.candidate_id, event_type=EventType.INTERVIEW,
+                              payload={"interview_id": str(i.id), "action": "rescheduled",
+                                       **({"reason": i.status_reason} if i.status_reason else {})},
+                              ctx=ctx)
         i.status = body.status
     if body.interviewer_name is not None:
         i.interviewer_name = body.interviewer_name
     if body.feedback is not None:
         i.feedback = body.feedback
     db.flush()
-    write_audit(db, ctx, "interview.update", "interview", i.id, before=before, after={"status": i.status})
+    write_audit(db, ctx, "interview.update", "interview", i.id, before=before,
+                after={"status": i.status,
+                       **({"reason": i.status_reason} if i.status_reason else {})})
     db.commit()
     return _iv_dict(i)
+
+
+# ── B.8: slot proposal → choose → .ics ───────────────────────────
+class SlotIn(BaseModel):
+    start: datetime.datetime
+    end: datetime.datetime
+
+
+class SlotsIn(BaseModel):
+    slots: list[SlotIn]
+
+
+def _iv_or_404(db: Session, ctx: RequestContext, interview_id: uuid.UUID) -> Interview:
+    i = db.execute(select(Interview).where(
+        Interview.id == interview_id, Interview.tenant_id == _tid(ctx),
+        Interview.business_unit_id == BU, Interview.deleted_at.is_(None))).scalar_one_or_none()
+    if i is None:
+        raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "Interview not found"})
+    return i
+
+
+@router.post("/interviews/{interview_id}/slots")
+def propose_slots(interview_id: uuid.UUID, body: SlotsIn,
+                  ctx: RequestContext = Depends(get_current_context),
+                  db: Session = Depends(get_db),
+                  idempotency_key: str | None = Header(default=None)):
+    """Propose >=3 time slots (Part 15). Re-proposing replaces the current
+    UNCHOSEN round; a chosen slot survives until a reschedule wipes the round."""
+    _require_staff(ctx)
+    if (c := get_cached(str(ctx.tenant_id), idempotency_key)):
+        return c
+    i = _iv_or_404(db, ctx, interview_id)
+    if len(body.slots) < 3:
+        raise HTTPException(status_code=422, detail={
+            "code": "TOO_FEW_SLOTS", "message": "Propose at least 3 slots"})
+    for s in body.slots:
+        if s.end <= s.start:
+            raise HTTPException(status_code=422, detail={
+                "code": "VALIDATION_ERROR", "message": "Each slot must end after it starts"})
+    db.execute(sa_delete(InterviewSlot).where(InterviewSlot.interview_id == i.id,
+                                              InterviewSlot.chosen.is_(False)))
+    rows = [InterviewSlot(tenant_id=_tid(ctx), business_unit_id=BU, interview_id=i.id,
+                          proposed_by=uuid.UUID(str(ctx.user_id)) if ctx.user_id else None,
+                          slot_start=s.start, slot_end=s.end) for s in body.slots]
+    db.add_all(rows)
+    db.flush()
+    write_audit(db, ctx, "interview.slots_proposed", "interview", i.id,
+                after={"count": len(rows)})
+    db.commit()
+    res = {"interview_id": str(i.id),
+           "slots": [{"id": str(r.id), "start": r.slot_start.isoformat(),
+                      "end": r.slot_end.isoformat(), "chosen": r.chosen} for r in rows]}
+    store(str(ctx.tenant_id), idempotency_key, res)
+    return res
+
+
+@router.get("/interviews/{interview_id}/slots")
+def list_slots(interview_id: uuid.UUID, ctx: RequestContext = Depends(get_current_context),
+               db: Session = Depends(get_db)):
+    _require_staff(ctx)
+    i = _iv_or_404(db, ctx, interview_id)
+    rows = db.execute(select(InterviewSlot).where(InterviewSlot.interview_id == i.id)
+                      .order_by(InterviewSlot.slot_start.asc())).scalars().all()
+    return [{"id": str(r.id), "start": r.slot_start.isoformat(),
+             "end": r.slot_end.isoformat(), "chosen": r.chosen} for r in rows]
+
+
+@router.post("/interviews/{interview_id}/slots/{slot_id}/choose")
+def choose_slot(interview_id: uuid.UUID, slot_id: uuid.UUID,
+                ctx: RequestContext = Depends(get_current_context),
+                db: Session = Depends(get_db),
+                idempotency_key: str | None = Header(default=None)):
+    """Pick one proposed slot: interview becomes scheduled at that slot, a fresh
+    .ics (current SEQUENCE) becomes downloadable. Emits the Interview timeline event."""
+    _require_staff(ctx)
+    if (c := get_cached(str(ctx.tenant_id), idempotency_key)):
+        return c
+    i = _iv_or_404(db, ctx, interview_id)
+    slot = db.execute(select(InterviewSlot).where(
+        InterviewSlot.id == slot_id, InterviewSlot.interview_id == i.id)).scalar_one_or_none()
+    if slot is None:
+        raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "Slot not found"})
+    db.execute(sa_update(InterviewSlot).where(InterviewSlot.interview_id == i.id)
+               .values(chosen=False))
+    slot.chosen = True
+    i.scheduled_at = slot.slot_start
+    i.status = "scheduled"
+    i.status_reason = None
+    appn = db.get(Application, i.application_id)
+    if appn is not None:
+        emit_timeline(db, candidate_id=appn.candidate_id, event_type=EventType.INTERVIEW,
+                      payload={"interview_id": str(i.id), "action": "scheduled",
+                               "scheduled_at": slot.slot_start.isoformat(),
+                               "slot_id": str(slot.id)}, ctx=ctx)
+    write_audit(db, ctx, "interview.slot_chosen", "interview", i.id,
+                after={"slot_id": str(slot.id), "scheduled_at": slot.slot_start.isoformat()})
+    db.commit()
+    res = {"interview_id": str(i.id), "scheduled_at": i.scheduled_at.isoformat(),
+           "status": i.status, "ics_path": f"/api/interviews/{i.id}/ics",
+           "ics_sequence": i.ics_sequence}
+    store(str(ctx.tenant_id), idempotency_key, res)
+    return res
+
+
+@router.get("/interviews/{interview_id}/ics")
+def download_ics(interview_id: uuid.UUID, ctx: RequestContext = Depends(get_current_context),
+                 db: Session = Depends(get_db)):
+    """The current .ics for a scheduled interview (staff download; SES attachment
+    is B.10). UID stable per interview; SEQUENCE reflects reschedules."""
+    _require_staff(ctx)
+    i = _iv_or_404(db, ctx, interview_id)
+    if i.scheduled_at is None or i.status not in ("scheduled", "completed"):
+        raise HTTPException(status_code=404, detail={
+            "code": "NOT_SCHEDULED", "message": "Interview has no confirmed schedule"})
+    chosen = db.execute(select(InterviewSlot).where(
+        InterviewSlot.interview_id == i.id, InterviewSlot.chosen.is_(True))).scalar_one_or_none()
+    end = chosen.slot_end if chosen else i.scheduled_at + datetime.timedelta(minutes=60)
+    appn = db.get(Application, i.application_id)
+    cand = db.get(Candidate, appn.candidate_id) if appn else None
+    job = db.get(Job, appn.job_id) if appn else None
+    content = ics_mod.build_ics(
+        interview_id=i.id, sequence=i.ics_sequence, start=i.scheduled_at, end=end,
+        candidate_name=cand.full_name if cand else "Candidate",
+        job_title=job.title if job else None, mode=i.mode,
+        interviewer_name=i.interviewer_name,
+        candidate_email=cand.email if cand and cand.email else None)
+    from fastapi.responses import Response
+    return Response(content=content, media_type="text/calendar",
+                    headers={"Content-Disposition":
+                             f'attachment; filename="interview-{i.id}.ics"'})
 
 
 # ── invoices (structure only; tax configurable/stubbed, never hardcoded) ──────
