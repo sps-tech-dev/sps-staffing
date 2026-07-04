@@ -53,7 +53,7 @@ export interface AuditRow {
 }
 
 // F6 — feature flags + DPDP self-service
-export interface FeatureFlags { ai: boolean; }
+export interface FeatureFlags { ai: boolean; assessment_waiver?: boolean; }
 export interface ConsentState {
   policy_version: string;
   notices: Record<string, string>;
@@ -132,4 +132,23 @@ export interface FounderOverview {
   candidates_total: number; placements_total: number; placements_in_guarantee: number;
   pipeline_active: number; pipeline_funnel: Record<string, number>;
   assessment_pass_rate: number | null; notifications: Record<string, number>;
+}
+
+/** B.7 assessments (F5). A waived test has waived=true and score=null — the UI
+ *  must NEVER render a numeric score for a waiver (the honesty guarantee). */
+export interface TestRow {
+  id: string; application_id: string; status: string; attempt_no: number;
+  score: number | null; passed: boolean | null; waived: boolean;
+  submitted_at: string | null; snapshots: number;
+}
+export interface IssueResult {
+  test_id: string; take_path: string; valid_until: string; attempt_no: number;
+  question_count: number; time_limit_minutes: number;
+}
+export interface TakeQuestion { qid: string; stem: string; options: string[] }
+export interface TakePaper {
+  questions: TakeQuestion[]; attempt_no: number; time_limit_minutes: number; expires_at: string;
+}
+export interface TakeResult {
+  score: number; passed: boolean; already_submitted?: boolean; pipeline_advanced?: boolean;
 }

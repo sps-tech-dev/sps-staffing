@@ -499,3 +499,34 @@ export function useBrowseJobs() {
     retry: false,
   });
 }
+
+// ── F5: assessments (B.7 surface) ──
+export function useTests(applicationId?: string) {
+  return useQuery({
+    queryKey: ["tests", applicationId ?? "all"],
+    queryFn: () => api<import("./types").TestRow[]>(
+      `/tests${applicationId ? `?application_id=${applicationId}` : ""}`),
+    retry: false,
+  });
+}
+
+export function useIssueTest() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (appId: string) =>
+      api<import("./types").IssueResult>(`/applications/${appId}/tests/issue`, {
+        method: "POST", body: JSON.stringify({}) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["tests"] }),
+  });
+}
+
+export function useWaiveTest() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ appId, testId, result, reason }:
+        { appId: string; testId: string; result: "pass" | "fail"; reason: string }) =>
+      api(`/applications/${appId}/tests/${testId}/waive`, {
+        method: "POST", body: JSON.stringify({ result, reason }) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["tests"] }),
+  });
+}

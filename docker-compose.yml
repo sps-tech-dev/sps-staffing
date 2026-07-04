@@ -29,6 +29,10 @@ services:
     environment:
       APP_ENV: dev
       AWS_REGION: ap-south-1
+      # local-only dummy creds: presigned-URL SIGNING is offline but needs SOME
+      # credentials; real access uses the ECS task role (never these).
+      AWS_ACCESS_KEY_ID: local-dev-dummy
+      AWS_SECRET_ACCESS_KEY: local-dev-dummy
       DB_HOST: postgres
       DB_PORT: "5432"
       DB_NAME: sps_platform_dev
