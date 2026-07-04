@@ -1449,6 +1449,27 @@ First FRONTEND slice (frontend-only; paths-ignore confirmed — no backend deplo
   — the old Slice-2 zeros TODO). Stopped per the F2b backend guard; proposed as F3a
   (micro backend) + F3b (the tabs).
 
+## 2026-07-04 — F3: candidate↔user linkage (F3a backend) + candidate tabs (F3b) ✅
+
+- **F3a (backend, STOP-1 approved, deployed):** migration `0032` — `candidates.user_id`,
+  an EXPLICIT soft ref to shared.users (no cross-schema FK, matching jobs.owner_user_id;
+  runtime resolution never email-matches). Registration creates no User (stated, per the
+  rule's parenthetical) — the auto-link materializes only when the registrant already has a
+  candidate/student login. **Merge linkage (the provably-correct piece):** survivor keeps its
+  own · loser-only moves over · **both-different proceeds but FLAGS durably** — append-only
+  audit `candidate.merge_link_conflict` + timeline `MergeLinkConflict` (both user ids), and
+  the loser RETAINS its user_id soft-deleted → zero data loss, staff can re-link. New
+  `/me/applications` (live stages; unlinked → [] 200) + `/me/overview` rebuilt with real
+  counts (the Slice-2 zeros TODO finally closed; 5-factor completeness). Tests 241→246.
+  Run `28714592528` green; dev probe PASS (linked live-stage rows, unlinked zeros,
+  both-different flagged on real RDS); master cleanup 3→0. Commits `2b2de90..74aec5b`.
+- **F3b (frontend, local-verified):** Applications tab (live B.5 stages, friendly labels,
+  applied dates, graceful empties) · Jobs tab (open roles + REAL Applied badges via
+  cross-ref; **no fake Apply** — POST /applications is staff-gated by design, so the
+  affordance is honest recruiter guidance; candidate self-apply would be a future backend
+  decision) · overview recent rows fixed to the real shape (the old status/updatedAt fields
+  never existed server-side). tsc/eslint/build clean; 8-check walk PASS. Frontend-only.
+
 ## Pending / next steps
 
 ➡️ **The canonical, durable register of ALL outstanding/deferred items is

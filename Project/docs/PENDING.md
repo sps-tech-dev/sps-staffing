@@ -171,10 +171,13 @@ Last refreshed: 2026-06-28 (after client-internal roles / owner-scoped jobs — 
   the kanban now posts /transition with expected_version; the PATCH shim is deleted from the
   frontend. (The deprecated backend PATCH endpoint itself can be removed once no other
   consumer exists — candidate for the next backend touch.)
-- **NEW — candidate portal read surface (F3a):** the candidate tabs need /me/applications +
-  a user→candidate linkage rule (candidates have no user_id; likely email-match or an explicit
-  link column) + real /me/overview counts (the Slice-2 zeros TODO). Micro backend slice;
-  blocks F3b candidate tabs.
+- **candidate portal read surface → RESOLVED 2026-07-04 (F3):** candidates.user_id (0032,
+  explicit link), /me/applications, real /me/overview; merge both-different-logins conflicts
+  flagged durably. Candidate SELF-APPLY remains a deliberate non-feature (applications are
+  staff-placed); if the business ever wants it, that's a new backend decision.
+- **Remaining frontend slices:** F4 client-portal deep tabs + admin deep screens →
+  F5 assessments UI (issue/track/waive + public take page) → F6 CRM board + vendor screens →
+  F7 notification center + founder trend charts. Hosting still deferred (C1/D.6).
 - **Hosting still deferred (C1/D.6):** the frontend is local-only; "done" = built + verified
   against the local/dev API.
 - **F2+ slice order (proposed):** F2 recruiter pipeline interactions + candidate portal tabs
