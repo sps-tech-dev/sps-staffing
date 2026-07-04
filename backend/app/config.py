@@ -56,6 +56,12 @@ class Settings(BaseSettings):
     hcaptcha_secret: str = ""           # HCAPTCHA_SECRET
     hcaptcha_sitekey: str = ""          # HCAPTCHA_SITEKEY (public; client widget)
 
+    # Fuzzy duplicate detection (B.3): pg_trgm name-similarity threshold. A hit also
+    # requires a SECOND signal (skill overlap / resume-text similarity) — name alone
+    # never flags. Conservative default; tune with real data.
+    dedup_name_similarity: float = 0.4       # DEDUP_NAME_SIMILARITY
+    dedup_resume_similarity: float = 0.3     # DEDUP_RESUME_SIMILARITY (second signal)
+
     # DPDP erasure auto-purge retention period (days). DELIBERATELY None — auto-purge
     # is a STUB pending legally-confirmed retention periods (GST/TDS/DPDP). Never guess.
     dpdp_retention_days: int | None = None   # DPDP_RETENTION_DAYS

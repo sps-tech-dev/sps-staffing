@@ -41,10 +41,14 @@ class EventType:
     OFFER = "Offer"
     JOINING = "Joining"                       # TODO(B.9): emit from placements
     GUARANTEE_COMPLETION = "GuaranteeCompletion"  # TODO(B.9): emit from the guarantee clock
+    # B.3 merge events (added beyond the original Part-18 list, ratified at STOP-1):
+    MERGED = "Merged"                         # on the SURVIVOR: merged candidate X in
+    MERGED_INTO = "MergedInto"                # on the LOSER (before soft-delete): merged into Y
 
     ALL = frozenset({
         REGISTRATION, RESUME_UPLOAD, PROFILE_UPDATE, APPLICATION, STAGE_CHANGE,
         TEST_COMPLETION, INTERVIEW, SUBMISSION, OFFER, JOINING, GUARANTEE_COMPLETION,
+        MERGED, MERGED_INTO,
     })
 
 
