@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session
 
 from ..audit import write_audit
 from ..captcha import verify_captcha
+from ..dedup import flag_if_fuzzy_dup
 from ..config import settings
 from ..context import RequestContext, tenant_from_host
 from ..crypto import blind_index
@@ -125,6 +126,11 @@ def register_candidate(body: RegistrationIn, request: Request, db: Session = Dep
     if body.consent_marketing:
         db.add(Consent(tenant_id=tenant.id, subject_candidate_id=cand.id,
                        purpose="marketing", granted=True, policy_version=POLICY_VERSION))
+
+    # B.3 fuzzy dup scan (create-then-flag): exact dups already 409'd above via the
+    # blind-index uniques; a fuzzy suspect is created anyway + queued for human review.
+    flag_if_fuzzy_dup(db, tenant_id=tenant.id, candidate=cand, skills=body.skills,
+                      source="self_registration")
 
     ctx = RequestContext(tenant_id=str(tenant.id), business_unit_id="STAFFING", user_id=None)
     write_audit(db, ctx, "candidate.register", "candidate", cand.id)

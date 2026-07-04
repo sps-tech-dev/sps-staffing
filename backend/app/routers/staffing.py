@@ -17,6 +17,7 @@ from ..audit import write_audit
 from ..context import RequestContext
 from ..crypto import blind_index
 from ..db import get_db
+from ..dedup import flag_if_fuzzy_dup
 from ..deps import get_current_context
 from ..idempotency import get_cached, store
 from ..models_staffing import Application, Candidate, CandidateTimeline, Client, Job
@@ -160,13 +161,17 @@ def create_candidate(body: CandidateIn, ctx: RequestContext = Depends(get_curren
                     skills=body.skills, total_exp=body.total_exp)
     db.add(obj)
     try:
-        db.commit()
+        db.flush()  # exact dup (blind-index unique) surfaces here → 409, unchanged
     except IntegrityError:
         db.rollback()
         raise HTTPException(status_code=409, detail={
             "code": "DUPLICATE_CANDIDATE",
             "message": "A candidate with this phone or PAN already exists in your talent pool",
         })
+    # B.3 fuzzy dup scan (create-then-flag), same txn as the create
+    flag_if_fuzzy_dup(db, tenant_id=_tid(ctx), candidate=obj, skills=body.skills,
+                      source="staff_create")
+    db.commit()
     db.refresh(obj)
     res = _cand_dict(obj); store(str(ctx.tenant_id), idempotency_key, res); return res
 

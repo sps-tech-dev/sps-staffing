@@ -15,6 +15,7 @@ from .routers import register as register_router
 from .routers import workflow as workflow_router
 from .routers import client_portal as client_router
 from .routers import resumes as resumes_router
+from .routers import dup_reviews as dup_reviews_router
 
 app = FastAPI(title="SPS Technosoft API", version="0.1.1")
 
@@ -34,6 +35,9 @@ app.include_router(register_router.router, prefix="/api/register", tags=["regist
 app.include_router(workflow_router.router, prefix="/api", tags=["workflow"])
 app.include_router(client_router.router, prefix="/api/client", tags=["client-portal"])
 app.include_router(resumes_router.router, prefix="/api", tags=["resumes"])
+# dup-reviews mounts BEFORE any future /candidates/{id} catch-all would matter;
+# its literal paths (/candidates/dup-reviews/...) don't clash with existing routes.
+app.include_router(dup_reviews_router.router, prefix="/api", tags=["dup-reviews"])
 
 
 # ── Canonical error envelope (Master Architecture Part 31) ───────
