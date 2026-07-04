@@ -901,6 +901,62 @@ on dev RDS as sps_app**.
   master → probe as sps_app → cleanup as master) because sps_app cannot delete its own probe row
   post-REVOKE — that's the feature working, not a bug.
 
+## 2026-07-04 — B.3: Duplicate detection — fuzzy + review queue + merge ✅ (deployed + real-op proof)
+
+Third Part-B task. STOP-1 approved **including two ratified deviations** (below).
+
+- **Migration `0022_dup_reviews_pg_trgm`** (STOP-1 approved): `CREATE EXTENSION pg_trgm`
+  (public schema, citext precedent, ran as master in the pipeline migrate task);
+  `staffing.candidate_dup_reviews` (bigserial, match_type/status CHECKs, `(tenant_id, status)`
+  index) — a NORMAL business table, deliberately NOT in the bootstrap REVOKE list; GIN
+  `gin_trgm_ops` index on `candidates.full_name` (prod note in the migration: build CONCURRENTLY
+  on a populated table). Downgrade keeps the shared extension. Local `up→down→up` clean.
+- **Model (create-then-flag, ratified):** intake ALWAYS creates the candidate (public register +
+  staff create), then flags a `pending` review on a fuzzy hit. Exact dedup (blind-index unique →
+  409) untouched — note: `app/dedup.py` did NOT previously exist (plan implied it did); exact
+  lives in the unique constraints at the create sites, now documented in the new module.
+- **Fuzzy scan (`app/dedup.py`):** `public.similarity(full_name, :name) >= 0.4`
+  (`DEDUP_NAME_SIMILARITY`) AND a second signal — case-insensitive skill overlap OR resume-text
+  trigram `>= 0.3` (`DEDUP_RESUME_SIMILARITY`). **Name alone never flags** (tested). Reads only
+  non-encrypted fields (full_name/skills/resume_text) — no PII decryption anywhere. All calls
+  schema-qualified (`public.similarity`) so resolution never depends on `search_path`; proven by
+  a dedicated test through the app engine AND on real RDS as sps_app (probe step 1).
+- **Endpoints** (staff, tenant-scoped, client-session 403): `GET /api/candidates/dup-reviews`
+  (pending-first, paginated), `POST .../{id}/merge`, `POST .../{id}/dismiss` (both
+  Idempotency-Key + audited; decided review replayed → 409 `REVIEW_NOT_PENDING`).
+- **Merge integrity (one txn, never hard-deletes):** survivor = matched candidate, loser =
+  incoming. Non-colliding applications repointed (submissions/offers/interviews carry only
+  `application_id` → follow automatically — they have no candidate_id column, a correction to
+  the plan's repoint list). **Collision rule** (`UNIQUE(job_id,candidate_id)` covers soft-deleted
+  rows, so a redundant row can never be repointed): the surviving application ROW is always the
+  survivor's; stage rank `rejected<on_hold<sourced<screened<assessed<submitted<interview<offer<
+  placed`, further-along wins (tie → earlier created_at); if the loser's app was further along its
+  stage is ADOPTED onto the survivor's row; the loser's row is archived IN PLACE with children
+  attached. `vendor_submissions.candidate_id` repointed. Loser retired mirroring erasure:
+  `phone_bidx`/`pan_bidx` nulled (frees the unique slots) + soft-deleted. `Merged`/`MergedInto`
+  (new EventType constants, ratified) cross-link both records; `candidate.merge` audit with
+  before/after.
+- **RATIFIED DEVIATIONS:** `candidate_timeline` + `shared.consents` are **NOT repointed** on
+  merge — both are append-only for sps_app (B.2 REVOKE / consents REVOKE), so UPDATE is
+  physically impossible for the runtime role by design. The retained loser shell keeps those
+  immutable rows anchored; the Merged/MergedInto events provide the cross-link.
+- **Tests: 126 → 135**: similarity-resolution proof; exact 409 unchanged (+ never queues a
+  review); fuzzy+skill-overlap flags on both intakes; name-alone guard; full merge assertions
+  incl. the collision case; dismiss keeps both; tenant isolation (list empty for B, cross-tenant
+  merge 404); client-session 403 on all three endpoints. Manual over-the-wire
+  fuzzy→review→merge on local uvicorn: PASS.
+- **Deploy + real-op proof:** commits `f728da2..d82a4f9` (4 groups) → pipeline run `28700689381`
+  green (migrate exit 0 incl. CREATE EXTENSION) → **probe as sps_app on dev RDS**
+  (`scripts/probe_dedup_merge.py`): `public.similarity()` resolves ✅ → fuzzy flag lands
+  (review id=1, score **0.88**) ✅ → merge repoints the application, retires the loser
+  (soft-deleted, bidx nulled), emits Merged+MergedInto ✅ — **PASS, exit 0**; probe business rows
+  self-cleaned → **master cleanup** of the 2 orphaned probe timeline events (`deleted=2
+  remaining=0`). Smoke: `/readyz` ok, dup-reviews endpoint 401 unauthenticated.
+- **Gotchas:** (1) the application unique constraint covers soft-deleted rows — "archive then
+  repoint" is impossible; adopt-stage-onto-survivor is the only shape that satisfies the
+  constraint without data loss; (2) orphaned-merge-event cleanup SQL (`NOT EXISTS candidate`)
+  precisely targets probe rows without touching real merge history.
+
 ## Pending / next steps
 
 ➡️ **The canonical, durable register of ALL outstanding/deferred items is
