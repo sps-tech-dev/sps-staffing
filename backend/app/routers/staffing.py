@@ -24,7 +24,8 @@ from ..models import Consent
 from .. import pipeline
 from ..deps import get_current_context
 from ..idempotency import get_cached, store
-from ..models_staffing import Application, Candidate, CandidateTimeline, Client, Job
+from ..models_staffing import (Application, Candidate, CandidateTimeline, Client,
+                               InternalEvaluation, Job)
 from ..timeline import EventType, emit_timeline
 from ..validation import normalize_phone, validate_email, validate_name, validate_pan
 
@@ -383,6 +384,75 @@ def record_rtr_consent(app_id: uuid.UUID, ctx: RequestContext = Depends(get_curr
     res = {"id": str(app.id), "rtr_consent_at": app.rtr_consent_at.isoformat()}
     store(str(ctx.tenant_id), idempotency_key, res)
     return res
+
+
+# (round, result) → target stage (B.6). Stage effects go through pipeline.transition()
+# ONLY — the graph rejects out-of-order recording (e.g. R2 while at screening → 409),
+# and the evaluation row rolls back with it (same txn).
+EVAL_TARGETS = {
+    (1, "pass"): ("aptitude_passed", None),
+    (1, "fail"): ("aptitude_failed", None),
+    (2, "pass"): ("internal_passed", None),
+    (2, "fail"): ("dropped", "failed internal technical"),  # guard's drop-with-reason path
+}
+
+
+class EvaluationIn(BaseModel):
+    round: int
+    result: str
+    notes: str | None = None
+    expected_version: int | None = None  # optional CAS; defaults to the loaded version
+
+    @field_validator("round")
+    @classmethod
+    def _r(cls, v):
+        if v not in (1, 2):
+            raise ValueError("round must be 1 (aptitude) or 2 (internal technical)")
+        return v
+
+    @field_validator("result")
+    @classmethod
+    def _res(cls, v):
+        if v not in ("pass", "fail"):
+            raise ValueError("result must be 'pass' or 'fail'")
+        return v
+
+
+@router.post("/applications/{app_id}/evaluations")
+def record_evaluation(app_id: uuid.UUID, body: EvaluationIn,
+                      ctx: RequestContext = Depends(get_current_context),
+                      db: Session = Depends(get_db),
+                      idempotency_key: str | None = Header(default=None)):
+    """Record an internal evaluation round (B.6): R1 aptitude / R2 technical.
+    Persists the evaluation row and drives the stage change through the B.5 guard
+    in ONE transaction — an illegal transition rolls back the record too."""
+    _require_staff(ctx)
+    if (c := get_cached(str(ctx.tenant_id), idempotency_key)):
+        return c
+    app = _app_or_404_here(db, ctx, app_id)
+    to_stage, reason = EVAL_TARGETS[(body.round, body.result)]
+
+    ev = InternalEvaluation(tenant_id=_tid(ctx), business_unit_id=BU, application_id=app.id,
+                            round=body.round, result=body.result, notes=body.notes,
+                            evaluator_id=uuid.UUID(str(ctx.user_id)) if ctx.user_id else None)
+    db.add(ev)
+    # transition() raises on illegal moves/stale version BEFORE commit → ev rolls back.
+    res = pipeline.transition(db, app, to_stage, ctx=ctx,
+                              expected_version=body.expected_version or app.version,
+                              reason=reason)
+    if body.round == 1:
+        # TestCompletion: B.6 wires the MANUAL R1 emitter; the B.7 automated engine
+        # will be a second call site for the same event — no conflict.
+        emit_timeline(db, candidate_id=app.candidate_id, event_type=EventType.TEST_COMPLETION,
+                      payload={"application_id": str(app.id), "round": 1,
+                               "result": body.result}, ctx=ctx)
+    write_audit(db, ctx, "application.evaluation", "application", app.id,
+                after={"round": body.round, "result": body.result, "to_stage": to_stage})
+    db.commit()
+    out = {"application_id": str(app.id), "round": body.round, "result": body.result,
+           "stage": res["stage"], "version": res["version"], "evaluation_id": ev.id}
+    store(str(ctx.tenant_id), idempotency_key, out)
+    return out
 
 
 @router.patch("/applications/{app_id}/stage")
