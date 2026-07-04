@@ -16,6 +16,8 @@ from .routers import workflow as workflow_router
 from .routers import client_portal as client_router
 from .routers import resumes as resumes_router
 from .routers import dup_reviews as dup_reviews_router
+from .routers import assessments as assessments_router
+from .routers import take as take_router
 
 app = FastAPI(title="SPS Technosoft API", version="0.1.1")
 
@@ -38,6 +40,10 @@ app.include_router(resumes_router.router, prefix="/api", tags=["resumes"])
 # dup-reviews mounts BEFORE any future /candidates/{id} catch-all would matter;
 # its literal paths (/candidates/dup-reviews/...) don't clash with existing routes.
 app.include_router(dup_reviews_router.router, prefix="/api", tags=["dup-reviews"])
+app.include_router(assessments_router.router, prefix="/api", tags=["assessments"])
+# /api/take is the ONE-TIME-TOKEN candidate surface (B.7): no JWT, no cookies —
+# the token resolves the test row and is the entire authority.
+app.include_router(take_router.router, prefix="/api/take", tags=["take-test"])
 
 
 # ── Canonical error envelope (Master Architecture Part 31) ───────

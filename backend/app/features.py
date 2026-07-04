@@ -19,6 +19,9 @@ from .deps import get_current_context
 # name -> resolver. Add non-GA features here; default OFF.
 _RESOLVERS = {
     "ai": lambda ctx: settings.feature_ai,
+    # B.7 admin waiver — ctx-aware signature so per-tenant/plan resolution can
+    # layer on later; env-global today, default OFF.
+    "assessment_waiver": lambda ctx: settings.feature_assessment_waiver,
 }
 
 
