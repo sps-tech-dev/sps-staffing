@@ -162,6 +162,22 @@ Last refreshed: 2026-06-28 (after client-internal roles / owner-scoped jobs — 
 - **Blocks:** those product lines.
 - **Trigger:** when the standing sequence reaches them.
 
+### D11. F1 frontend foundation — resolutions + follow-ups (added 2026-07-04)
+- **D5 → RESOLVED (frontend):** the kanban and stage-consuming screens now speak the B.5
+  vocabulary (14 forward columns + read-only tail; friendly labels).
+- **D4b → RESOLVED:** /employer/* staff tools re-homed to the employee role (they had been
+  unreachable by anyone since the client-portal split); linked from the employee nav.
+- **NEW — kanban optimistic lock:** stage changes still use the deprecated last-write-wins
+  PATCH shim. Retiring it needs `version` exposed on the pipeline rows (one-line backend
+  change in `_app_dict`/job_pipeline) + the kanban switching to POST /transition with
+  expected_version. Do it on the next backend touch.
+- **Hosting still deferred (C1/D.6):** the frontend is local-only; "done" = built + verified
+  against the local/dev API.
+- **F2+ slice order (proposed):** F2 recruiter pipeline interactions + candidate portal tabs
+  (jobs/applications) → F3 assessments UI (issue/track/waive + the public take page) →
+  F4 placements/invoices/commissions screens → F5 CRM board + vendor screens →
+  F6 notification center + founder trend charts + admin employees/SLA board.
+
 ### D10. B.13 vendor depth — deferrals + a pending BUSINESS INPUT (added 2026-07-04)
 - **Pending business input:** the **vendor GLOBAL default commission %**
   (`VENDOR_COMMISSION_DEFAULT_PERCENT`) ships unset — accrual without an override/client-rate/

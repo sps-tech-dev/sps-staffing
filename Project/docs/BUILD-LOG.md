@@ -1398,6 +1398,37 @@ the frontend kanban's data source was dead.
 - **Lesson recorded:** blast-radius greps must hunt READERS of deleted objects, not just
   writers/literals; and the route-smoke matrix now guards the whole GET surface on every run.
 
+## 2026-07-04 — F1: Frontend foundation — marketing→login→role-routed dashboards ✅ (local-verified)
+
+First FRONTEND slice (frontend-only; paths-ignore confirmed — no backend deploy). Next.js
+15.5.19 / React 19.2.7 confirmed. "Done" = built + locally verified; hosting stays Part D.
+
+- **Design language:** the working frontend descends from the `Context/spstechnosoft-platform`
+  reference starter — brand tokens (sps-blue/navy/gold, page/card surfaces, navy sidebar),
+  Sora+DM Sans type, and the AppShell/kit all carried over intact. F1 additions: `ComingSoon`
+  (the stable placeholder for deferred deep screens), `FounderKpiStrip`, topbar **Sign-out**
+  (the shell previously had NO logout).
+- **Role routing (reused, wired):** login → backend `home` (owner/admin→/admin/dashboard,
+  staff→/employee, client→/client, candidate→/candidate); edge middleware bounces wrong-role
+  access; client-bound sessions can only reach /client. **/employer/\* re-homed to the employee
+  role** — they were stranded on the client role after the client-portal split and unreachable
+  by ANYONE (PENDING D4b resolved); recruiters now reach pipeline/jobs/submissions/interviews/
+  offers/invoices/vendors from the employee nav.
+- **Dashboards with real headline data:** candidate /me/overview · employee /employee/overview ·
+  client /client/overview (all pre-existing) · **admin landing rebuilt** (real candidates/
+  clients/jobs totals + manage links) · **founder KPI strip** on the admin dashboard — renders
+  only when the founder gate passes; a plain admin's 403 hides it gracefully (verified 200/403
+  through the proxy). Deep screens = nine ComingSoon pages (previously 404ing nav targets).
+- **D5 kanban:** columns rewritten on the CURRENT B.5 vocabulary — 14 rank-ordered forward
+  stages as drag targets + read-only post-join/closed tail columns, friendly labels. **HONEST
+  shim status: stage changes still ride the deprecated last-write-wins PATCH shim — pipeline
+  rows don't expose `version`, so optimistic-lock POST /transition is a tracked backend
+  follow-up (PENDING).**
+- **Verified:** tsc + eslint clean; next build green; 24-check manual walk PASS against the
+  local backend (marketing → /services/staffing login entries → each of 5 roles lands on its
+  correct home; wrong-role bounces incl. client→/employer; logout kills access). Commit
+  `54d6d98`; no pipeline run triggered (frontend paths-ignored).
+
 ## Pending / next steps
 
 ➡️ **The canonical, durable register of ALL outstanding/deferred items is
