@@ -177,6 +177,24 @@ def merge_dup_review(review_id: int, ctx: RequestContext = Depends(get_current_c
 
     # candidate_timeline + shared.consents: APPEND-ONLY → NOT repointed (see docstring).
 
+    # ── F3a rule #3: portal-login linkage resolution ──
+    #   survivor has one → keeps it. loser-only → moves to survivor. BOTH set and
+    #   DIFFERENT → the merge proceeds but the conflict is FLAGGED durably (a
+    #   dedicated append-only audit row + a timeline event carrying both user
+    #   ids); the loser row RETAINS its user_id (soft-deleted, never nulled) so
+    #   no linkage data is lost and staff can re-link after review.
+    user_link_conflict = None
+    if loser.user_id is not None:
+        if survivor.user_id is None:
+            survivor.user_id = loser.user_id
+        elif survivor.user_id != loser.user_id:
+            user_link_conflict = {"survivor_user_id": str(survivor.user_id),
+                                  "loser_user_id": str(loser.user_id)}
+            write_audit(db, ctx, "candidate.merge_link_conflict", "candidate", survivor.id,
+                        after={**user_link_conflict, "loser": str(loser.id), "review_id": r.id})
+            emit_timeline(db, candidate_id=survivor.id, event_type=EventType.MERGE_LINK_CONFLICT,
+                          payload={**user_link_conflict, "review_id": r.id}, ctx=ctx)
+
     # ── retire the loser shell: clear unique slots (mirror erasure), soft-delete ──
     loser.phone_bidx = None
     loser.pan_bidx = None
@@ -188,7 +206,8 @@ def merge_dup_review(review_id: int, ctx: RequestContext = Depends(get_current_c
 
     summary = {"survivor": str(survivor.id), "loser": str(loser.id), "review_id": r.id,
                "applications_repointed": repointed, "applications_archived": archived,
-               "vendor_submissions_repointed": vendor_repointed}
+               "vendor_submissions_repointed": vendor_repointed,
+               **({"user_link_conflict": user_link_conflict} if user_link_conflict else {})}
     emit_timeline(db, candidate_id=loser.id, event_type=EventType.MERGED_INTO,
                   payload={"merged_into": str(survivor.id), "review_id": r.id}, ctx=ctx)
     emit_timeline(db, candidate_id=survivor.id, event_type=EventType.MERGED,

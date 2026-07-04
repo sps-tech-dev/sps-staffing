@@ -44,11 +44,12 @@ class EventType:
     # B.3 merge events (added beyond the original Part-18 list, ratified at STOP-1):
     MERGED = "Merged"                         # on the SURVIVOR: merged candidate X in
     MERGED_INTO = "MergedInto"                # on the LOSER (before soft-delete): merged into Y
+    MERGE_LINK_CONFLICT = "MergeLinkConflict"  # both merge sides had DIFFERENT portal logins (F3a)
 
     ALL = frozenset({
         REGISTRATION, RESUME_UPLOAD, PROFILE_UPDATE, APPLICATION, STAGE_CHANGE,
         TEST_COMPLETION, INTERVIEW, SUBMISSION, OFFER, JOINING, GUARANTEE_COMPLETION,
-        MERGED, MERGED_INTO,
+        MERGED, MERGED_INTO, MERGE_LINK_CONFLICT,
     })
 
 

@@ -27,7 +27,7 @@ from ..context import RequestContext, tenant_from_host
 from ..crypto import blind_index
 from ..db import get_db
 from ..idempotency import get_cached, store
-from ..models import ClientRegistrationRequest, Consent, Tenant
+from ..models import ClientRegistrationRequest, Consent, Membership, Tenant, User
 from ..models_staffing import Candidate
 from ..timeline import EventType, emit_timeline
 from ..validation import normalize_phone, validate_email, validate_name, validate_pan
@@ -119,6 +119,20 @@ def register_candidate(body: RegistrationIn, request: Request, db: Session = Dep
         db.flush()
     except IntegrityError:
         _dup(db)
+
+    # F3a rule #2: a self-registering candidate WITH an existing login gets
+    # user_id set in the same flow. Registration itself creates NO User (public,
+    # no password) — so this links only when a candidate-role login already
+    # exists for the registrant's own submitted email. One-time explicit link
+    # materialization, not runtime email-matching.
+    existing_user = db.execute(select(User).where(
+        User.tenant_id == tenant.id, User.email == body.email,
+        User.status == "active")).scalar_one_or_none()
+    if existing_user is not None:
+        m_roles = {r.lower() for m in db.execute(select(Membership).where(
+            Membership.user_id == existing_user.id)).scalars() for r in m.roles}
+        if m_roles & {"candidate", "student"}:
+            cand.user_id = existing_user.id
 
     # 5) record consent in the F6 ledger against the candidate
     db.add(Consent(tenant_id=tenant.id, subject_candidate_id=cand.id,
