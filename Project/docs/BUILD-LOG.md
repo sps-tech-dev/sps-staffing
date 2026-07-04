@@ -1363,6 +1363,41 @@ Thirteenth Part-B task — closes PENDING D3. Both STOP-1 flags confirmed by the
   rate-lock ✅ → dup 409 ✅ → scorecard ✅ → **cross-slice credit-note auto-void ✅** — PASS
   exit 0 → master cleanup `orphaned timeline=1 → 0`. Smoke: `/readyz` ok, endpoints 401.
 
+## 2026-07-04 — B.5-fix: two endpoints 500ing since B.5 + the route-smoke class-guard ✅
+
+Micro backend slice (STOP-1-exempt, NO migration — head stays 0031). Found while starting F1:
+the frontend kanban's data source was dead.
+
+- **THE REGRESSION:** `staffing.py` kept two function-body references to the TRANSITIONS dict
+  B.5 deleted — module imports fine, endpoints NameError at request time:
+  `GET /jobs/{id}/pipeline` and `GET /client-portal/overview` **500 on every call since the
+  B.5 deploy**, locally and on dev. The overview ALSO queried dead stage literals
+  ('interview', 'placed', a funnel over the pre-B.5 names) — a name-only fix would have
+  returned permanent zeros.
+- **ROOT CAUSE OF THE ESCAPE:** B.5's blast-radius grep hunted stage WRITERS and vocabulary
+  literals in stage-value positions; these were READERS referencing the deleted dict object —
+  matched neither. And both endpoints predate the per-slice test discipline: ZERO coverage,
+  so 237 green tests coexisted with two shipped 500s.
+- **THE FIX:** job_pipeline seeds buckets from APPLICATION_STAGES (the vocabulary owner).
+  employer_overview REBUILT on the current vocabulary, response shape unchanged:
+  in-pipeline = NOT post-join AND NOT withdrawn/dropped · interviews = client_round_1..3 ·
+  placements = joined/guarantee/invoiced/paid · funnel grouped over real stages
+  (Screening/Assessment/Internal/Submitted/Client Rounds/Offer/Joined).
+- **THE SWEEP FOUND ONE MORE (same class, fixed):** `client_portal.py` declared a LOCAL
+  pre-B.5 copy of APPLICATION_STAGES shadowing the models constant (B.5's Part-0 wrongly
+  assumed it imported it) — the client pipeline view pre-seeded dead-stage buckets. Now
+  imports the owner; local re-declarations of the vocabulary are banned by comment.
+- **THE CLASS-GUARD (permanent):** `tests/test_route_smoke.py` — every GET /api route is hit
+  under BOTH recruiter and owner sessions with seeded path params (moto for S3-touching
+  routes); none may return 5xx. **It found no OTHER latent 500s today** — the two known ones
+  were the full extent. Plus non-zero-count regression tests for both endpoints.
+- **Tests: 237 → 240.** Deploy: commits `e1c4261..2ca4b32` → pipeline run `28712493795` green
+  (migrate no-op, head 0031) → probe as sps_app on dev: pipeline 21 buckets + rows placed ✅,
+  overview NON-ZERO new-vocabulary counts (funnel hits Screening/Client Rounds/Joined) ✅ —
+  PASS exit 0, self-cleaned. `/readyz` ok.
+- **Lesson recorded:** blast-radius greps must hunt READERS of deleted objects, not just
+  writers/literals; and the route-smoke matrix now guards the whole GET surface on every run.
+
 ## Pending / next steps
 
 ➡️ **The canonical, durable register of ALL outstanding/deferred items is
