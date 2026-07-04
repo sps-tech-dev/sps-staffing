@@ -193,6 +193,32 @@ class Application(TwoAxisMixin, Base):
     rtr_consent_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
 
 
+class InternalEvaluation(Base):
+    # B.6: R1 (aptitude) / R2 (internal technical) evaluation records. First-class
+    # business data (queried by recruiters) — NOT derived from timeline payloads.
+    # Normal DML table for sps_app (not append-only). Stage effects go EXCLUSIVELY
+    # through pipeline.transition() in the same txn as this row.
+    __tablename__ = "internal_evaluations"
+    __table_args__ = (
+        sa.CheckConstraint("round IN (1, 2)", name="ck_internal_evals_round"),
+        sa.CheckConstraint("result IN ('pass','fail')", name="ck_internal_evals_result"),
+        sa.Index("ix_internal_evals_application_round", "application_id", "round"),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[int] = mapped_column(sa.BigInteger, primary_key=True, autoincrement=True)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    business_unit_id: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    application_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    round: Mapped[int] = mapped_column(sa.Integer, nullable=False)
+    result: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    evaluator_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    notes: Mapped[str | None] = mapped_column(sa.Text)
+    occurred_at: Mapped[datetime.datetime] = mapped_column(
+        sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+    )
+
+
 # Submission to client (Part 5): submissions(application_id, client_feedback, status)
 SUBMISSION_STATUSES = ("submitted", "under_review", "shortlisted", "rejected")
 _SUB_SQL = ", ".join(f"'{s}'" for s in SUBMISSION_STATUSES)
