@@ -4,8 +4,20 @@ import { AppShell } from "@/components/shell/app-shell";
 import { SectionCard } from "@/components/kit/section-card";
 import { EmptyState } from "@/components/kit/empty-state";
 import { Skeleton } from "@/components/kit/skeleton";
-import { useClientJobs, useClientPostJob } from "@/lib/api/hooks";
+import { useClientJobs, useClientMe, useClientPostJob } from "@/lib/api/hooks";
 import { Briefcase } from "lucide-react";
+
+function ScopeCaption() {
+  const me = useClientMe();
+  if (!me.data) return null;
+  return (
+    <p className="mb-4 text-xs text-muted">
+      {me.data.client_role === "client_admin"
+        ? "You see every job in your company (HR view)."
+        : "You see the jobs assigned to you (hiring-manager view)."}
+    </p>
+  );
+}
 
 export default function ClientJobsPage() {
   const { data, isLoading, isError, refetch } = useClientJobs();
@@ -27,6 +39,7 @@ export default function ClientJobsPage() {
 
   return (
     <AppShell role="client" title="Your jobs">
+      <ScopeCaption />
       <SectionCard title="Post a new job">
         <p className="mb-3 text-xs text-muted">Posts to our recruiters&apos; queue. They&apos;ll source and submit candidates against it.</p>
         {err && <p role="alert" className="mb-2 rounded-lg bg-[#FEF2F2] px-3 py-2 text-sm text-[#DC2626]">{err}</p>}

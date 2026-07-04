@@ -19,6 +19,7 @@ export const NAV: Record<Role, NavItem[]> = {
     { label: "Jobs", href: "/client/jobs", icon: Briefcase },
     { label: "Pipeline", href: "/client/pipeline", icon: KanbanSquare },
     { label: "Submissions", href: "/client/submissions", icon: Send },
+    { label: "Interviews", href: "/client/interviews", icon: CalendarClock },
     { label: "Offers", href: "/client/offers", icon: FileSignature },
     { label: "Team", href: "/client/team", icon: Users },
   ],
