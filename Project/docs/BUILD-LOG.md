@@ -1429,6 +1429,26 @@ First FRONTEND slice (frontend-only; paths-ignore confirmed — no backend deplo
   correct home; wrong-role bounces incl. client→/employer; logout kills access). Commit
   `54d6d98`; no pipeline run triggered (frontend paths-ignored).
 
+## 2026-07-04 — F2: kanban optimistic locking (F2a backend micro + F2b frontend) ✅
+
+- **F2a (backend micro, deployed):** `version` now rides every application row via `_app_dict`
+  (pipeline rows, create responses, the shim's own response). Additive; no migration (head
+  0031). Tests 240→241 (version-on-rows regression). Pipeline run `28713416638` green; dev
+  smoke printed a live row with `"version": 1`. Commit `74a096d`.
+- **F2b (frontend, local-verified): THE SHIM IS RETIRED** — `useChangeStage` (PATCH
+  last-write-wins) deleted; `useTransitionStage` posts `/transition` with expected_version.
+  409 UX by error code: STALE_STATE → "board changed elsewhere" + auto-refetch ·
+  ILLEGAL_TRANSITION → clean rejection · RTR_REQUIRED → collect-RTR guidance · drop/withdraw
+  open a REASON MODAL up front (server 422 surfaced if bypassed). rtr_pending cards carry an
+  RTR chip + disabled Submit. Hold/reopen affordances. Card click → side panel (candidate
+  context, live stage+version, append-only timeline, deep actions marked upcoming).
+  **PENDING D11 CLOSED.** Verified: tsc/eslint/build clean + a 7-check API walk covering every
+  error path end-to-end (PASS). Commit `4e39ba0`, frontend-only, no deploy triggered.
+- **Scope item raised, not silently skipped:** candidate portal tabs need BACKEND surface that
+  doesn't exist (`/me/applications`, a user→candidate linkage rule, real `/me/overview` counts
+  — the old Slice-2 zeros TODO). Stopped per the F2b backend guard; proposed as F3a
+  (micro backend) + F3b (the tabs).
+
 ## Pending / next steps
 
 ➡️ **The canonical, durable register of ALL outstanding/deferred items is

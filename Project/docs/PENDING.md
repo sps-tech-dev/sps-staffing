@@ -167,10 +167,14 @@ Last refreshed: 2026-06-28 (after client-internal roles / owner-scoped jobs — 
   vocabulary (14 forward columns + read-only tail; friendly labels).
 - **D4b → RESOLVED:** /employer/* staff tools re-homed to the employee role (they had been
   unreachable by anyone since the client-portal split); linked from the employee nav.
-- **NEW — kanban optimistic lock:** stage changes still use the deprecated last-write-wins
-  PATCH shim. Retiring it needs `version` exposed on the pipeline rows (one-line backend
-  change in `_app_dict`/job_pipeline) + the kanban switching to POST /transition with
-  expected_version. Do it on the next backend touch.
+- **kanban optimistic lock → RESOLVED 2026-07-04 (F2):** `version` exposed (F2a, deployed);
+  the kanban now posts /transition with expected_version; the PATCH shim is deleted from the
+  frontend. (The deprecated backend PATCH endpoint itself can be removed once no other
+  consumer exists — candidate for the next backend touch.)
+- **NEW — candidate portal read surface (F3a):** the candidate tabs need /me/applications +
+  a user→candidate linkage rule (candidates have no user_id; likely email-match or an explicit
+  link column) + real /me/overview counts (the Slice-2 zeros TODO). Micro backend slice;
+  blocks F3b candidate tabs.
 - **Hosting still deferred (C1/D.6):** the frontend is local-only; "done" = built + verified
   against the local/dev API.
 - **F2+ slice order (proposed):** F2 recruiter pipeline interactions + candidate portal tabs
