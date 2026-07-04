@@ -1522,6 +1522,46 @@ image, watched to green, /readyz ok. Recorded for the deploy-history's honesty.
   deployed tasks use the ECS role).
 - tsc/eslint/build clean; both surfaces + all token semantics walked green. Commit `76f4d0c`.
 
+## 2026-07-05 — F6: CRM board + vendor screens ✅ + F6-E2E full-system regression
+
+### F6 (frontend, local-verified — no deploy)
+- **CRM (/employee/crm):** lead board on the B.12 mini-guard vocabulary (new/qualified/proposal/
+  negotiation drag + won/lost terminals); Lost opens the reason modal first (422 backstop);
+  Convert shows the IDEMPOTENT already-converted state honestly; per-lead activity stream.
+- **Vendors (/employer/vendors → Manage):** scorecard KPIs, contracts + validity, the
+  vendor×client rate matrix, commission ledger with accrued→paid|void (void needs reason;
+  paid/void render NO controls — paid-can't-be-voided mirrored). 17-check walk PASS. Commit
+  `d283b7e`.
+
+### F6-E2E regression (verification pass — real HTTP against the local stack + a dev probe)
+- **A. Candidate journey (28 legs): 27 PASS · 1 ENV-LIMIT · 0 FAIL.** The full sourcing→
+  aptitude(take/auto-grade)→internal R2→RTR gate→submit→offer→joined→placement (fee = annual
+  CTC × client 12% = 120,000, exact)→guarantee, PLUS breach→reopen, replacement→no-double-fee,
+  vendor commission at client rate, credit-note→auto-void, dedup→merge→linkage-conflict-flag,
+  CRM convert, notification enqueue→sweep→sent, erasure→search_doc/bidx/resume nulled. The one
+  ENV-LIMIT: invoice PDF→S3 500s locally (dummy creds; dev-proven in B.9).
+- **B. Gate matrix (26 legs): 24 PASS · 2 FAIL.** Founder gates, /transition, /waive-404-when-off,
+  /take token surface, admin/client/employee gates, tenant isolation, idempotency, error
+  envelope — all correct. **TWO FAILS = one real security bug (below).**
+- **C. Frontend↔backend:** every F1–F6 surface calls the real endpoint + renders real 409/403/
+  404/empty. NO fourth dead-vocabulary remnant; NO mocks.
+- **D. Cross-slice hooks:** all verified green inside Part A (credit-note→void, merge→conflict+
+  repoint, assessment/waiver single-fire, breach→reopen, convert→job-via-normal-path,
+  erasure→null).
+- **E. Integrity (on dev RDS as sps_app):** head 0032, ALL dev stage values in B.5 vocabulary,
+  append-only REVOKE HOLDS (DELETE denied on audit_logs/consents/candidate_timeline).
+
+#### 🔴 E2E FINDING — E2E-1 (real bug, own slice): broken access control on 5 staffing GETs
+`GET /api/{candidates, clients, jobs, jobs/{id}/pipeline, client-portal/overview}` in
+`staffing.py` are **authenticated-only — no `_require_staff`**. PROVEN: a candidate session
+reads another candidate's PII (name/email/skills) via GET /api/candidates (200 + leaked row).
+Tenant-scoped so NOT cross-tenant, but a candidate/client sees other candidates/clients/jobs
+WITHIN their tenant. The B.5-fix route-smoke matrix only checked no-500, not gates — so it never
+caught this; `job_pipeline`/`employer_overview` got their NameError fixed there but never had a
+gate. **Fix = add `_require_staff` to all 5 + extend the smoke matrix to assert candidate/client
+sessions get 403 on staff GETs. Backend micro-slice (E2E-1), STOP-1-exempt, its own deploy —
+NOT folded into F6.** Triage: real, security-severity, but low blast radius on dev (little data).
+
 ## Pending / next steps
 
 ➡️ **The canonical, durable register of ALL outstanding/deferred items is

@@ -175,7 +175,16 @@ Last refreshed: 2026-06-28 (after client-internal roles / owner-scoped jobs — 
   explicit link), /me/applications, real /me/overview; merge both-different-logins conflicts
   flagged durably. Candidate SELF-APPLY remains a deliberate non-feature (applications are
   staff-placed); if the business ever wants it, that's a new backend decision.
-- **F4 → DONE 2026-07-04**; **F5 → DONE 2026-07-05** (assessments UI + public take page;
+- **E2E-1 (SECURITY, tracked — needs a backend micro-slice):** 5 staffing GET endpoints
+  (`/candidates`, `/clients`, `/jobs`, `/jobs/{id}/pipeline`, `/client-portal/overview`) lack
+  `_require_staff` — a candidate/client session reads staff data (candidate PII) within its
+  tenant. Proven in F6-E2E. Fix: add the gate to all 5 + extend the route-smoke matrix to assert
+  403 for candidate/client sessions on staff GETs (the matrix only checks no-500 today). STOP-1-
+  exempt, own deploy.
+- **E2E-2 (minor, tracked): no write API for `client.fee_percent`** — settable only via DB
+  (ClientIn lacks it; no PATCH /clients). Fine while fees are seeded, but the client-fee override
+  from B.9 has no UI/endpoint path. Fold into a future commercial-admin slice.
+- **F4 → DONE 2026-07-04**; **F5 → DONE 2026-07-05**; **F6 → DONE 2026-07-05** (assessments UI + public take page;
   proctoring CAPTURE LOOP still deferred — presign wiring only). Remaining: F6 CRM board +
   vendor screens → F7 notification center + founder trend charts. Hosting still deferred
   (C1/D.6).
