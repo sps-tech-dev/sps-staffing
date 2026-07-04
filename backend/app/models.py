@@ -159,6 +159,67 @@ class Consent(Base):
     )
 
 
+LEAD_STAGES = ("new", "qualified", "proposal", "negotiation", "won", "lost")
+_LEAD_SQL = ", ".join(f"'{s}'" for s in LEAD_STAGES)
+
+
+class Lead(Base):
+    # B.12: SHARED CRM lead — staffing BD now, Consulting (B.18) later via
+    # business_unit_id scoping (same table/endpoints; reuse is scoping, not a
+    # fork). Contact fields are BUSINESS contacts (not candidate PII) → plaintext,
+    # same call as client/vendor contact fields. Stage writes go EXCLUSIVELY
+    # through routers/crm.transition_lead (mini guard, pipeline.py shape).
+    __tablename__ = "leads"
+    __table_args__ = (
+        sa.CheckConstraint("business_unit_id IN ('STAFFING','ACADEMY','CONSULTING')",
+                           name="ck_leads_business_unit"),
+        sa.CheckConstraint(f"stage IN ({_LEAD_SQL})", name="ck_leads_stage"),
+        sa.Index("ix_leads_tenant_stage", "tenant_id", "stage"),
+        {"schema": SCHEMA},
+    )
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    business_unit_id: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    company: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    contact_name: Mapped[str | None] = mapped_column(sa.Text)
+    contact_email: Mapped[str | None] = mapped_column(CITEXT)
+    contact_phone: Mapped[str | None] = mapped_column(sa.Text)
+    source: Mapped[str | None] = mapped_column(sa.Text)
+    owner_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    stage: Mapped[str] = mapped_column(sa.Text, nullable=False, server_default=sa.text("'new'"))
+    lost_reason: Mapped[str | None] = mapped_column(sa.Text)
+    converted_client_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False)
+    updated_at: Mapped[datetime.datetime] = mapped_column(
+        sa.DateTime(timezone=True), server_default=sa.func.now(),
+        onupdate=sa.func.now(), nullable=False)
+    deleted_at: Mapped[datetime.datetime | None] = mapped_column(sa.DateTime(timezone=True))
+
+
+class Activity(Base):
+    # B.12: user-facing CRM activity stream (calls/emails/notes + transition
+    # records). A dedicated table on purpose — audit_logs is the immutable system
+    # trail and candidate_timeline is candidate-anchored; both wrong containers.
+    __tablename__ = "activities"
+    __table_args__ = (
+        sa.CheckConstraint("business_unit_id IN ('STAFFING','ACADEMY','CONSULTING')",
+                           name="ck_activities_business_unit"),
+        sa.Index("ix_activities_lead_occurred", "lead_id", "occurred_at"),
+        {"schema": SCHEMA},
+    )
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    business_unit_id: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    lead_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), sa.ForeignKey(f"{SCHEMA}.leads.id"), nullable=False)
+    type: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    notes: Mapped[str | None] = mapped_column(sa.Text)
+    actor_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    occurred_at: Mapped[datetime.datetime] = mapped_column(
+        sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False)
+
+
 class NotificationTemplate(Base):
     # B.10: versioned operational templates (global, tenant-agnostic). channel_type
     # records the INTENDED real channel (email/sms/whatsapp); the dev override
