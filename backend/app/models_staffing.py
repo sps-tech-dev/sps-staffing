@@ -94,6 +94,10 @@ class Candidate(TenantScopedMixin, Base):
     skills: Mapped[list[str] | None] = mapped_column(ARRAY(sa.Text))
     total_exp: Mapped[float | None] = mapped_column(sa.Numeric)
     resume_s3_key: Mapped[str | None] = mapped_column(sa.Text)
+    # Server-side extracted resume text (B.1, migration 0020). Contains PII — the
+    # erasure anonymize path nulls it together with resume_s3_key. Feeds B.4 search.
+    resume_text: Mapped[str | None] = mapped_column(sa.Text)
+    resume_uploaded_at: Mapped[datetime.datetime | None] = mapped_column(sa.DateTime(timezone=True))
     source: Mapped[str | None] = mapped_column(sa.Text)
     search_doc: Mapped[str | None] = mapped_column(TSVECTOR)  # Part 20 FTS (trigger added later)
 
