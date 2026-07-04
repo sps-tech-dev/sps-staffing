@@ -61,19 +61,50 @@ def guarantee_sweep(db: Session) -> int:
     return len(due)
 
 
-def dunning_sweep(db: Session) -> list[dict]:
+def dunning_sweep(db: Session, enqueue_sends: bool = False) -> list[dict]:
     """Detect overdue invoices (draft/issued older than INVOICE_OVERDUE_DAYS, not
-    credit notes). DELIVERY IS STUBBED (B.10/SES) — the intended send is logged;
-    no state changes, so re-running is trivially idempotent."""
+    credit notes). READ-ONLY by default (the /invoices/overdue endpoint); the
+    one-off runner passes enqueue_sends=True to ENQUEUE the B.10 dunning
+    notification per invoice (stable key 'invoice_dunning:<id>' → one notice per
+    invoice; cadence policy is a Part-D decision). Recipient = the client's
+    active client_admin email; no bound user → detection only, logged."""
+    from .invoice_pdf import provisional_number
+    from .models import ClientUser, User
+    from . import notify
+
     cutoff = dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=settings.invoice_overdue_days)
     rows = db.execute(select(Invoice).where(
         Invoice.status.in_(("draft", "issued")), Invoice.created_at < cutoff,
         Invoice.credit_note_of.is_(None), Invoice.deleted_at.is_(None))).scalars().all()
     out = []
     for v in rows:
+        age = (dt.datetime.now(dt.timezone.utc) - v.created_at).days
         out.append({"invoice_id": str(v.id), "client_id": str(v.client_id) if v.client_id else None,
                     "total_amount": float(v.total_amount) if v.total_amount is not None else None,
-                    "age_days": (dt.datetime.now(dt.timezone.utc) - v.created_at).days})
-        log.info("dunning (SEND STUBBED until B.10/SES): invoice %s overdue %d days",
-                 v.id, out[-1]["age_days"])
+                    "age_days": age})
+        if not enqueue_sends:
+            continue
+        recipient = None
+        client_name = "Client"
+        if v.client_id is not None:
+            from .models_staffing import Client
+            client = db.get(Client, v.client_id)
+            client_name = client.name if client else client_name
+            cu = db.execute(select(User.email).join(ClientUser, ClientUser.user_id == User.id)
+                            .where(ClientUser.client_id == v.client_id,
+                                   ClientUser.status == "active")
+                            .order_by(ClientUser.created_at.asc())).scalars().first()
+            recipient = cu
+        if recipient:
+            notify.enqueue(db, template_code="invoice_dunning", recipient=recipient,
+                           vars={"client_name": client_name,
+                                 "invoice_number": provisional_number(v.id),
+                                 "total_amount": f"INR {float(v.total_amount or 0):,.2f}",
+                                 "age_days": age},
+                           tenant_id=v.tenant_id, idempotency_key=f"invoice_dunning:{v.id}")
+        else:
+            log.info("dunning: invoice %s overdue %dd — no bound client user, detection only",
+                     v.id, age)
+    if enqueue_sends:
+        db.commit()
     return out

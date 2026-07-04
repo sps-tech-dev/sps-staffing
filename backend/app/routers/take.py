@@ -24,11 +24,11 @@ from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 
 from .. import assessment_engine as engine
-from .. import pipeline, storage
+from .. import notify, pipeline, storage
 from ..config import settings
 from ..context import RequestContext
 from ..db import get_db
-from ..models_staffing import Application, Test
+from ..models_staffing import Application, Candidate, Job, Test
 from ..timeline import EventType, emit_timeline
 
 router = APIRouter()
@@ -111,8 +111,18 @@ def submit_answers(token: str, body: SubmitIn, db: Session = Depends(get_db)):
                                "result": "pass" if passed else "fail",
                                "score": round(score, 4), "source": "engine"}, ctx=ctx)
         pipeline_advanced = True
+    # B.10: enqueue the result notification (transactional — no marketing gate).
+    # DELIVERY: ConsoleChannel in dev; real email = Part D (register EmailChannel).
+    cand = db.get(Candidate, t.candidate_id)
+    job = db.get(Job, appn.job_id) if appn else None
+    if cand is not None and cand.email:
+        notify.enqueue(db, template_code="assessment_result", recipient=cand.email,
+                       vars={"candidate_name": cand.full_name,
+                             "job_title": job.title if job else "the role",
+                             "result": "pass" if passed else "fail"},
+                       tenant_id=t.tenant_id,
+                       idempotency_key=f"assessment_result:{t.id}")
     db.commit()
-    # NOTE: the "result within 30 min" EMAIL is B.10/SES — result surfaces in-app.
     return {"score": round(score, 4), "passed": passed,
             "pipeline_advanced": pipeline_advanced,
             "pass_threshold": settings.test_pass_threshold}

@@ -11,15 +11,18 @@ import sys
 
 from app.db import get_sessionmaker
 from app.jobs import dunning_sweep, guarantee_sweep
+from app.notify import send_sweep
 
 
 def main() -> int:
     db = get_sessionmaker()()
     try:
         cleared = guarantee_sweep(db)
-        overdue = dunning_sweep(db)
+        overdue = dunning_sweep(db, enqueue_sends=True)   # B.10: enqueues dunning notices
+        sends = send_sweep(db)                            # B.10: dispatch via registered channels
         print(f"guarantee_sweep: cleared={cleared}")
-        print(f"dunning_sweep: overdue={len(overdue)} (delivery stubbed until B.10/SES)")
+        print(f"dunning_sweep: overdue={len(overdue)} (notices enqueued; email delivery = Part D)")
+        print(f"send_sweep: {sends}")
     finally:
         db.close()
     return 0

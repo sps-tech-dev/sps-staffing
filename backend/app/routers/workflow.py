@@ -24,6 +24,7 @@ from ..models_staffing import (
 )
 from ..timeline import EventType, emit_timeline
 from .. import ics as ics_mod
+from .. import notify
 from ..models_staffing import InterviewSlot
 from .staffing import BU, _require_staff, _tid
 
@@ -477,6 +478,20 @@ def choose_slot(interview_id: uuid.UUID, slot_id: uuid.UUID,
                       payload={"interview_id": str(i.id), "action": "scheduled",
                                "scheduled_at": slot.slot_start.isoformat(),
                                "slot_id": str(slot.id)}, ctx=ctx)
+        # B.10: transactional reminder enqueue. Key includes ics_sequence so a
+        # reschedule→re-choose produces a NEW reminder; a replayed choose doesn't.
+        # The .ics attach (and METHOD:CANCEL on cancellation) happens inside the
+        # Part-D EmailChannel — not here.
+        cand = db.get(Candidate, appn.candidate_id)
+        job = db.get(Job, appn.job_id)
+        if cand is not None and cand.email:
+            notify.enqueue(db, template_code="interview_reminder", recipient=cand.email,
+                           vars={"candidate_name": cand.full_name,
+                                 "job_title": job.title if job else "the role",
+                                 "scheduled_at": slot.slot_start.isoformat(),
+                                 "mode": i.mode},
+                           tenant_id=i.tenant_id,
+                           idempotency_key=f"interview_reminder:{i.id}:{i.ics_sequence}")
     write_audit(db, ctx, "interview.slot_chosen", "interview", i.id,
                 after={"slot_id": str(slot.id), "scheduled_at": slot.slot_start.isoformat()})
     db.commit()
