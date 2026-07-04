@@ -56,7 +56,7 @@ def test_admin_lists_and_audit_trail(users):
     job = rc.post("/api/jobs", json={"title": "Admin-view Job"}, headers=HOST).json()
     cand = rc.post("/api/candidates", json={"full_name": "Asha Sharma"}, headers=HOST).json()
     appn = rc.post("/api/applications", json={"job_id": job["id"], "candidate_id": cand["id"]}, headers=HOST).json()
-    rc.patch(f"/api/applications/{appn['id']}/stage", json={"stage": "screened"}, headers=HOST)
+    rc.patch(f"/api/applications/{appn['id']}/stage", json={"stage": "screening"}, headers=HOST)
 
     ac = TestClient(app); _login(ac, "admin6@local.test")
     jobs = ac.get("/api/admin/jobs", headers=HOST).json()

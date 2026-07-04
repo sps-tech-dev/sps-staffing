@@ -39,7 +39,7 @@ def _pipeline(db, tid, client_id, cand_name):
     job = Job(tenant_id=tid, business_unit_id=BU, title=f"{cand_name} Job", client_id=client_id); db.add(job); db.flush()
     cand = Candidate(tenant_id=tid, full_name=cand_name); db.add(cand); db.flush()
     appn = Application(tenant_id=tid, business_unit_id=BU, job_id=job.id, candidate_id=cand.id,
-                       client_id=client_id, stage="submitted"); db.add(appn); db.flush()
+                       client_id=client_id, stage="submitted_to_client"); db.add(appn); db.flush()
     db.add(Submission(tenant_id=tid, business_unit_id=BU, application_id=appn.id, client_id=client_id))
     db.add(Offer(tenant_id=tid, business_unit_id=BU, application_id=appn.id, client_id=client_id))
     db.add(Interview(tenant_id=tid, business_unit_id=BU, application_id=appn.id, client_id=client_id, mode="video"))

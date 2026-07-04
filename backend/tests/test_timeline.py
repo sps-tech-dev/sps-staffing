@@ -23,7 +23,13 @@ RECRUITER = "tl-rec@local.test"
 
 
 def _mk_user(db, tenant, email, roles):
-    db.execute(delete(User).where(User.tenant_id == tenant.id, User.email == email))
+    # leftover-robust: delete a prior user's memberships/client bindings first
+    old = db.execute(select(User).where(User.tenant_id == tenant.id,
+                                        User.email == email)).scalar_one_or_none()
+    if old is not None:
+        db.execute(delete(Membership).where(Membership.user_id == old.id))
+        db.execute(delete(ClientUser).where(ClientUser.user_id == old.id))
+        db.execute(delete(User).where(User.id == old.id))
     u = User(tenant_id=tenant.id, email=email, password_hash=PasswordHasher().hash(PW),
              full_name="TL Tester", status="active")
     db.add(u); db.flush()
@@ -73,13 +79,13 @@ def _timeline(c, cid, **params):
 def test_application_and_stage_change_emit(env):
     c = TestClient(app); _login(c, RECRUITER)
     cid, aid = _chain(c)
-    assert c.patch(f"/api/applications/{aid}/stage", json={"stage": "screened"},
+    assert c.patch(f"/api/applications/{aid}/stage", json={"stage": "screening"},
                    headers=HOST).status_code == 200
     events = _timeline(c, cid)
     types = [e["event_type"] for e in events]
     assert types == ["Application", "StageChange"]        # chronological, oldest first
     stage = events[-1]["payload"]
-    assert stage["from"] == "sourced" and stage["to"] == "screened" and stage["application_id"] == aid
+    assert stage["from"] == "applied" and stage["to"] == "screening" and stage["application_id"] == aid
 
 
 def test_submission_offer_interview_emit(env):
@@ -110,7 +116,7 @@ def test_idempotent_retry_appends_exactly_once(env):
 def test_event_type_filter(env):
     c = TestClient(app); _login(c, RECRUITER)
     cid, aid = _chain(c)
-    c.patch(f"/api/applications/{aid}/stage", json={"stage": "screened"}, headers=HOST)
+    c.patch(f"/api/applications/{aid}/stage", json={"stage": "screening"}, headers=HOST)
     only = _timeline(c, cid, event_type="StageChange")
     assert len(only) == 1 and only[0]["event_type"] == "StageChange"
 

@@ -79,7 +79,7 @@ def test_export_includes_own_decrypted_pii_and_audits(subject):
                      phone_enc="9876500011", pan_enc="PRIVA1234Z"); db.add(cand); db.flush()
     job = Job(tenant_id=sps.id, business_unit_id="STAFFING", title="Analyst"); db.add(job); db.flush()
     db.add(Application(tenant_id=sps.id, business_unit_id="STAFFING", job_id=job.id,
-                       candidate_id=cand.id, stage="sourced")); db.commit(); db.close()
+                       candidate_id=cand.id, stage="applied")); db.commit(); db.close()
 
     c = TestClient(app); _login(c)
     r = c.post("/api/privacy/export", headers=HOST)

@@ -62,10 +62,10 @@ def test_illegal_stage_transition_409(recruiter):
     cand = c.post("/api/candidates", json={"full_name": "Asha Sharma", "email": "asha@x.com",
                                            "phone": "9876543210"}, headers=HOST).json()
     appn = c.post("/api/applications", json={"job_id": job["id"], "candidate_id": cand["id"]}, headers=HOST).json()
-    assert appn["stage"] == "sourced"
-    ok = c.patch(f"/api/applications/{appn['id']}/stage", json={"stage": "screened"}, headers=HOST)
-    assert ok.status_code == 200 and ok.json()["stage"] == "screened"
-    bad = c.patch(f"/api/applications/{appn['id']}/stage", json={"stage": "placed"}, headers=HOST)
+    assert appn["stage"] == "applied"
+    ok = c.patch(f"/api/applications/{appn['id']}/stage", json={"stage": "screening"}, headers=HOST)
+    assert ok.status_code == 200 and ok.json()["stage"] == "screening"
+    bad = c.patch(f"/api/applications/{appn['id']}/stage", json={"stage": "joined"}, headers=HOST)
     assert bad.status_code == 409 and bad.json()["error"]["code"] == "ILLEGAL_TRANSITION"
 
 

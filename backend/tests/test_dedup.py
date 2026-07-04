@@ -23,7 +23,13 @@ RECRUITER = "dedup-rec@local.test"
 
 
 def _mk_user(db, tenant, email, roles):
-    db.execute(delete(User).where(User.tenant_id == tenant.id, User.email == email))
+    # leftover-robust: delete a prior user's memberships/client bindings first
+    old = db.execute(select(User).where(User.tenant_id == tenant.id,
+                                        User.email == email)).scalar_one_or_none()
+    if old is not None:
+        db.execute(delete(Membership).where(Membership.user_id == old.id))
+        db.execute(delete(ClientUser).where(ClientUser.user_id == old.id))
+        db.execute(delete(User).where(User.id == old.id))
     u = User(tenant_id=tenant.id, email=email, password_hash=PasswordHasher().hash(PW),
              full_name="Dedup Tester", status="active")
     db.add(u); db.flush()
@@ -129,11 +135,11 @@ def test_merge_repoints_archives_and_retires(env):
     j2 = Job(tenant_id=sps.id, business_unit_id="STAFFING", title="J2")
     db.add_all([j1, j2]); db.flush()
     a1 = Application(tenant_id=sps.id, business_unit_id="STAFFING", job_id=j1.id,
-                     candidate_id=uuid.UUID(loser), stage="screened")
+                     candidate_id=uuid.UUID(loser), stage="screening")
     a2_surv = Application(tenant_id=sps.id, business_unit_id="STAFFING", job_id=j2.id,
-                          candidate_id=uuid.UUID(survivor), stage="sourced")
+                          candidate_id=uuid.UUID(survivor), stage="applied")
     a2_loser = Application(tenant_id=sps.id, business_unit_id="STAFFING", job_id=j2.id,
-                           candidate_id=uuid.UUID(loser), stage="interview")
+                           candidate_id=uuid.UUID(loser), stage="client_round_1")
     v = Vendor(tenant_id=sps.id, business_unit_id="STAFFING", name="Dedup Vendor")
     db.add_all([a1, a2_surv, a2_loser, v]); db.flush()
     vs = VendorSubmission(tenant_id=sps.id, business_unit_id="STAFFING", vendor_id=v.id,
@@ -155,7 +161,7 @@ def test_merge_repoints_archives_and_retires(env):
     vsr = db.get(VendorSubmission, ids["vs"])
     lr = db.get(Candidate, uuid.UUID(loser))
     assert str(a1r.candidate_id) == survivor and a1r.deleted_at is None       # repointed
-    assert a2sr.stage == "interview" and a2sr.deleted_at is None              # adopted stage
+    assert a2sr.stage == "client_round_1" and a2sr.deleted_at is None              # adopted stage
     assert str(a2lr.candidate_id) == loser and a2lr.deleted_at is not None    # archived in place
     assert str(vsr.candidate_id) == survivor                                  # vendor repointed
     assert lr.deleted_at is not None and lr.phone_bidx is None and lr.pan_bidx is None

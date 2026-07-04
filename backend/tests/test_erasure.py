@@ -37,7 +37,7 @@ def _seed_candidate(db, sps, email):
                      source="self_registration"); db.add(cand); db.flush()
     job = Job(tenant_id=sps.id, business_unit_id="STAFFING", title="Analyst"); db.add(job); db.flush()
     db.add(Application(tenant_id=sps.id, business_unit_id="STAFFING", job_id=job.id,
-                       candidate_id=cand.id, stage="sourced"))
+                       candidate_id=cand.id, stage="applied"))
     db.add(Consent(tenant_id=sps.id, subject_candidate_id=cand.id, purpose="data_processing",
                    granted=True, policy_version="p")); db.commit()
     return cand.id

@@ -29,7 +29,7 @@ def _pipeline(db, sps, client_id, cand_name):
     db.add(job); db.flush()
     cand = Candidate(tenant_id=sps.id, full_name=cand_name); db.add(cand); db.flush()
     appn = Application(tenant_id=sps.id, business_unit_id="STAFFING", job_id=job.id, candidate_id=cand.id,
-                       client_id=client_id, stage="submitted"); db.add(appn); db.flush()
+                       client_id=client_id, stage="submitted_to_client"); db.add(appn); db.flush()
     sub = Submission(tenant_id=sps.id, business_unit_id="STAFFING", application_id=appn.id, client_id=client_id)
     db.add(sub); db.flush()
     return job, sub
