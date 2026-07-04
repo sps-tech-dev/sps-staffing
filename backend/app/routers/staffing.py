@@ -5,6 +5,7 @@ tenant-scoped (talent pool). Writes honor Idempotency-Key and require a staff ro
 """
 from __future__ import annotations
 
+import datetime
 import re
 import uuid
 
@@ -19,6 +20,8 @@ from ..context import RequestContext
 from ..crypto import blind_index
 from ..db import get_db
 from ..dedup import flag_if_fuzzy_dup
+from ..models import Consent
+from .. import pipeline
 from ..deps import get_current_context
 from ..idempotency import get_cached, store
 from ..models_staffing import Application, Candidate, CandidateTimeline, Client, Job
@@ -31,18 +34,8 @@ BU = "STAFFING"
 STAFF_ROLES = {"owner", "super_admin", "admin", "business_manager", "manager",
                "recruiter", "coordinator", "employee", "client"}
 
-# Pipeline state machine (Part 5) — legal transitions; anything else → 409.
-TRANSITIONS = {
-    "sourced": {"screened", "rejected", "on_hold"},
-    "screened": {"assessed", "rejected", "on_hold"},
-    "assessed": {"submitted", "rejected", "on_hold"},
-    "submitted": {"interview", "rejected", "on_hold"},
-    "interview": {"offer", "rejected", "on_hold"},
-    "offer": {"placed", "rejected", "on_hold"},
-    "placed": set(),
-    "rejected": set(),
-    "on_hold": {"screened", "assessed", "submitted", "interview", "offer", "rejected"},
-}
+# Pipeline transitions live EXCLUSIVELY in app/pipeline.py since B.5 — the old
+# TRANSITIONS dict is gone; every stage change goes through pipeline.transition().
 
 
 def _require_staff(ctx: RequestContext):
@@ -323,39 +316,86 @@ def create_application(body: ApplicationIn, ctx: RequestContext = Depends(get_cu
         return _app_dict(existing)  # idempotent on the natural key
     obj = Application(tenant_id=_tid(ctx), business_unit_id=BU, job_id=body.job_id,
                       candidate_id=body.candidate_id, client_id=job.client_id,
-                      owner_user_id=job.owner_user_id, stage="sourced",
+                      owner_user_id=job.owner_user_id, stage="applied",
                       owner_id=uuid.UUID(str(ctx.user_id)) if ctx.user_id else None)
     db.add(obj); db.flush()
     write_audit(db, ctx, "application.create", "application", obj.id,
-                after={"job_id": str(body.job_id), "candidate_id": str(body.candidate_id), "stage": "sourced"})
+                after={"job_id": str(body.job_id), "candidate_id": str(body.candidate_id), "stage": "applied"})
     emit_timeline(db, candidate_id=body.candidate_id, event_type=EventType.APPLICATION,
                   payload={"application_id": str(obj.id), "job_id": str(body.job_id),
-                           "stage": "sourced"}, ctx=ctx)
+                           "stage": "applied"}, ctx=ctx)
     db.commit(); db.refresh(obj)
     res = _app_dict(obj); store(str(ctx.tenant_id), idempotency_key, res); return res
+
+
+def _app_or_404_here(db: Session, ctx: RequestContext, app_id: uuid.UUID) -> Application:
+    app = db.execute(select(Application).where(Application.id == app_id, Application.tenant_id == _tid(ctx),
+                                               Application.business_unit_id == BU,
+                                               Application.deleted_at.is_(None))).scalar_one_or_none()
+    if app is None:
+        raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "Application not found"})
+    return app
+
+
+class TransitionIn(BaseModel):
+    to_stage: str
+    expected_version: int
+    reason: str | None = None
+
+
+@router.post("/applications/{app_id}/transition")
+def transition_application(app_id: uuid.UUID, body: TransitionIn,
+                           ctx: RequestContext = Depends(get_current_context),
+                           db: Session = Depends(get_db),
+                           idempotency_key: str | None = Header(default=None)):
+    """THE single public stage-change entry point (B.5). Optimistic-locked:
+    expected_version must match or 409 STALE_STATE."""
+    _require_staff(ctx)
+    if (c := get_cached(str(ctx.tenant_id), idempotency_key)):
+        return c
+    app = _app_or_404_here(db, ctx, app_id)
+    res = pipeline.transition(db, app, body.to_stage, ctx=ctx,
+                              expected_version=body.expected_version, reason=body.reason)
+    db.commit()
+    store(str(ctx.tenant_id), idempotency_key, res)
+    return res
+
+
+@router.post("/applications/{app_id}/rtr")
+def record_rtr_consent(app_id: uuid.UUID, ctx: RequestContext = Depends(get_current_context),
+                       db: Session = Depends(get_db),
+                       idempotency_key: str | None = Header(default=None)):
+    """Record Right-to-Represent consent for this application (unblocks the
+    rtr_pending → submitted_to_client gate). Sets applications.rtr_consent_at/by
+    AND appends the immutable shared.consents 'rtr' ledger row (DPDP trail)."""
+    _require_staff(ctx)
+    if (c := get_cached(str(ctx.tenant_id), idempotency_key)):
+        return c
+    app = _app_or_404_here(db, ctx, app_id)
+    if app.rtr_consent_at is None:
+        app.rtr_consent_at = datetime.datetime.now(datetime.timezone.utc)
+        app.rtr_consent_by = uuid.UUID(str(ctx.user_id)) if ctx.user_id else None
+        db.add(Consent(tenant_id=_tid(ctx), subject_candidate_id=app.candidate_id,
+                       purpose="rtr", granted=True, policy_version="rtr-v1"))
+        write_audit(db, ctx, "application.rtr_consent", "application", app.id,
+                    after={"rtr": True, "candidate_id": str(app.candidate_id)})
+        db.commit()
+    res = {"id": str(app.id), "rtr_consent_at": app.rtr_consent_at.isoformat()}
+    store(str(ctx.tenant_id), idempotency_key, res)
+    return res
 
 
 @router.patch("/applications/{app_id}/stage")
 def change_stage(app_id: uuid.UUID, body: StageIn, ctx: RequestContext = Depends(get_current_context),
                  db: Session = Depends(get_db)):
+    """DEPRECATED shim (kept for the local frontend kanban): delegates to
+    pipeline.transition() with last-write-wins version semantics (the loaded
+    row's current version). Illegal moves still 409; nothing writes stage here."""
     _require_staff(ctx)
-    app = db.execute(select(Application).where(Application.id == app_id, Application.tenant_id == _tid(ctx),
-                                              Application.business_unit_id == BU)).scalar_one_or_none()
-    if app is None:
-        raise HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": "Application not found"})
-    if body.stage not in TRANSITIONS:
-        raise HTTPException(status_code=422, detail={"code": "VALIDATION_ERROR", "message": "Unknown stage"})
-    if body.stage not in TRANSITIONS[app.stage]:
-        raise HTTPException(status_code=409,
-                            detail={"code": "ILLEGAL_TRANSITION", "message": f"Cannot move {app.stage} → {body.stage}"})
-    before = {"stage": app.stage}
-    app.stage = body.stage
-    write_audit(db, ctx, "application.stage_change", "application", app.id, before=before, after={"stage": body.stage})
-    emit_timeline(db, candidate_id=app.candidate_id, event_type=EventType.STAGE_CHANGE,
-                  payload={"application_id": str(app.id), "from": before["stage"],
-                           "to": body.stage}, ctx=ctx)
+    app = _app_or_404_here(db, ctx, app_id)
+    res = pipeline.transition(db, app, body.stage, ctx=ctx, expected_version=app.version)
     db.commit()
-    return _app_dict(app)
+    return {**_app_dict(app), "stage": res["stage"]}
 
 
 # ── employer overview read-model ─────────────────────────────────

@@ -17,12 +17,12 @@ from ..context import RequestContext
 from ..db import get_db
 from ..deps import get_current_context
 from ..models_staffing import Application, Candidate, Job
+from ..pipeline import ACTIVE_STAGES  # B.5: stage vocabulary owned by pipeline.py
 
 router = APIRouter()
 BU = "STAFFING"
 SLA_TARGET_HOURS = 24          # act on a requisition within 24h (Part 5 / Appendix D)
 SLA_WARN_HOURS = 18
-ACTIVE_STAGES = ["sourced", "screened", "assessed", "submitted", "interview"]
 STAFF_ROLES = {"owner", "super_admin", "admin", "business_manager", "manager",
                "recruiter", "coordinator", "employee"}
 

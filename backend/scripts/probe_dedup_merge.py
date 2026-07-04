@@ -57,7 +57,7 @@ def main() -> int:
         job = Job(tenant_id=tid, business_unit_id="STAFFING", title=f"Probe Job {TAG}")
         db.add(job); db.flush()
         appn = Application(tenant_id=tid, business_unit_id="STAFFING", job_id=job.id,
-                           candidate_id=loser.id, stage="sourced")
+                           candidate_id=loser.id, stage="applied")
         db.add(appn); db.commit()
 
         ctx = RequestContext(tenant_id=str(tid), business_unit_id="STAFFING", user_id=None,

@@ -37,14 +37,14 @@ from ..db import get_db
 from ..deps import get_current_context
 from ..idempotency import get_cached, store
 from ..models_staffing import Application, Candidate, CandidateDupReview, VendorSubmission
+from ..pipeline import STAGE_RANK, adopt_stage_on_merge
 from ..timeline import EventType, emit_timeline
 from .staffing import _require_staff, _tid
 
 router = APIRouter()
 
-# Further-along = higher rank; tie → earlier created_at wins.
-STAGE_RANK = {"rejected": 0, "on_hold": 1, "sourced": 2, "screened": 3, "assessed": 4,
-              "submitted": 5, "interview": 6, "offer": 7, "placed": 8}
+# STAGE_RANK (further-along = higher; tie → earlier created_at wins) lives in
+# app/pipeline.py since B.5 — the single owner of the stage vocabulary.
 
 
 def _now():
@@ -163,7 +163,7 @@ def merge_dup_review(review_id: int, ctx: RequestContext = Depends(get_current_c
         la_key = (STAGE_RANK.get(la.stage, 0), -(la.created_at or _now()).timestamp())
         sa_key = (STAGE_RANK.get(sa_.stage, 0), -(sa_.created_at or _now()).timestamp())
         if la_key > sa_key:
-            sa_.stage = la.stage                     # adopt the better stage
+            adopt_stage_on_merge(sa_, la.stage)      # documented exception in pipeline.py
         if la.deleted_at is None:
             la.deleted_at = _now()                   # archive loser's row in place
         archived.append(str(la.id))

@@ -97,7 +97,7 @@ def jobs(ctx: RequestContext = Depends(_require_client), db: Session = Depends(g
 
 @router.get("/pipeline")
 def pipeline(ctx: RequestContext = Depends(_require_client), db: Session = Depends(get_db)):
-    """The client's candidates by pipeline stage (sourced→…→placed)."""
+    """The client's candidates by pipeline stage (applied→…→paid, B.5 vocabulary)."""
     repo = _repo(db, ctx)
     apps = [a for a in repo.scoped_all(Application) if a.deleted_at is None]
     names = _cand_names(db, repo, {a.candidate_id for a in apps})
