@@ -117,7 +117,11 @@ def _job_dict(j: Job): return {"id": str(j.id), "title": j.title, "client_id": s
                                "status": j.status, "skills": j.skills, "min_exp": j.min_exp, "max_exp": j.max_exp}
 def _cand_dict(c: Candidate): return {"id": str(c.id), "full_name": c.full_name, "email": c.email,
                                       "skills": c.skills, "total_exp": float(c.total_exp) if c.total_exp is not None else None}
-def _app_dict(a: Application): return {"id": str(a.id), "job_id": str(a.job_id), "candidate_id": str(a.candidate_id), "stage": a.stage}
+def _app_dict(a: Application):
+    # F2a: `version` rides every application row so the kanban can send
+    # expected_version to POST /transition (retiring the last-write-wins shim).
+    return {"id": str(a.id), "job_id": str(a.job_id), "candidate_id": str(a.candidate_id),
+            "stage": a.stage, "version": a.version}
 
 
 # ── clients ──────────────────────────────────────────────────────

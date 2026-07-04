@@ -175,3 +175,11 @@ def test_route_smoke_matrix_no_get_500s(world):
             if resp.status_code >= 500:
                 failures.append(f"{path} [{session_name}] → {resp.status_code}")
     assert not failures, "GET routes returned 5xx under a valid session:\n" + "\n".join(failures)
+
+# ── F2a: pipeline rows carry `version` (the optimistic-lock enabler) ──
+def test_pipeline_rows_expose_version(world):
+    sps, db, ids = world
+    c = TestClient(app); _login(c, RECRUITER)
+    stages = c.get(f"/api/jobs/{ids['job_id']}/pipeline", headers=HOST).json()["stages"]
+    row = next(r for r in stages["screening"] if r["id"] == ids["app_id"])
+    assert isinstance(row["version"], int) and row["version"] >= 1
