@@ -162,6 +162,18 @@ Last refreshed: 2026-06-28 (after client-internal roles / owner-scoped jobs — 
 - **Blocks:** those product lines.
 - **Trigger:** when the standing sequence reaches them.
 
+### D5. Frontend kanban uses the pre-B.5 stage vocabulary (added 2026-07-04)
+- **What:** B.5 (migration `0024`) replaced the 9-stage vocabulary with the full 21-stage
+  Part-5 set and routed all stage changes through `pipeline.transition()`. The deprecated
+  `PATCH /applications/{id}/stage` shim still works (through the guard) but accepts NEW
+  stage names only — the local-only frontend kanban (`/employer/pipeline`) still sends
+  `screened`/`assessed`/… and its columns render the old names, so drag-drop is functionally
+  broken until the frontend adopts the new vocabulary (and ideally the new
+  `POST /transition` endpoint with `expected_version` for real optimistic-lock UX).
+- **Why deferred:** frontend is out of B.5 scope and not deployed anywhere.
+- **Blocks:** the local kanban demo flow only.
+- **Trigger:** next frontend session (B.16 portal polish, or the first frontend-deploy slice).
+
 ### D4. Client portal — follow-ups (non-blocking)
 - **What / why deferred:** (a) **client account activation** — admin currently sets an initial password on approval;
   the real flow is an **invite link / set-password email** (no email infra yet). **Also applies to HR-invited

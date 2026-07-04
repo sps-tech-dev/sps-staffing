@@ -993,6 +993,55 @@ Fourth Part-B task. STOP-1 approved.
   user, aborting teardown and cascading FK errors into later fixtures — user-cleanup helpers now
   delete dpdp_requests + memberships BEFORE the user (made `_mk_user` leftovers-robust).
 
+## 2026-07-04 — B.5: Pipeline state-machine hardening ✅ (deployed + data-migrated + real-op proof)
+
+Fifth Part-B task — the correctness slice. STOP-1 approved (mapping, hold_prior_stage
+addition, reopen rule all ratified). First migration that REWRITES existing stage data.
+
+- **Migration `0024_pipeline_stages`:** applications += `version` (optimistic lock, default 1),
+  `hold_reason`, `drop_reason`, `hold_prior_stage` (reopen target — the one column beyond the
+  planned set, ratified), `rtr_consent_at`/`rtr_consent_by`; consents purpose CHECK += `'rtr'`;
+  stage CHECK dropped → **CASE data-migration** (`sourced→applied, screened→screening,
+  assessed→aptitude_passed, submitted→submitted_to_client, interview→client_round_1,
+  offer→offer, placed→joined, rejected→dropped [+tagged drop_reason], on_hold→on_hold`) → new
+  21-value CHECK. Reversible (documented-lossy reverse map); **up→down→up proven with a live
+  old-vocab row** (`submitted → submitted_to_client → submitted`). Prod note: batch + NOT
+  VALID/VALIDATE on populated tables.
+- **`app/pipeline.py` — the single stage-write module:** `transition()` (graph over the full
+  Part-5 set; withdraw/drop from any non-terminal stage with REQUIRED reason → 422; on_hold
+  stores prior stage; from on_hold only {prior, withdrawn, dropped}; reopen clears the hold
+  bookkeeping; **RTR gate** 409 `RTR_REQUIRED` before submitted_to_client; **optimistic lock**
+  via conditional UPDATE `WHERE version = expected` → 0 rows = 409 `STALE_STATE`; exactly one
+  StageChange timeline + one audit row per transition, in-txn) and `adopt_stage_on_merge()`
+  (the documented B.3 merge exception). STAGE_RANK + ACTIVE_STAGES live here — single
+  vocabulary owner. **Grep-proof: zero stage writes outside pipeline.py.**
+- **Endpoints:** `POST /api/applications/{id}/transition` (single public entry;
+  `{to_stage, expected_version, reason?}`; staff, tenant-scoped, Idempotency-Key) and
+  `POST /api/applications/{id}/rtr` (sets rtr_consent_at/by + appends the immutable `'rtr'`
+  consent row; idempotent; audited). `PATCH /applications/{id}/stage` kept as a DEPRECATED
+  shim through the guard (last-write-wins version; illegal moves still 409).
+- **Rerouted/updated:** create_application initial stage `applied`; dup_reviews merge adoption
+  via the guard module + new-vocab STAGE_RANK; employee SLA ACTIVE_STAGES from pipeline;
+  client-portal funnel follows APPLICATION_STAGES; probe/e2e scripts; ALL legacy tests
+  (incl. two client-portal fixtures with `stage="submitted"` that the Part-0 grep missed —
+  caught by CheckViolation in the first local run, swept with a full 9-literal re-grep).
+- **Tests: 143 → 156** (13 new): happy path applied→…→paid with the RTR block-then-pass +
+  terminal proof; parametrized illegal matrix; reasons; hold/wrong-reopen-409/reopen-clears;
+  stale-CAS (graph-legal move + old version); one-timeline+one-audit with idempotent replay;
+  shim-through-guard; scoping. Manual over-the-wire walk incl. STALE_STATE + withdraw: PASS.
+- **Deploy + real-op proof:** commits `feaee3d..6c81961` (4 groups) → pipeline run
+  `28702832371` green (migrate log shows 0024 applied, exit 0) → probe as **sps_app on dev
+  RDS** (`scripts/probe_pipeline.py`): **DISTINCT-stage check = no old-vocabulary values
+  remain** ✅ → 6 legal transitions (version 1→7) ✅ → RTR gate 409 ✅ → stale-CAS 409 ✅ →
+  withdraw-with-reason + exactly 7 StageChange rows ✅ — PASS exit 0 → master cleanup
+  `deleted=7 orphans_remaining=0`. Smoke: `/readyz` ok; transition + rtr endpoints 401 unauth.
+- **Gotchas:** (1) a replayed same-target transition hits ILLEGAL_TRANSITION before the CAS —
+  a stale-version test must use a graph-legal move from the CURRENT stage; (2) crashed-run
+  leftovers (users with memberships + old-vocab seeded rows) can exhaust the tiny local pool
+  (2+2) via cascading fixture failures and masquerade as a leak — `_mk_user` helpers are now
+  leftover-robust; (3) NEW DEFERRAL: the local frontend kanban still sends old stage names —
+  functionally broken against the new vocabulary until updated (PENDING D5).
+
 ## Pending / next steps
 
 ➡️ **The canonical, durable register of ALL outstanding/deferred items is
