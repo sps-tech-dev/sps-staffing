@@ -528,3 +528,54 @@ def test_waived_fail_follows_retake_cooldown(admin_env, monkeypatch):
     assert rr.status_code == 200
     blocked = c.post(f"/api/applications/{aid}/tests/issue", headers=HOST)
     assert blocked.status_code == 409 and blocked.json()["error"]["code"] == "RETAKE_COOLDOWN"
+
+
+# ── Step-0 (B.8 carry-over): pin the waiver to admin/owner ONLY ──
+@pytest.mark.parametrize("roles", [["recruiter"], ["employee"], ["coordinator"],
+                                   ["business_manager"], ["candidate"]])
+def test_waiver_boundary_no_staff_role_can_waive(admin_env, monkeypatch, roles):
+    """Permanently locks the B.7 waiver: no non-admin STAFF role may waive."""
+    sps, db = admin_env
+    monkeypatch.setattr(settings, "feature_assessment_waiver", True)
+    c = TestClient(app); _login(c, RECRUITER)
+    _cid, aid, _v = _app_at_aptitude(c)
+    issued = _issue(c, aid)
+    email = f"wb-{roles[0]}@local.test"
+    u = _mk_user(db, sps, email, roles)
+    try:
+        s = TestClient(app); _login(s, email)
+        r = _waive(s, aid, issued["test_id"])
+        assert r.status_code == 403, f"role {roles} was able to reach the waiver!"
+    finally:
+        db.execute(delete(Membership).where(Membership.user_id == u.id))
+        db.execute(delete(User).where(User.id == u.id)); db.commit()
+
+
+def test_waiver_boundary_client_sessions_blocked(admin_env, monkeypatch):
+    """client_admin and client_manager portal sessions can never waive."""
+    sps, db = admin_env
+    monkeypatch.setattr(settings, "feature_assessment_waiver", True)
+    c = TestClient(app); _login(c, RECRUITER)
+    _cid, aid, _v = _app_at_aptitude(c)
+    issued = _issue(c, aid)
+    client = Client(tenant_id=sps.id, business_unit_id="STAFFING", name="WB ClientCo")
+    db.add(client); db.flush()
+    made = []
+    for role in ("client_admin", "client_manager"):
+        u = User(tenant_id=sps.id, email=f"wb-{role}@local.test",
+                 password_hash=PasswordHasher().hash(PW), full_name="WB", status="active")
+        db.add(u); db.flush()
+        db.add(ClientUser(tenant_id=sps.id, user_id=u.id, client_id=client.id,
+                          status="active", role=role))
+        made.append(u)
+    db.commit()
+    try:
+        for role in ("client_admin", "client_manager"):
+            s = TestClient(app); _login(s, f"wb-{role}@local.test")
+            r = _waive(s, aid, issued["test_id"])
+            assert r.status_code == 403, f"{role} was able to reach the waiver!"
+    finally:
+        for u in made:
+            db.execute(delete(ClientUser).where(ClientUser.user_id == u.id))
+            db.execute(delete(User).where(User.id == u.id))
+        db.execute(delete(Client).where(Client.id == client.id)); db.commit()
