@@ -190,6 +190,10 @@ def test_confirm_pdf_sets_key_timestamp_and_text(env, s3):
     k, txt, up = _cand_resume_row(cid)
     assert k == key and up is not None
     assert txt and "Asha Sharma" in txt and "Terraform" in txt
+    # B.2: confirm also appends a ResumeUpload timeline event
+    tl = c.get(f"/api/candidates/{cid}/timeline", headers=HOST).json()
+    assert [e["event_type"] for e in tl] == ["ResumeUpload"]
+    assert tl[0]["payload"]["resume_s3_key"] == key
 
 
 def test_confirm_docx_sets_text(env, s3):
