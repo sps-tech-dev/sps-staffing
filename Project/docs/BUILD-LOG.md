@@ -1215,6 +1215,50 @@ Ninth Part-B task. STOP-1 approved with the founder-confirmed FEE MODEL (resolve
   new `ck_placements_guarantee_order` CHECK caught an incoherently back-dated test row —
   defense-in-depth paying for itself immediately.
 
+## 2026-07-04 — B.10: Notification service scaffolding ✅ (deployed + real-op proof)
+
+Tenth Part-B task — the keystone that un-stubs B.7 result / B.8 reminder / B.9 dunning.
+
+- **TRANSPORT (settled):** the `shared.notifications` TABLE + the one-off runner sweep — queue,
+  delivery-status, idempotency ledger and audit in ONE store; no Redis queue (a second store to
+  reconcile); worker = future scale-up behind the same interface. Sweep lives in
+  `run_commercial_jobs.py` (single runner for all periodic work).
+- **Migration `0029_notifications`:** `notification_templates` (versioned, UNIQUE code) +
+  `notifications` (status CHECK pending|sent|failed|skipped, `UNIQUE(idempotency_key)` — the
+  DB-level no-double-send guarantee, `(status, created_at)` sweep index). Deliberately
+  UPDATE-in-place OPERATIONAL tables (unlike the append-only ledgers) — NOT in the REVOKE
+  list. Seeds: 3 PROVISIONAL operational templates; legal/consent copy stays STOP-3.
+- **THE PART-D SEAM (`app/notify.py`):** `AbstractChannel.send(RenderedMessage)→DeliveryResult`
+  with self-declared `channel_type`; `CHANNEL_REGISTRY` decides deliverability. Only
+  **ConsoleChannel** (log-only dev sink) is registered; Email/Sms/WhatsApp are DECLARED but
+  off. **Registering a real channel (+ clearing `NOTIFY_CHANNEL_OVERRIDE`) is the entire Part-D
+  switch — zero call-site changes.** Unregistered channel rows PARK pending, untouched by the
+  sweep (attempts not burned) → Part D picks them up automatically. `NOTIFY_CHANNEL_OVERRIDE`
+  (default `console`) routes dev enqueues to the sink while templates keep their intended
+  channel.
+- **Idempotency:** stable business keys — `assessment_result:<test_id>`,
+  `interview_reminder:<interview_id>:<ics_sequence>` (reschedule = new reminder; replay ≠ dup),
+  `invoice_dunning:<invoice_id>` (one notice per invoice; cadence = Part-D policy). Duplicate
+  enqueue = no-op; sweep processes `pending` only → sent rows structurally unresendable.
+- **Consent:** TRANSACTIONAL kinds (result/reminder/dunning) are operational service messages
+  under the service's lawful basis — no marketing gate. `kind='marketing'` checks the
+  `shared.consents` ledger (latest 'marketing' for the subject); absent/withdrawn →
+  `skipped` + reason recorded, never sent. Retry: attempts cap (`NOTIFY_MAX_ATTEMPTS`=5),
+  `last_error` recorded, `failed` at cap, backoff = runner cadence.
+- **Wired sites (enqueue only, never direct send):** take.py submit; workflow.py choose_slot
+  (.ics attach + METHOD:CANCEL live inside the future EmailChannel); jobs.py dunning_sweep —
+  runner-only `enqueue_sends=True` so `GET /invoices/overdue` stays read-only; dunning
+  recipient = the client's first active bound user (none → detection-only, logged).
+  Plus `GET /api/notifications` (staff, tenant-scoped status/debug view).
+- **Tests: 207 → 216.** Manual walk PASS (trigger → pending row → sweep → verbatim CONSOLE
+  DELIVERY log → sent). Deploy: commits `5308a21..764fbda` (4 groups) → pipeline run
+  `28708541258` green → probe as sps_app: seeds ✅, idempotent enqueue ✅, sweep sent-once +
+  idempotent re-run ({'sent':1}→{'sent':0}) ✅, email row parked untouched ✅ — PASS exit 0,
+  self-cleaned. Smoke: `/readyz` ok, notifications endpoint 401 unauth.
+- **PII note (PENDING B4 invariant):** the notifications table stores recipient + rendered
+  operational bodies (names/schedules) — PII-adjacent; keep it out of any future cache path.
+  ConsoleChannel is log-only, never a durable store.
+
 ## Pending / next steps
 
 ➡️ **The canonical, durable register of ALL outstanding/deferred items is

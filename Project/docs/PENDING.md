@@ -162,6 +162,19 @@ Last refreshed: 2026-06-28 (after client-internal roles / owner-scoped jobs — 
 - **Blocks:** those product lines.
 - **Trigger:** when the standing sequence reaches them.
 
+### D8. B.10 notifications — enqueue wired; real DELIVERY = Part D (added 2026-07-04)
+- **What:** the notification pipeline is LIVE (templates, enqueue, idempotency ledger,
+  ConsoleChannel dev sink, send sweep in the commercial-jobs runner). The three former stubs —
+  **B.7 assessment result, B.8 interview reminder, B.9 dunning** — now ENQUEUE; actual
+  delivery to real recipients needs Part D: register `EmailChannel` (SES — includes the .ics
+  attach and the METHOD:CANCEL cancellation path) / `SmsChannel` / `WhatsAppChannel` in
+  `notify.CHANNEL_REGISTRY` and clear `NOTIFY_CHANNEL_OVERRIDE`. Parked pending rows are
+  picked up automatically — zero call-site changes.
+- **Also:** dunning cadence (today: one notice per invoice, `invoice_dunning:<id>`) is a
+  Part-D policy decision; template copy is PROVISIONAL operational text — refine before real
+  sends (legal/consent notices remain STOP-3/A1).
+- **Trigger:** Part D (D.3/D.5) — SES production access + provider onboarding.
+
 ### D7. B.9 commercial layer — deferred wiring (added 2026-07-04)
 - **What:** (a) the guarantee/dunning sweeps run via `backend/scripts/run_commercial_jobs.py`
   as a ONE-OFF ECS task (repo pattern) — the **EventBridge Scheduler → ECS RunTask daily rule
