@@ -74,6 +74,13 @@ class Settings(BaseSettings):
     test_retake_cooldown_days: int = 30  # TEST_RETAKE_COOLDOWN_DAYS (after a fail)
     test_max_snapshots: int = 500        # TEST_MAX_SNAPSHOTS (proctoring uploads per test)
 
+    # Notification service (B.10). ConsoleChannel is the ONLY implemented channel;
+    # the override routes ALL enqueues to it (dev sink). Part D: set the override
+    # empty + register real channels — enqueued rows for real channel types are
+    # parked pending until their channel registers (zero call-site change).
+    notify_channel_override: str = "console"   # NOTIFY_CHANNEL_OVERRIDE ("" = template channel)
+    notify_max_attempts: int = 5               # NOTIFY_MAX_ATTEMPTS (then status=failed)
+
     # Commercial layer (B.9). Fee model is founder-confirmed (Part 0-FEE): base =
     # ANNUAL CTC, 15% flat default before tax, client-level override, GST/TDS inert.
     placement_guarantee_days: int = 60   # PLACEMENT_GUARANTEE_DAYS

@@ -159,6 +159,59 @@ class Consent(Base):
     )
 
 
+class NotificationTemplate(Base):
+    # B.10: versioned operational templates (global, tenant-agnostic). channel_type
+    # records the INTENDED real channel (email/sms/whatsapp); the dev override
+    # routes deliveries to the console sink. Legal/consent copy is NOT templated
+    # here (STOP-3).
+    __tablename__ = "notification_templates"
+    __table_args__ = {"schema": SCHEMA}
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    code: Mapped[str] = mapped_column(sa.Text, nullable=False, unique=True)
+    channel_type: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    subject: Mapped[str | None] = mapped_column(sa.Text)
+    body: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    version: Mapped[int] = mapped_column(sa.Integer, nullable=False, server_default=sa.text("1"))
+    is_active: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, server_default=sa.text("true"))
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+    )
+
+
+class Notification(Base):
+    # B.10: the enqueue TABLE = queue + delivery-status + idempotency ledger in one
+    # store (settled transport decision — no Redis queue). OPERATIONAL table:
+    # status/attempts are UPDATE-in-place by design (unlike the append-only
+    # ledgers) → normal DML for sps_app, NOT in the bootstrap REVOKE list.
+    # UNIQUE(idempotency_key) is the no-double-send guarantee at the DB level.
+    __tablename__ = "notifications"
+    __table_args__ = (
+        sa.CheckConstraint("status IN ('pending','sent','failed','skipped')",
+                           name="ck_notifications_status"),
+        sa.UniqueConstraint("idempotency_key", name="uq_notifications_idempotency_key"),
+        sa.Index("ix_notifications_status_created", "status", "created_at"),
+        sa.Index("ix_notifications_tenant", "tenant_id"),
+        {"schema": SCHEMA},
+    )
+    id: Mapped[uuid.UUID] = _uuid_pk()
+    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    business_unit_id: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    template_code: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    channel_type: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    recipient: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    vars: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default=sa.text("'{}'::jsonb"))
+    rendered_subject: Mapped[str | None] = mapped_column(sa.Text)
+    rendered_body: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    status: Mapped[str] = mapped_column(sa.Text, nullable=False, server_default=sa.text("'pending'"))
+    attempts: Mapped[int] = mapped_column(sa.Integer, nullable=False, server_default=sa.text("0"))
+    last_error: Mapped[str | None] = mapped_column(sa.Text)
+    idempotency_key: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+    )
+    sent_at: Mapped[datetime.datetime | None] = mapped_column(sa.DateTime(timezone=True))
+
+
 class DpdpRequest(Base):
     # DPDP data-principal rights (F6): export / erasure requests. The mechanism is
     # recorded here; fulfilment (export bundle / erasure execution) is tracked by
