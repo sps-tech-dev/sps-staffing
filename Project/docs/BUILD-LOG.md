@@ -1470,6 +1470,28 @@ First FRONTEND slice (frontend-only; paths-ignore confirmed — no backend deplo
   decision) · overview recent rows fixed to the real shape (the old status/updatedAt fields
   never existed server-side). tsc/eslint/build clean; 8-check walk PASS. Frontend-only.
 
+## 2026-07-04 — F4: client-portal deep tabs + admin/employee SLA boards ✅ (local-verified)
+
+Pure frontend slice (no backend change; paths-ignore confirmed — no deploy).
+
+- **Client portal (the external surface):** pipeline page was STILL on the dead pre-B.5
+  vocabulary (a D5 remnant F1's employer-kanban fix missed) — rewritten as 7 grouped
+  read-only columns (Screening→…→Your Rounds→Offer→Joined) over the real 21 stages;
+  **Interviews page created** (endpoint/hook existed since Task 5; the page didn't) + nav;
+  Jobs got a truthful role caption. No .ics link faked (the client response doesn't carry
+  one; invites arrive by email).
+- **Role-conditioning (the thing to get right):** HR (client_admin) renders the offer
+  release/joining-date editor; a manager gets an EXPLICITLY-LABELED read-only view — the UI
+  never renders a control the backend 403s. Walked end-to-end: manager sees only own jobs,
+  manager offer-write → 403, HR release → 200, submissions feedback → 200.
+- **Admin/employee:** /employee/queue + /employee/sla + /admin/sla-board on the real SLA
+  read-model (KPIs + oldest-first queue). **/admin/employees stays honestly ComingSoon — no
+  staff-roster endpoint exists** (backend guard: reported, not faked; needs a small admin
+  roster endpoint when wanted).
+- **Verified:** tsc/eslint/build clean; 20-check walk PASS (client_admin, client_manager,
+  admin; bounce checks included). Two walk-script fixes en route (seeded interview lacked
+  client_id — the scoping HID it correctly; bounce check must not follow redirects).
+
 ## Pending / next steps
 
 ➡️ **The canonical, durable register of ALL outstanding/deferred items is
