@@ -20,6 +20,7 @@ from .routers import assessments as assessments_router
 from .routers import take as take_router
 from .routers import placements as placements_router
 from .routers import notifications as notifications_router
+from .routers import founder as founder_router
 
 app = FastAPI(title="SPS Technosoft API", version="0.1.1")
 
@@ -45,6 +46,7 @@ app.include_router(dup_reviews_router.router, prefix="/api", tags=["dup-reviews"
 app.include_router(assessments_router.router, prefix="/api", tags=["assessments"])
 app.include_router(placements_router.router, prefix="/api", tags=["placements"])
 app.include_router(notifications_router.router, prefix="/api", tags=["notifications"])
+app.include_router(founder_router.router, prefix="/api/dashboard/founder", tags=["founder-dashboard"])
 # /api/take is the ONE-TIME-TOKEN candidate surface (B.7): no JWT, no cookies —
 # the token resolves the test row and is the entire authority.
 app.include_router(take_router.router, prefix="/api/take", tags=["take-test"])

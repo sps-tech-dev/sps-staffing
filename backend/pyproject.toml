@@ -23,6 +23,8 @@ dependencies = [
   "docx2txt>=0.8",
   # Invoice PDF (B.9) — pure-Python capable, ARM64-safe
   "reportlab>=4.2",
+  # Founder-dashboard Excel export (B.11) — pure-Python, ARM64-safe
+  "openpyxl>=3.1",
 ]
 [project.optional-dependencies]
 dev = ["pytest>=8", "httpx>=0.27", "moto[s3]>=5"]
