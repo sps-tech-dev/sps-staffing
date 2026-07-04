@@ -1259,6 +1259,44 @@ Tenth Part-B task — the keystone that un-stubs B.7 result / B.8 reminder / B.9
   operational bodies (names/schedules) — PII-adjacent; keep it out of any future cache path.
   ConsoleChannel is log-only, never a durable store.
 
+## 2026-07-04 — B.11: Founder dashboard (read-models + Redis cache) ✅ (deployed + real-op proof)
+
+Eleventh Part-B task — read-heavy, security-first. A NO-MIGRATION slice.
+
+- **MATERIALIZATION (settled):** on-read aggregation + Redis cache for v1 — dev volume is tiny
+  and correctness-on-read is simpler to prove; nightly materialized read-model tables are the
+  volume scale-up, added later behind the same `app/reporting.py` functions (PENDING D9).
+- **THE GATE (the headline):** `FOUNDER_ROLES = {owner, super_admin, founder}` — 'owner' is
+  the founder's actual seeded slug (0003); plain **admin is deliberately excluded** (stricter
+  than the admin gate); client sessions always rejected. Recruiter-performance/client-health
+  aggregates therefore never reach the people they describe. **Every access audit-logged**
+  (`dashboard.founder_access`: endpoint, metric, range, refresh) — test-locked to exactly one
+  row per access. Tenant-scoped in every query AND cache key — no cross-tenant totals exist.
+- **NO-PII-IN-REDIS, BY CONSTRUCTION (PENDING B4 upheld):** `cache_guard()` runs on every
+  cache write and on export payloads — dict keys must be enumerated ALLOWED_FIELDS / known
+  labels / date buckets; values only numbers/bools/None / CHECK-constrained labels (stages,
+  BU codes, statuses, template codes) / `YYYY-MM` buckets. Names, emails, free text raise
+  `CacheGuardError` before any Redis write. Test-locked (rejections + real-shape passes) AND
+  probe-verified against real ElastiCache (cached JSON re-guarded + inspected).
+- **Cache model:** `dash:founder:<tenant>:<bu|all>:<metric>:<range>`, TTL 300s, `?refresh=1`
+  deletes-then-recomputes; Redis outage degrades to compute (optimization, never dependency).
+- **Endpoints:** `/api/dashboard/founder/{overview,trends,by-bu,export}` — trends metrics
+  allowlisted (revenue/placements/applications, month-bucketed); **by-bu shows
+  ACADEMY/CONSULTING present-but-zero via the same real queries** (not fabricated). Exports:
+  PDF (ReportLab) + xlsx (**openpyxl — new pure-Python dep, ARM64-clean**); tests extract both
+  and assert no candidate name appears anywhere.
+- **Tests: 216 → 224.** Guard iteration for the record: v1 of the guard rejected its own
+  payload FIELD NAMES — resolved with the enumerated-fields-for-keys / labels-only-for-values
+  split (stricter where data flows, safe where literals flow).
+- **Deploy + real-op proof:** commits `a6ba03d..6b1d5a6` (3 groups) → pipeline run
+  `28709399486` green (migrate no-op at head 0029, as expected) → probe as sps_app (founder
+  exercised via in-process owner-role context — dev has no browser login, JWT = Part D; the
+  gate additionally proven by recruiter/client contexts 403ing): seeded KPIs match on real RDS
+  → **real ElastiCache key inspected, cached value passes the PII guard, no '@'/names in the
+  raw JSON** → refresh + audit row → PDF/xlsx round-trip — PASS exit 0, self-cleaned (cache
+  keys deleted; probe audit rows kept — genuine access records). Smoke: `/readyz` ok, founder
+  endpoint 401 unauth.
+
 ## Pending / next steps
 
 ➡️ **The canonical, durable register of ALL outstanding/deferred items is

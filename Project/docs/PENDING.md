@@ -162,6 +162,15 @@ Last refreshed: 2026-06-28 (after client-internal roles / owner-scoped jobs — 
 - **Blocks:** those product lines.
 - **Trigger:** when the standing sequence reaches them.
 
+### D9. B.11 founder dashboard — scale-up deferrals (added 2026-07-04)
+- **What:** (a) **nightly materialized read-model tables** — v1 aggregates on-read + Redis
+  cache (fine at dev volume); when data volume makes on-read slow, add materialized tables
+  behind the same `app/reporting.py` functions (the interface is the seam). (b) ACADEMY/
+  CONSULTING by-bu columns are present-but-zero and fill in automatically when those verticals
+  land (D1). (c) predictive/AI metrics (forecasts, health scores) = the V2 backlog — the
+  dashboard stays descriptive until then.
+- **Trigger:** (a) volume/latency; (b) B.17/B.18; (c) V2 gates.
+
 ### D8. B.10 notifications — enqueue wired; real DELIVERY = Part D (added 2026-07-04)
 - **What:** the notification pipeline is LIVE (templates, enqueue, idempotency ledger,
   ConsoleChannel dev sink, send sweep in the commercial-jobs runner). The three former stubs —
