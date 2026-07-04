@@ -1,3 +1,4 @@
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -24,7 +25,13 @@ class Settings(BaseSettings):
     access_ttl_seconds: int = 900       # 15 min
     refresh_ttl_seconds: int = 604800   # 7 days
     cookie_secure: bool = False         # COOKIE_SECURE — true in prod (HTTPS only)
-    storage_bucket: str = "sps-technosoft-dev-storage"
+    # S3 storage bucket. Deployed tasks inject S3_BUCKET (ecs.tf); the alias fixes
+    # the PENDING C5 mismatch where the field only read STORAGE_BUCKET and silently
+    # fell back to this default on ECS. Default is for local/test only.
+    storage_bucket: str = Field(
+        default="sps-technosoft-dev-storage",
+        validation_alias=AliasChoices("S3_BUCKET", "STORAGE_BUCKET"),
+    )
 
     # Feature flags (F6). Non-GA features default OFF; gated routes 404 when off
     # (see app/features.py). AI assistive widgets are not GA — off in dev.

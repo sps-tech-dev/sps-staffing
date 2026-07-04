@@ -22,6 +22,7 @@ import uuid
 from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session, undefer
 
+from . import storage
 from .audit import write_audit
 from .config import settings
 from .context import RequestContext
@@ -63,20 +64,16 @@ def soft_delete_candidates(db: Session, ctx: RequestContext, email: str | None) 
 
 
 def _delete_resume_objects(keys: list[str]) -> int:
-    """Delete S3 resume objects. Today no upload code exists ⇒ keys is empty ⇒ no-op.
-    When resume upload lands, the task role needs s3:DeleteObject + the bucket config
-    fix (PENDING C5)."""
-    if not keys:
-        return 0
+    """Delete S3 resume objects (B.1 — resolves PENDING C5). Resume files ARE PII;
+    S3 sits outside the DB cascade, so the anonymize path must reach them explicitly.
+    Task role has s3:DeleteObject (Project/s3.tf); bucket comes from S3_BUCKET."""
     deleted = 0
-    try:
-        import boto3
-        s3 = boto3.client("s3", region_name=settings.aws_region)
-        for k in keys:
-            s3.delete_object(Bucket=settings.storage_bucket, Key=k)
+    for k in keys:
+        try:
+            storage.delete_object(k)
             deleted += 1
-    except Exception as e:  # noqa: BLE001 — never fail the erasure on S3; surface for follow-up
-        log.error("resume S3 delete failed (needs s3:DeleteObject grant + bucket cfg, PENDING C5): %s", e)
+        except Exception as e:  # noqa: BLE001 — never fail the erasure on S3; surface for follow-up
+            log.error("resume S3 delete failed for key %s: %s", k, e)
     return deleted
 
 
@@ -109,6 +106,8 @@ def _anonymize(db: Session, ctx: RequestContext, user: User) -> dict:
         c.search_doc = None
         c.source = None
         c.resume_s3_key = None
+        c.resume_text = None            # extracted text is PII — must not survive erasure
+        c.resume_uploaded_at = None
         if c.deleted_at is None:
             c.deleted_at = _now()
 
