@@ -162,6 +162,19 @@ Last refreshed: 2026-06-28 (after client-internal roles / owner-scoped jobs — 
 - **Blocks:** those product lines.
 - **Trigger:** when the standing sequence reaches them.
 
+### D6. B.7 aptitude engine — deferred pieces (added 2026-07-04)
+- **What:** the backend engine is live (issue/take/grade/waiver, dev-deployed). Deferred:
+  (a) the **take-test FRONTEND** — browser lockdown/fullscreen, face-api.js, the snapshot
+  capture LOOP (B.7 provides the upload presign + proctor_flags storage only);
+  (b) the **result email** ("result within 30 min") — needs B.10 notifications + SES (Part D);
+  result currently surfaces in-app/on the dashboard only;
+  (c) **real question-bank CONTENT** — the seeded bank is 12 clearly-marked SAMPLE questions;
+  real banks are a Part-C input from the user.
+- **Note:** `FEATURE_ASSESSMENT_WAIVER` is the per-tenant demo/policy toggle for the admin
+  assessment waiver — **OFF by default** (waiver endpoints 404); flip per environment/tenant
+  deliberately. A waived pass always shows `waived=true` + `score=NULL`.
+- **Trigger:** (a) the take-test frontend slice; (b) B.10/SES; (c) whenever question content arrives.
+
 ### D5. Frontend kanban uses the pre-B.5 stage vocabulary (added 2026-07-04)
 - **What:** B.5 (migration `0024`) replaced the 9-stage vocabulary with the full 21-stage
   Part-5 set and routed all stage changes through `pipeline.transition()`. The deprecated

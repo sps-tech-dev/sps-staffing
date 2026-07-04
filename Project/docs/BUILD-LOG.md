@@ -1076,6 +1076,59 @@ wiring, both per the stated defaults).
 - **Gotcha:** any probe that exercises the RTR gate necessarily writes an immutable consents
   row — master-cleanup JSON must include the orphaned-'rtr'-consent sweep, not just timeline.
 
+## 2026-07-04 — B.7: Proctored aptitude test engine + admin waiver ✅ (deployed + real-op proof)
+
+Seventh Part-B task — the flagship differentiator. Combined STOP-1 (core + waiver) approved.
+Introduces the platform's FIRST non-JWT auth surface.
+
+- **Migration `0026_aptitude_tests`:** `question_banks` / `questions` (difficulty CHECK;
+  `correct_index` server-side only) / `tests` (SHA-256 `link_token_hash` UNIQUE, `valid_until`,
+  status CHECK issued|started|submitted|expired, `attempt_no`, FROZEN `served_questions` jsonb,
+  score/passed, `proctor_flags` jsonb). Normal-DML (not in the REVOKE list). **Seed:** 12
+  clearly-marked SAMPLE questions (SPS001, in-migration, online-mode) — real content is a Part-C
+  input. up→down→up clean (seed=12 verified).
+- **TOKEN AUTH MODEL (new trust surface):** `secrets.token_urlsafe(32)` (256-bit CSPRNG), stored
+  as SHA-256 only (raw shown once at issue; indexed-equality lookup — stretching pointless for a
+  CSPRNG secret). The token resolves exactly ONE test row; tenant/candidate/application derive
+  from that row only. `/api/take` has zero JWT/cookie code paths — a staff JWT is useless there
+  (tested). Unknown → 404; expired/used/waived → 410; uniform bodies, no enumeration signal.
+- **ANTI-CHEAT CORE:** at issue — CSPRNG weighted-random select (even across difficulties),
+  question AND option shuffle, exact served set + post-shuffle correct answers FROZEN into
+  `served_questions`. Fetch returns `{qid, stem, options}` only (test asserts the literal
+  "correct" absent from the response). `grade()` reads ONLY the frozen copy — post-issue bank
+  sabotage test (flip all answers + deactivate all questions) still grades 1.0. Score =
+  correct/total, no negative marking, pass ≥ 0.70 (config; boundary tested). Idempotent submit.
+- **THREE R1 EMITTERS, mechanically single-fire:** engine (take submit), B.6 manual evaluation,
+  admin waiver — all drive the same `aptitude_test → aptitude_passed|failed` guard edge, and the
+  edge IS the mutex: first mover wins; later attempts 409 (manual/waiver) or store-without-
+  advancing (engine, `pipeline_advanced:false`, no event). TestCompletion payload carries
+  `source: engine|manual… (B.6 emits without source)|admin_waive`. Both orders tested, event
+  count asserted = 1.
+- **ADMIN WAIVER (governed per-tenant capability):** `FEATURE_ASSESSMENT_WAIVER` (default OFF →
+  404 probe-proof, ctx-aware resolver for later per-tenant/plan resolution) + `_require_admin`
+  (recruiters 403) + reason REQUIRED (422) + audited (`test.waive`). Honesty: `score` stays NULL
+  (never a fake number), `proctor_flags.waived={by,reason,at,source:'admin_waive'}`, dashboard
+  exposes `waived:true` — a waived pass is structurally distinguishable. Mutual exclusion both
+  directions: graded → waive = 409 ALREADY_GRADED; waived → take fetch/submit = 410. Waived FAIL
+  follows the same retake cooldown. **Invariant preserved:** a waived R1 still can't jump to
+  submitted_to_client (R2 + RTR required — tested).
+- **Also:** issue preconditions (stage `aptitude_test` / one live test / 30d retake cooldown with
+  `attempt_no++` + fresh paper), snapshot presign under the candidate's `/proctor/` S3 prefix
+  (upload only — the browser capture loop is frontend, deferred), staff dashboard (never exposes
+  the paper or token hash), result email stubbed pending B.10/SES.
+- **Tests: 168 → 186.** Manual walks: core run + waiver walk (incl. over-the-wire flag-OFF 404).
+- **Deploy + real-op proof:** commits `2b2e707..150dd1c` (4 groups) → pipeline run `28704532125`
+  green (migrate + seed) → probe as sps_app (`scripts/probe_assessments.py`): seed=12 ✅ →
+  freeze + no-leak ✅ → auto-grade + aptitude_passed + TestCompletion ✅ → snapshot presign +
+  **REAL PUT to the real bucket** + key in proctor_flags + object deleted ✅ → **waiver leg:
+  flag-OFF 404 → flag-ON waive → aptitude_passed, score NULL, waived block, ONE
+  TestCompletion{admin_waive}** ✅ — PASS exit 0 → master cleanup `orphaned timeline=8,
+  remaining=0`. Smoke: `/readyz` ok, bad token 404, issue 401 unauth, waive 401 unauth
+  (authenticated flag-off 404 proven by probe/tests).
+- **Gotcha:** unauthenticated waiver calls 401 before the flag's 404 (auth dependency resolves
+  first) — the probe-proof property applies to authenticated probing, which is the threat the
+  pattern addresses.
+
 ## Pending / next steps
 
 ➡️ **The canonical, durable register of ALL outstanding/deferred items is
