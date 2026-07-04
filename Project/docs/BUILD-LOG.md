@@ -1129,6 +1129,42 @@ Introduces the platform's FIRST non-JWT auth surface.
   first) — the probe-proof property applies to authenticated probing, which is the threat the
   pattern addresses.
 
+## 2026-07-04 — B.8: Interview scheduling depth (slots, .ics, no-show/reschedule) ✅ (deployed + real-op proof)
+
+Eighth Part-B task. STOP-1 approved (.ics eyeballed valid; DDL + waiver pin praised).
+
+- **Migration `0027_interview_slots`:** slot table (>=3 per round, one chosen, DB-level
+  `slot_end > slot_start` CHECK), status CHECK widened with `rescheduled` ONLY (Part-0 catch:
+  `no_show` existed since 0013 — smaller blast radius), interviews += `ics_sequence`
+  (RFC 5545 SEQUENCE must persist to bump) + `status_reason` (no-show reason — `feedback` is
+  client feedback, wrong container). Reversible (`rescheduled→scheduled` before CHECK restore).
+- **`app/ics.py`:** hand-rolled RFC 5545, no new dependency — stable
+  `UID:interview-<id>@spstechnosoft.com` + SEQUENCE bump on reschedule (calendar clients update
+  in place), DTSTAMP/DTSTART/DTEND UTC Zulu, CRLF, TEXT escaping, METHOD:REQUEST with
+  ORGANIZER/ATTENDEE. **Noted for the future cancel path (B.10 email era):** cancellation wants
+  `METHOD:CANCEL` + `STATUS:CANCELLED` + SEQUENCE bump so calendars actually remove the event;
+  panel interviews may want multiple ATTENDEEs (interviewer currently DESCRIPTION-only).
+- **Endpoints (staff, tenant-scoped, idempotent, audited):** propose (>=3 or 422 TOO_FEW_SLOTS;
+  re-proposal replaces the unchosen round) → choose (one chosen, `scheduled_at` set, timeline
+  `Interview{action:scheduled}`) → `GET /interviews/{id}/ics` download (SES attach = B.10).
+  PATCH: `no_show` REQUIRES reason (422 REASON_REQUIRED → `status_reason`); `rescheduled` bumps
+  SEQUENCE, wipes the slot round (fresh .ics on next choose), emits
+  `Interview{action:rescheduled}`. **No pipeline coupling** (Part-0 verified: pipeline.py has
+  zero Interview references — scheduling can never move a stage). Client portal surfaces the new
+  status read-only with no code change (status passes through verbatim; tested).
+- **Step-0 carry-over — B.7 waiver boundary PINNED:** 6 tests — recruiter/employee/coordinator/
+  business_manager/candidate (flag ON, parametrized) all 403; client_admin + client_manager
+  portal sessions 403. No code change needed (`_require_admin` held); the admin-only guarantee
+  is now regression-locked.
+- **Tests: 186 → 197.** Manual walk PASS (propose→choose→.ics SEQUENCE:0→reschedule→SEQUENCE:1
+  w/ new DTSTART→no-show-with-reason).
+- **Deploy + real-op proof:** commits `3279321..591d8fd` (4 groups) → pipeline run
+  `28705117267` green → probe as sps_app (`scripts/probe_interview_slots.py`): slots table live
+  (3 proposed) → choose + valid .ics (UID/SEQUENCE:0/CRLF) → reschedule SEQUENCE=1 + round wiped
+  → no_show + reason persisted on the widened CHECK + Interview timeline row — **PASS exit 0**
+  → master cleanup `orphaned timeline=1 → 0`. Smoke: `/readyz` ok, slots + ics endpoints 401
+  unauth (authenticated .ics content proven by the probe).
+
 ## Pending / next steps
 
 ➡️ **The canonical, durable register of ALL outstanding/deferred items is
