@@ -219,6 +219,77 @@ class InternalEvaluation(Base):
     )
 
 
+# ── B.7 aptitude test engine ─────────────────────────────────────
+QUESTION_DIFFICULTIES = ("easy", "medium", "hard")
+_DIFF_SQL = ", ".join(f"'{d}'" for d in QUESTION_DIFFICULTIES)
+TEST_STATUSES = ("issued", "started", "submitted", "expired")
+_TEST_SQL = ", ".join(f"'{s}'" for s in TEST_STATUSES)
+
+
+class QuestionBank(TwoAxisMixin, Base):
+    __tablename__ = "question_banks"
+    __table_args__ = (
+        bu_check("question_banks"),
+        sa.Index("ix_question_banks_tenant_bu", "tenant_id", "business_unit_id"),
+        {"schema": SCHEMA},
+    )
+    name: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    category: Mapped[str | None] = mapped_column(sa.Text)
+    is_active: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, server_default=sa.text("true"))
+
+
+class Question(TwoAxisMixin, Base):
+    # correct_index NEVER leaves the server: the take-test fetch returns stems +
+    # shuffled options only; grading runs against the FROZEN copy in tests.served_questions.
+    __tablename__ = "questions"
+    __table_args__ = (
+        bu_check("questions"),
+        sa.CheckConstraint(f"difficulty IN ({_DIFF_SQL})", name="ck_questions_difficulty"),
+        sa.Index("ix_questions_bank_id", "bank_id"),
+        {"schema": SCHEMA},
+    )
+    bank_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), sa.ForeignKey(f"{SCHEMA}.question_banks.id"), nullable=False
+    )
+    category: Mapped[str | None] = mapped_column(sa.Text)
+    difficulty: Mapped[str] = mapped_column(sa.Text, nullable=False, server_default=sa.text("'medium'"))
+    stem: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    options: Mapped[list] = mapped_column(JSONB, nullable=False)
+    correct_index: Mapped[int] = mapped_column(sa.Integer, nullable=False)
+    is_active: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, server_default=sa.text("true"))
+
+
+class Test(TwoAxisMixin, Base):
+    # One aptitude attempt. link_token_hash = SHA-256 of the one-time token (raw
+    # token shown once at issue, never stored). served_questions is the FROZEN
+    # paper (ids + shuffled options + correct answer captured at freeze) — grading
+    # never re-queries the bank, so later edits can't change a taken test.
+    __tablename__ = "tests"
+    __table_args__ = (
+        bu_check("tests"),
+        sa.CheckConstraint(f"status IN ({_TEST_SQL})", name="ck_tests_status"),
+        sa.UniqueConstraint("link_token_hash", name="uq_tests_link_token_hash"),
+        sa.Index("ix_tests_application_id", "application_id"),
+        {"schema": SCHEMA},
+    )
+    application_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), sa.ForeignKey(f"{SCHEMA}.applications.id"), nullable=False
+    )
+    candidate_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), sa.ForeignKey(f"{SCHEMA}.candidates.id"), nullable=False
+    )
+    link_token_hash: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    valid_until: Mapped[datetime.datetime] = mapped_column(sa.DateTime(timezone=True), nullable=False)
+    status: Mapped[str] = mapped_column(sa.Text, nullable=False, server_default=sa.text("'issued'"))
+    attempt_no: Mapped[int] = mapped_column(sa.Integer, nullable=False, server_default=sa.text("1"))
+    served_questions: Mapped[list | None] = mapped_column(JSONB)
+    started_at: Mapped[datetime.datetime | None] = mapped_column(sa.DateTime(timezone=True))
+    submitted_at: Mapped[datetime.datetime | None] = mapped_column(sa.DateTime(timezone=True))
+    score: Mapped[float | None] = mapped_column(sa.Numeric)
+    passed: Mapped[bool | None] = mapped_column(sa.Boolean)
+    proctor_flags: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default=sa.text("'{}'::jsonb"))
+
+
 # Submission to client (Part 5): submissions(application_id, client_feedback, status)
 SUBMISSION_STATUSES = ("submitted", "under_review", "shortlisted", "rejected")
 _SUB_SQL = ", ".join(f"'{s}'" for s in SUBMISSION_STATUSES)

@@ -36,6 +36,10 @@ class Settings(BaseSettings):
     # Feature flags (F6). Non-GA features default OFF; gated routes 404 when off
     # (see app/features.py). AI assistive widgets are not GA — off in dev.
     feature_ai: bool = False            # FEATURE_AI
+    # B.7 admin assessment waiver — a GOVERNED per-tenant capability (demo/policy
+    # toggle): admin-gated, reason-required, audited, never fakes a score. OFF by
+    # default; 404 when off (probe-proof).
+    feature_assessment_waiver: bool = False   # FEATURE_ASSESSMENT_WAIVER
 
     # PII field encryption (Part 10). Envelope encryption + blind index.
     #   - PII_KMS_KEY_ID set  -> KMS mode (GenerateDataKey/Decrypt on the CMK).
@@ -61,6 +65,14 @@ class Settings(BaseSettings):
     # never flags. Conservative default; tune with real data.
     dedup_name_similarity: float = 0.4       # DEDUP_NAME_SIMILARITY
     dedup_resume_similarity: float = 0.3     # DEDUP_RESUME_SIMILARITY (second signal)
+
+    # Aptitude test engine (B.7) — Appendix A / Compendium §14 defaults.
+    test_question_count: int = 30        # TEST_QUESTION_COUNT (capped by available bank size)
+    test_time_limit_minutes: int = 60    # TEST_TIME_LIMIT_MINUTES
+    test_pass_threshold: float = 0.70    # TEST_PASS_THRESHOLD (no negative marking)
+    test_link_ttl_hours: int = 72        # TEST_LINK_TTL_HOURS (one-time link validity)
+    test_retake_cooldown_days: int = 30  # TEST_RETAKE_COOLDOWN_DAYS (after a fail)
+    test_max_snapshots: int = 500        # TEST_MAX_SNAPSHOTS (proctoring uploads per test)
 
     # DPDP erasure auto-purge retention period (days). DELIBERATELY None — auto-purge
     # is a STUB pending legally-confirmed retention periods (GST/TDS/DPDP). Never guess.
