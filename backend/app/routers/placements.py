@@ -295,6 +295,19 @@ def create_credit_note(invoice_id: uuid.UUID,
                  status="draft", credit_note_of=orig.id)
     db.add(cn)
     db.flush()
+    # B.13 no-double-count: crediting the fee auto-voids an accrued vendor
+    # commission on the same placement (paid commissions need explicit handling).
+    if orig.placement_id is not None:
+        from ..models_staffing import VendorCommission
+        vc = db.execute(select(VendorCommission).where(
+            VendorCommission.placement_id == orig.placement_id,
+            VendorCommission.status == "accrued",
+            VendorCommission.deleted_at.is_(None))).scalar_one_or_none()
+        if vc is not None:
+            vc.status = "void"
+            vc.void_reason = f"fee credit-noted (invoice {orig.id})"
+            write_audit(db, ctx, "vendor.commission_void", "vendor_commission", vc.id,
+                        after={"reason": vc.void_reason, "auto": True})
     write_audit(db, ctx, "invoice.credit_note", "invoice", cn.id,
                 after={"credit_note_of": str(orig.id), "amount": float(cn.total_amount)})
     db.commit()
