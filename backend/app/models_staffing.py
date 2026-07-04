@@ -349,7 +349,7 @@ class Offer(TwoAxisMixin, Base):
 
 
 # Interview (Part 5): schedule + track interviews against applications
-INTERVIEW_STATUSES = ("scheduled", "completed", "cancelled", "no_show")
+INTERVIEW_STATUSES = ("scheduled", "completed", "cancelled", "no_show", "rescheduled")
 INTERVIEW_MODES = ("phone", "video", "onsite")
 _IV_STATUS_SQL = ", ".join(f"'{s}'" for s in INTERVIEW_STATUSES)
 _IV_MODE_SQL = ", ".join(f"'{s}'" for s in INTERVIEW_MODES)
@@ -379,6 +379,37 @@ class Interview(TwoAxisMixin, Base):
     status: Mapped[str] = mapped_column(sa.Text, nullable=False, server_default=sa.text("'scheduled'"))
     interviewer_name: Mapped[str | None] = mapped_column(sa.Text)
     feedback: Mapped[str | None] = mapped_column(sa.Text)
+    # B.8 (0027): RFC 5545 SEQUENCE (bumped per reschedule) + no-show/reschedule reason
+    ics_sequence: Mapped[int] = mapped_column(sa.Integer, nullable=False, server_default=sa.text("0"))
+    status_reason: Mapped[str | None] = mapped_column(sa.Text)
+
+
+class InterviewSlot(Base):
+    # B.8: proposed time slots (>=3 per proposal round; exactly one becomes chosen).
+    # Normal-DML; no soft-delete/timestamps mixin — a slot round is replaced wholesale
+    # on re-proposal (reschedule), and slot history that matters lives in audit/timeline.
+    __tablename__ = "interview_slots"
+    __table_args__ = (
+        sa.CheckConstraint("business_unit_id IN ('STAFFING','ACADEMY','CONSULTING')",
+                           name="ck_interview_slots_business_unit"),
+        sa.CheckConstraint("slot_end > slot_start", name="ck_interview_slots_order"),
+        sa.Index("ix_interview_slots_interview_id", "interview_id"),
+        {"schema": SCHEMA},
+    )
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True,
+                                          server_default=sa.text("gen_random_uuid()"))
+    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    business_unit_id: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    interview_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), sa.ForeignKey(f"{SCHEMA}.interviews.id"), nullable=False
+    )
+    proposed_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    slot_start: Mapped[datetime.datetime] = mapped_column(sa.DateTime(timezone=True), nullable=False)
+    slot_end: Mapped[datetime.datetime] = mapped_column(sa.DateTime(timezone=True), nullable=False)
+    chosen: Mapped[bool] = mapped_column(sa.Boolean, nullable=False, server_default=sa.text("false"))
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+    )
 
 
 # Invoice (Part 5): invoices(client_id, placement_id, amount, status). Placement =
