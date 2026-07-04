@@ -152,3 +152,34 @@ export interface TakePaper {
 export interface TakeResult {
   score: number; passed: boolean; already_submitted?: boolean; pipeline_advanced?: boolean;
 }
+
+/** B.12 CRM lead (F6). Stage vocabulary = the mini guard; won/lost terminal. */
+export interface Lead {
+  id: string; company: string; contact_name: string | null; contact_email: string | null;
+  contact_phone: string | null; source: string | null; owner_id: string | null;
+  stage: string; lost_reason: string | null; converted_client_id: string | null;
+  business_unit_id: string; created_at: string | null;
+}
+export interface LeadActivity {
+  id: string; type: string; notes: string | null; actor_id: string | null; occurred_at: string;
+}
+export interface ConvertResult extends Lead {
+  client_id: string; job_id?: string; already_converted: boolean;
+}
+
+/** B.13 vendor depth (F6). */
+export interface VendorContract {
+  id: string; base_commission_percent: number; valid_from: string;
+  valid_until: string | null; status: string;
+}
+export interface VendorClientRate { client_id: string; commission_percent: number }
+export interface VendorCommission {
+  id: string; placement_id: string; resolved_percent: number; base_amount: number;
+  commission_amount: number; status: "accrued" | "paid" | "void"; void_reason: string | null;
+}
+export interface VendorScorecard {
+  vendor_id: string; submissions: number; placements: number;
+  conversion_rate: number | null; avg_time_to_fill_days: number | null;
+  active_in_guarantee: number; commission_accrued: number; commission_paid: number;
+}
+export interface StaffClient { id: string; name: string; status: string }

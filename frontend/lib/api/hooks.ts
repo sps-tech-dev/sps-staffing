@@ -530,3 +530,118 @@ export function useWaiveTest() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["tests"] }),
   });
 }
+
+// ── F6: CRM (B.12) ──
+export function useLeads() {
+  return useQuery({ queryKey: ["leads"], queryFn: () => api<import("./types").Lead[]>("/leads"), retry: false });
+}
+export function useCreateLead() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (body: { company: string; contact_name?: string; contact_email?: string; source?: string }) =>
+      api<import("./types").Lead>("/leads", { method: "POST", body: JSON.stringify(body) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["leads"] }),
+  });
+}
+export function useLeadTransition() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, to_stage, reason }: { id: string; to_stage: string; reason?: string }) =>
+      api(`/leads/${id}/transition`, { method: "POST",
+        body: JSON.stringify({ to_stage, ...(reason ? { reason } : {}) }) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["leads"] }),
+  });
+}
+export function useLeadActivities(leadId: string | null) {
+  return useQuery({
+    queryKey: ["lead-activities", leadId],
+    queryFn: () => api<import("./types").LeadActivity[]>(`/leads/${leadId}/activities`),
+    enabled: !!leadId, retry: false,
+  });
+}
+export function useLogActivity() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, type, notes }: { id: string; type: string; notes?: string }) =>
+      api(`/leads/${id}/activities`, { method: "POST", body: JSON.stringify({ type, notes }) }),
+    onSuccess: (_d, v) => qc.invalidateQueries({ queryKey: ["lead-activities", v.id] }),
+  });
+}
+export function useConvertLead() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, job_title }: { id: string; job_title?: string }) =>
+      api<import("./types").ConvertResult>(`/leads/${id}/convert`, {
+        method: "PATCH", body: JSON.stringify(job_title ? { job_title } : {}) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["leads"] }),
+  });
+}
+
+// ── F6: vendor depth (B.13) ──
+export function useVendorContracts(vendorId: string | null) {
+  return useQuery({
+    queryKey: ["vendor-contracts", vendorId],
+    queryFn: () => api<import("./types").VendorContract[]>(`/vendors/${vendorId}/contracts`),
+    enabled: !!vendorId, retry: false,
+  });
+}
+export function useCreateVendorContract() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ vendorId, ...body }: { vendorId: string; base_commission_percent: number;
+        valid_from: string; valid_until?: string }) =>
+      api(`/vendors/${vendorId}/contracts`, { method: "POST", body: JSON.stringify(body) }),
+    onSuccess: (_d, v) => qc.invalidateQueries({ queryKey: ["vendor-contracts", v.vendorId] }),
+  });
+}
+export function useVendorClientRates(vendorId: string | null) {
+  return useQuery({
+    queryKey: ["vendor-rates", vendorId],
+    queryFn: () => api<import("./types").VendorClientRate[]>(`/vendors/${vendorId}/client-rates`),
+    enabled: !!vendorId, retry: false,
+  });
+}
+export function useSetVendorClientRate() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ vendorId, client_id, commission_percent }:
+        { vendorId: string; client_id: string; commission_percent: number }) =>
+      api(`/vendors/${vendorId}/client-rates`, { method: "PUT",
+        body: JSON.stringify({ client_id, commission_percent }) }),
+    onSuccess: (_d, v) => qc.invalidateQueries({ queryKey: ["vendor-rates", v.vendorId] }),
+  });
+}
+export function useVendorCommissions(vendorId: string | null) {
+  return useQuery({
+    queryKey: ["vendor-commissions", vendorId],
+    queryFn: () => api<import("./types").VendorCommission[]>(`/vendors/${vendorId}/commissions`),
+    enabled: !!vendorId, retry: false,
+  });
+}
+export function useVoidCommission() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, reason }: { id: string; reason: string }) =>
+      api(`/vendors/commissions/${id}/void`, { method: "POST", body: JSON.stringify({ reason }) }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["vendor-commissions"] }),
+  });
+}
+export function useMarkCommissionPaid() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) =>
+      api(`/vendors/commissions/${id}/mark-paid`, { method: "POST", body: "{}" }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["vendor-commissions"] }),
+  });
+}
+export function useVendorScorecard(vendorId: string | null) {
+  return useQuery({
+    queryKey: ["vendor-scorecard", vendorId],
+    queryFn: () => api<import("./types").VendorScorecard>(`/vendors/${vendorId}/scorecard`),
+    enabled: !!vendorId, retry: false,
+  });
+}
+export function useStaffClients() {
+  return useQuery({ queryKey: ["staff-clients"],
+    queryFn: () => api<import("./types").StaffClient[]>("/clients"), retry: false });
+}

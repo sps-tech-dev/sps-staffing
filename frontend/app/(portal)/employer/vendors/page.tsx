@@ -8,6 +8,8 @@ import {
   useVendors, useCreateVendor, useUpdateVendor, useVendorSubmissions, useUpdateVendorSubmission,
 } from "@/lib/api/hooks";
 import { Building2, Handshake } from "lucide-react";
+import { VendorDepth } from "@/components/vendors/vendor-depth";
+import type { Vendor } from "@/lib/api/types";
 
 const VSTATUS = ["submitted", "shortlisted", "rejected", "placed"];
 
@@ -18,6 +20,7 @@ export default function VendorsPage() {
   const updateVendor = useUpdateVendor();
   const updateSub = useUpdateVendorSubmission();
   const [name, setName] = useState("");
+  const [managing, setManaging] = useState<Vendor | null>(null);
   const [email, setEmail] = useState("");
   const [commission, setCommission] = useState("");
 
@@ -75,6 +78,9 @@ export default function VendorsPage() {
                       <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${v.status === "active" ? "bg-[#F0FDF4] text-[#16A34A]" : "bg-page text-muted"}`}>{v.status}</span>
                       <button onClick={() => updateVendor.mutate({ id: v.id, status: v.status === "active" ? "inactive" : "active" })}
                         className="rounded-lg border border-cardline px-2 py-1 text-xs text-ink">{v.status === "active" ? "Deactivate" : "Activate"}</button>
+                      <button onClick={() => setManaging(managing?.id === v.id ? null : v)}
+                        className="rounded-lg bg-sps-blue px-2 py-1 text-xs font-semibold text-white">
+                        {managing?.id === v.id ? "Close" : "Manage"}</button>
                     </div>
                   </div>
                 ))}
@@ -82,6 +88,8 @@ export default function VendorsPage() {
             )}
         </SectionCard>
       </div>
+
+      {managing && <VendorDepth vendor={managing} />}
 
       <div className="mt-6">
         <SectionCard title="Vendor submissions (attribution)">
