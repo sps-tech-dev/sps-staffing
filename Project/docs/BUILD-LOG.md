@@ -1165,6 +1165,56 @@ Eighth Part-B task. STOP-1 approved (.ics eyeballed valid; DDL + waiver pin prai
   → master cleanup `orphaned timeline=1 → 0`. Smoke: `/readyz` ok, slots + ics endpoints 401
   unauth (authenticated .ics content proven by the probe).
 
+## 2026-07-04 — B.9: Commercial layer — placements, guarantee, replacement, commission, invoice PDF ✅
+
+Ninth Part-B task. STOP-1 approved with the founder-confirmed FEE MODEL (resolves C.2).
+
+- **FEE MODEL (Part 0-FEE, ratified):** base = **ANNUAL CTC** (schema evidence:
+  `offers.ctc` documented annual since 0012; no monthly semantics anywhere — verified);
+  **15% flat default, before tax**; **client-level override** (`clients.fee_percent NOT NULL
+  DEFAULT 15`, migration 0028) with per-call override on top — resolution order
+  **invoice override → client rate → global 15** (`_resolve_fee_percent`, test-locked);
+  **GST/TDS inert** until C.3 — total == fee, and the PDF never presents it as taxed.
+- **Migration `0028_placements`:** placements (offered_ctc ANNUAL, joined_on/guarantee_until
+  with a DB CHECK `guarantee_until >= joined_on`, status CHECK incl. forward-compat
+  'in_guarantee', breach_reason, replacement_for self-FK, indexes on application_id +
+  guarantee_until) + clients.fee_percent + invoices.{placement_id, is_replacement,
+  credit_note_of}. Normal-DML; REVOKE list untouched. up→down→up clean.
+- **GUARANTEE CLOCK (the design that matters):** the SOURCE OF TRUTH is
+  `derived_guarantee_state()` — pure date math on read, correct even if no job ever runs
+  (breached/replaced explicit; else window decides). `guarantee_sweep()` only MATERIALIZES
+  active→cleared + ONE GuaranteeCompletion, status-guarded → double runs are no-ops and
+  missed runs self-heal. Runner = `scripts/run_commercial_jobs.py` one-off ECS task (repo
+  pattern; NO Celery, nothing always-on/paid); production wiring = EventBridge Scheduler →
+  ECS RunTask, deferred (free, PENDING).
+- **REPLACEMENT / NO-DOUBLE-FEE:** breach (reason REQUIRED; only within the derived window)
+  → 'breached' + GuaranteeCompletion{breached} + **requisition reopened via the EXISTING
+  jobs.status='open' flag** (no new pipeline edge, no stage rewind). Replacement = same-job
+  joined application, `replacement_for` link, fresh 60d guarantee, **NO invoice** — revenue
+  reporting sums invoices, so double-counting is structurally impossible (test-locked:
+  exactly one fee invoice after the full breach→replace cycle). Refund = explicit
+  credit-note structure (one per original, negative fee mirror, GST untouched).
+- **Commission attribution:** placements.recruiter_id (from the application owner);
+  `GET /placements/commissions` = per-recruiter count + billed fees (credit notes excluded;
+  replacements naturally absent). **Invoice PDF:** ReportLab (new dep, ARM64-clean) — fee as
+  one line item, GST/TDS present-but-"pending" lines, total labeled PRE-TAX, numbering
+  clearly PROVISIONAL (format = C.3 input); rendered → S3 → presigned GET. **Dunning:**
+  detection only (`GET /invoices/overdue` + sweep); send stubbed until B.10/SES.
+- **Timeline:** Joining + GuaranteeCompletion — the last two B.2 constants — now have their
+  first emitters. Every EventType is live.
+- **Tests: 197 → 207.** Deploy: commits `b47ef8a..6394c98` (4 groups) → pipeline run
+  `28707568160` green → **probe as sps_app** (`scripts/probe_placements.py`): client-fee
+  resolution (1,000,000 × 12% = 120,000, annual base) → derivable-without-job → sweep 1-then-0
+  + single event → breach/reopen/replacement with NO second invoice → **PDF → real S3 PUT +
+  presigned GET + object deleted** — PASS exit 0 → master cleanup `orphaned timeline=5 → 0`.
+  Smoke: `/readyz` ok, placements + overdue endpoints 401 unauth.
+- **Gotcha (test-infra, for the record):** two pytest suites accidentally run CONCURRENTLY
+  against the local DB + 2+2 pool → mass TimeoutError/CheckViolation storm that looks like a
+  code defect; the giveaway is failures spread across unrelated files + multi-minute runtimes.
+  Fix = one serial run after a pool restart + leftover sweep (207 green in 22.6s). Also: the
+  new `ck_placements_guarantee_order` CHECK caught an incoherently back-dated test row —
+  defense-in-depth paying for itself immediately.
+
 ## Pending / next steps
 
 ➡️ **The canonical, durable register of ALL outstanding/deferred items is

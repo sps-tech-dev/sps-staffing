@@ -162,6 +162,20 @@ Last refreshed: 2026-06-28 (after client-internal roles / owner-scoped jobs — 
 - **Blocks:** those product lines.
 - **Trigger:** when the standing sequence reaches them.
 
+### D7. B.9 commercial layer — deferred wiring (added 2026-07-04)
+- **What:** (a) the guarantee/dunning sweeps run via `backend/scripts/run_commercial_jobs.py`
+  as a ONE-OFF ECS task (repo pattern) — the **EventBridge Scheduler → ECS RunTask daily rule
+  is not yet in Terraform** (free, small addition). Correctness does NOT depend on it: the
+  guarantee state is derivable from dates on every read and the sweep self-heals.
+  (b) **Dunning EMAIL delivery** — detection is live (`GET /api/invoices/overdue`); the send
+  is stubbed until B.10 notifications + SES (Part D). (c) Invoice **numbering format,
+  HSN/SAC, GST/TDS rates** remain C.3/B5 inputs — PDF marks numbering PROVISIONAL and taxes
+  "pending" until then.
+- **Trigger:** (a) next Terraform session; (b) B.10; (c) CA input (C.3).
+- **RESOLVED input for the record — C.2 placement fee (2026-07-04):** 15% flat default,
+  **annual-CTC base**, client-level override (`clients.fee_percent`), per-invoice override on
+  top, before tax. Implemented + test-locked in B.9.
+
 ### D6. B.7 aptitude engine — deferred pieces (added 2026-07-04)
 - **What:** the backend engine is live (issue/take/grade/waiver, dev-deployed). Deferred:
   (a) the **take-test FRONTEND** — browser lockdown/fullscreen, face-api.js, the snapshot
