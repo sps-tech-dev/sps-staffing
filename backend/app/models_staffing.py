@@ -10,7 +10,7 @@ import datetime
 import uuid
 
 import sqlalchemy as sa
-from sqlalchemy.dialects.postgresql import ARRAY, CITEXT, TSVECTOR, UUID
+from sqlalchemy.dialects.postgresql import ARRAY, CITEXT, JSONB, TSVECTOR, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .base import Base
@@ -100,6 +100,29 @@ class Candidate(TenantScopedMixin, Base):
     resume_uploaded_at: Mapped[datetime.datetime | None] = mapped_column(sa.DateTime(timezone=True))
     source: Mapped[str | None] = mapped_column(sa.Text)
     search_doc: Mapped[str | None] = mapped_column(TSVECTOR)  # Part 20 FTS (trigger added later)
+
+
+class CandidateTimeline(Base):
+    # EXCEPTION (decision B, like shared.audit_logs): bigserial PK, APPEND-ONLY,
+    # no mixin/soft-delete. sps_app has INSERT/SELECT only (bootstrap REVOKE) —
+    # never UPDATE/DELETE this table from app code; there is no legal write path
+    # other than emit_timeline().
+    __tablename__ = "candidate_timeline"
+    __table_args__ = (
+        sa.Index("ix_candidate_timeline_candidate_occurred", "candidate_id", "occurred_at"),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[int] = mapped_column(sa.BigInteger, primary_key=True, autoincrement=True)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    business_unit_id: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    candidate_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    event_type: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    payload: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default=sa.text("'{}'::jsonb"))
+    actor_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    occurred_at: Mapped[datetime.datetime] = mapped_column(
+        sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+    )
 
 
 class Application(TwoAxisMixin, Base):
