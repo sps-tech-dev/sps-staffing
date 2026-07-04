@@ -24,8 +24,8 @@ from ..models import Consent
 from .. import pipeline
 from ..deps import get_current_context
 from ..idempotency import get_cached, store
-from ..models_staffing import (Application, Candidate, CandidateTimeline, Client,
-                               InternalEvaluation, Job)
+from ..models_staffing import (APPLICATION_STAGES, Application, Candidate,
+                               CandidateTimeline, Client, InternalEvaluation, Job)
 from ..timeline import EventType, emit_timeline
 from ..validation import normalize_phone, validate_email, validate_name, validate_pan
 
@@ -291,7 +291,9 @@ def job_pipeline(job_id: uuid.UUID, ctx: RequestContext = Depends(get_current_co
         .where(Application.job_id == job_id, Application.tenant_id == _tid(ctx),
                Application.business_unit_id == BU, Application.deleted_at.is_(None))
     ).all()
-    by_stage: dict[str, list] = {s: [] for s in TRANSITIONS}
+    # B.5-fix: seed from APPLICATION_STAGES (the vocabulary owner) — the old
+    # TRANSITIONS dict was deleted in B.5 and this reader NameError'd at runtime.
+    by_stage: dict[str, list] = {s: [] for s in APPLICATION_STAGES}
     for a, cand in apps:
         by_stage[a.stage].append({**_app_dict(a), "candidate": _cand_dict(cand)})
     return {"job": _job_dict(job), "stages": by_stage}
@@ -476,26 +478,48 @@ def employer_overview(ctx: RequestContext = Depends(get_current_context), db: Se
     def _count(stmt):
         return db.execute(stmt).scalar_one()
 
+    # B.5-fix: rebuilt on the CURRENT stage vocabulary (the old version referenced
+    # the deleted TRANSITIONS dict AND queried dead stage literals — it would have
+    # returned permanent zeros even after a name-only fix). Mapping:
+    #   in-pipeline  = everything still being worked (NOT post-join, NOT withdrawn/dropped)
+    #   interviews   = the client interview rounds (old 'interview' → client_round_1..3)
+    #   placements   = the post-join lifecycle (old 'placed' → joined/guarantee/invoiced/paid)
+    POST_JOIN = ("joined", "guarantee", "invoiced", "paid")
+    CLIENT_ROUNDS = ("client_round_1", "client_round_2", "client_round_3")
+    CLOSED_NEG = ("withdrawn", "dropped")
+
     open_jobs = _count(select(func.count()).select_from(Job).where(
         Job.tenant_id == tid, Job.business_unit_id == BU, Job.status == "open", Job.deleted_at.is_(None)))
     in_pipeline = _count(select(func.count()).select_from(Application).where(
         Application.tenant_id == tid, Application.business_unit_id == BU, Application.deleted_at.is_(None),
-        Application.stage.notin_(["placed", "rejected"])))
+        Application.stage.notin_(POST_JOIN + CLOSED_NEG)))
     interviews = _count(select(func.count()).select_from(Application).where(
-        Application.tenant_id == tid, Application.business_unit_id == BU, Application.stage == "interview"))
+        Application.tenant_id == tid, Application.business_unit_id == BU,
+        Application.deleted_at.is_(None), Application.stage.in_(CLIENT_ROUNDS)))
     placements = _count(select(func.count()).select_from(Application).where(
-        Application.tenant_id == tid, Application.business_unit_id == BU, Application.stage == "placed"))
+        Application.tenant_id == tid, Application.business_unit_id == BU,
+        Application.deleted_at.is_(None), Application.stage.in_(POST_JOIN)))
 
     funnel_rows = db.execute(
         select(Application.stage, func.count()).where(
             Application.tenant_id == tid, Application.business_unit_id == BU, Application.deleted_at.is_(None))
         .group_by(Application.stage)
     ).all()
-    counts = {s: 0 for s in TRANSITIONS}
+    counts = {s: 0 for s in APPLICATION_STAGES}
     for stage, n in funnel_rows:
         counts[stage] = n
-    funnel = [{"label": s.title(), "value": counts[s]} for s in
-              ["screened", "assessed", "submitted", "interview", "offer"]]
+    # funnel over the REAL stages, grouped into readable steps (shape unchanged)
+    FUNNEL_STEPS = [
+        ("Screening", ("screening",)),
+        ("Assessment", ("aptitude_test", "aptitude_passed", "aptitude_failed")),
+        ("Internal", ("internal_interview", "internal_passed", "rtr_pending")),
+        ("Submitted", ("submitted_to_client",)),
+        ("Client Rounds", CLIENT_ROUNDS),
+        ("Offer", ("offer", "offer_accepted")),
+        ("Joined", POST_JOIN),
+    ]
+    funnel = [{"label": label, "value": sum(counts[s] for s in stages)}
+              for label, stages in FUNNEL_STEPS]
 
     recent = db.execute(
         select(Application, Candidate, Job)

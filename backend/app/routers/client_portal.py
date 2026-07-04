@@ -22,14 +22,17 @@ from ..db import get_db
 from ..deps import get_current_context
 from ..idempotency import get_cached, store
 from ..models import ClientUser, User
-from ..models_staffing import Application, Candidate, Interview, Job, Offer, Submission
+from ..models_staffing import (APPLICATION_STAGES, Application, Candidate, Interview,
+                               Job, Offer, Submission)
 from ..repositories import TenantScopedRepo
 from ..security import hash_password
 from ..validation import validate_email, validate_password
 
 router = APIRouter()
 BU = "STAFFING"
-APPLICATION_STAGES = ("sourced", "screened", "assessed", "submitted", "interview", "offer", "placed", "rejected", "on_hold")
+# B.5-fix: the old LOCAL copy of APPLICATION_STAGES (dead pre-B.5 vocabulary)
+# shadowed the models constant — the client pipeline view pre-seeded dead-stage
+# buckets. Import the vocabulary owner instead; never re-declare it locally.
 
 
 def _require_client(ctx: RequestContext = Depends(get_current_context)) -> RequestContext:
