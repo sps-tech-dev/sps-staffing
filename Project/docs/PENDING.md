@@ -162,6 +162,17 @@ Last refreshed: 2026-06-28 (after client-internal roles / owner-scoped jobs — 
 - **Blocks:** those product lines.
 - **Trigger:** when the standing sequence reaches them.
 
+### D10. B.13 vendor depth — deferrals + a pending BUSINESS INPUT (added 2026-07-04)
+- **Pending business input:** the **vendor GLOBAL default commission %**
+  (`VENDOR_COMMISSION_DEFAULT_PERCENT`) ships unset — accrual without an override/client-rate/
+  valid-contract is refused (409) rather than guessing a commercial term (same class as the
+  GST rates / C.2 fee decision). When vendors are onboarded at scale, the founder owes a
+  number; setting the env activates the fourth resolution level with zero code change.
+- **Deferred:** (a) payout integration / actual money movement = Part D (mark-paid is
+  lifecycle only); (b) vendor-submission create UI = frontend workstream.
+- **D3 → RESOLVED 2026-07-04:** contracts, client-dynamic commissions (resolver with
+  source-level audit), performance scorecards — B.13, migration 0031.
+
 ### D9. B.11 founder dashboard — scale-up deferrals (added 2026-07-04)
 - **What:** (a) **nightly materialized read-model tables** — v1 aggregates on-read + Redis
   cache (fine at dev volume); when data volume makes on-read slow, add materialized tables

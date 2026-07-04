@@ -1324,6 +1324,45 @@ Twelfth Part-B task — kept deliberately tight; the reuse shape is the point.
   convert + double-convert n=1 ✅, BU-scoping invisibility ✅ — PASS exit 0, self-cleaned.
   Smoke: `/readyz` ok, leads endpoint 401 unauth.
 
+## 2026-07-04 — B.13: Vendor management depth ✅ (deployed + real-op proof, incl. cross-slice)
+
+Thirteenth Part-B task — closes PENDING D3. Both STOP-1 flags confirmed by the architect.
+
+- **CLIENT-DYNAMIC COMMISSION (settled + confirmed):** resolution most-specific-wins —
+  per-placement override → `vendor_client_rates` (vendor×client TABLE; a rate matrix needs a
+  table) → `vendor_contracts` base **valid AT placement.joined_on** → global default. The
+  resolver returns `(percent, source_level)` and PERSISTS the level into the audit trail —
+  when a commission is disputed later, the audit says which level resolved it.
+- **COMMISSION BASE = % of the PLACEMENT FEE (confirmed):** a share of SPS's earnings, never
+  CTC — %-of-CTC would pay ~6.7× more at a 15% fee and silently destroy vendor-placement unit
+  economics. Hand-locked: fee 150,000 × 8% = 12,000.
+- **GLOBAL DEFAULT = None (confirmed — the C.2 lesson):** `VENDOR_COMMISSION_DEFAULT_PERCENT`
+  ships unset; nothing resolving → 409 `NO_COMMISSION_BASIS` rather than an invented
+  commercial term. **The vendor global default % is now a pending BUSINESS INPUT** (PENDING),
+  live the moment the founder names a number.
+- **MATERIALIZED + RATE LOCK (migration `0031_vendor_depth`):** the valid-at-placement-date
+  guarantee requires persistence — `vendor_commissions` locks percent/base/amount at accrual
+  (post-accrual rate change proven not to retro-alter, locally + on real RDS);
+  `UNIQUE(placement_id)` = structural one-commission-per-placement; lifecycle accrued→paid|void
+  (paid cannot be voided here — money that left needs explicit handling; void requires reason).
+- **NO-DOUBLE-COUNT NET:** replacements 409 (no fee, consistent with B.9) · duplicate accrual
+  409 + DB unique · credit-noted fees refuse accrual · **credit-noting a fee AUTO-VOIDS an
+  ACCRUED commission in the same txn (audited `auto:true`)** — the one place B.13 modifies B.9
+  behavior, and per the architect's ask it is REAL-OP PROVEN: probe leg 6 credit-noted a
+  commissioned fee on dev RDS → commission voided in-txn → audit row with auto:true → scorecard
+  accrued→0. Paid commissions deliberately NOT auto-voided (accrued/paid distinction).
+- **SOURCING-TRAIL INTEGRITY (beyond spec, kept):** accrual requires a `vendor_submission`
+  linking the vendor to the placed candidate (job-matched when set); no trail → 409
+  `NO_SOURCING_TRAIL`; multi-vendor ambiguity → 409 `AMBIGUOUS_VENDOR` (refuse, never guess who
+  gets paid) — closes a vendor-misattribution/fraud surface.
+- **Scorecard:** on-read read-model (B.11 pattern, no table): submissions, placements,
+  conversion, avg time-to-fill, in-guarantee actives, accrued/paid totals. Vendor-submission
+  create endpoint already existed (workflow.py) — untouched; its UI stays frontend-deferred.
+- **Tests: 230 → 237.** Deploy: commits `c10d63e..80f0f45` (3 groups) → pipeline run
+  `28711719316` green → probe as sps_app: client-rate-beats-contract (12% vs 8%) ✅ →
+  rate-lock ✅ → dup 409 ✅ → scorecard ✅ → **cross-slice credit-note auto-void ✅** — PASS
+  exit 0 → master cleanup `orphaned timeline=1 → 0`. Smoke: `/readyz` ok, endpoints 401.
+
 ## Pending / next steps
 
 ➡️ **The canonical, durable register of ALL outstanding/deferred items is
