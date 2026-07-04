@@ -19,11 +19,13 @@ from .mixins import TenantScopedMixin, TwoAxisMixin, bu_check
 
 SCHEMA = "staffing"
 
-# Pipeline state machine (Part 5). Illegal transitions are enforced in the
-# service layer; this CHECK bounds the allowed set of values.
+# Pipeline state machine (Part 5, full vocabulary since B.5 / migration 0024).
+# Transitions are enforced EXCLUSIVELY by app/pipeline.py; this CHECK bounds values.
 APPLICATION_STAGES = (
-    "sourced", "screened", "assessed", "submitted",
-    "interview", "offer", "placed", "rejected", "on_hold",
+    "applied", "screening", "aptitude_test", "aptitude_passed", "aptitude_failed",
+    "internal_interview", "internal_passed", "rtr_pending", "submitted_to_client",
+    "client_round_1", "client_round_2", "client_round_3", "offer", "offer_accepted",
+    "joined", "guarantee", "invoiced", "paid", "withdrawn", "dropped", "on_hold",
 )
 _STAGES_SQL = ", ".join(f"'{s}'" for s in APPLICATION_STAGES)
 
@@ -179,8 +181,16 @@ class Application(TwoAxisMixin, Base):
     )
     # Denormalized owning client USER (from the job) → client_manager owner-scoping.
     owner_user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
-    stage: Mapped[str] = mapped_column(sa.Text, nullable=False, server_default=sa.text("'sourced'"))
+    stage: Mapped[str] = mapped_column(sa.Text, nullable=False, server_default=sa.text("'applied'"))
     owner_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))  # recruiter (internal)
+    # B.5 (0024): optimistic lock + hold/drop bookkeeping + RTR submit-gate.
+    # stage is written ONLY by app/pipeline.py (transition/adopt_stage_on_merge).
+    version: Mapped[int] = mapped_column(sa.Integer, nullable=False, server_default=sa.text("1"))
+    hold_reason: Mapped[str | None] = mapped_column(sa.Text)
+    drop_reason: Mapped[str | None] = mapped_column(sa.Text)
+    hold_prior_stage: Mapped[str | None] = mapped_column(sa.Text)
+    rtr_consent_at: Mapped[datetime.datetime | None] = mapped_column(sa.DateTime(timezone=True))
+    rtr_consent_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
 
 
 # Submission to client (Part 5): submissions(application_id, client_feedback, status)

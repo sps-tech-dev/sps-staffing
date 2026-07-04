@@ -128,7 +128,8 @@ class Consent(Base):
     __tablename__ = "consents"
     __table_args__ = (
         sa.CheckConstraint(
-            "purpose IN ('data_processing','marketing','cookies')", name="ck_consents_purpose"
+            "purpose IN ('data_processing','marketing','cookies','rtr')",
+            name="ck_consents_purpose",  # 'rtr' since B.5/0024 — Right-to-Represent trail
         ),
         # The subject is EITHER an authenticated user (DPDP self-service) OR a
         # candidate (collected at public registration, before any user account).
