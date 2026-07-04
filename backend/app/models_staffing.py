@@ -125,6 +125,34 @@ class CandidateTimeline(Base):
     )
 
 
+class CandidateDupReview(Base):
+    # Human review queue for FUZZY duplicate suspects (B.3, create-then-flag: the
+    # incoming candidate is CREATED first, then flagged here). Normal business
+    # table — sps_app keeps full DML (NOT append-only; not in the bootstrap REVOKE).
+    __tablename__ = "candidate_dup_reviews"
+    __table_args__ = (
+        sa.CheckConstraint("match_type IN ('exact','fuzzy')", name="ck_dup_reviews_match_type"),
+        sa.CheckConstraint("status IN ('pending','merged','dismissed')", name="ck_dup_reviews_status"),
+        sa.Index("ix_dup_reviews_tenant_status", "tenant_id", "status"),
+        {"schema": SCHEMA},
+    )
+
+    id: Mapped[int] = mapped_column(sa.BigInteger, primary_key=True, autoincrement=True)
+    tenant_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)
+    business_unit_id: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    candidate_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)          # incoming/new
+    matched_candidate_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), nullable=False)  # suspected match
+    match_type: Mapped[str] = mapped_column(sa.Text, nullable=False)
+    score: Mapped[float] = mapped_column(sa.Numeric, nullable=False)
+    incoming_payload: Mapped[dict] = mapped_column(JSONB, nullable=False, server_default=sa.text("'{}'::jsonb"))
+    status: Mapped[str] = mapped_column(sa.Text, nullable=False, server_default=sa.text("'pending'"))
+    reviewed_by: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True), nullable=True)
+    reviewed_at: Mapped[datetime.datetime | None] = mapped_column(sa.DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False
+    )
+
+
 class Application(TwoAxisMixin, Base):
     __tablename__ = "applications"
     __table_args__ = (
