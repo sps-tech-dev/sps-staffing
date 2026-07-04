@@ -75,6 +75,7 @@ class Candidate(TenantScopedMixin, Base):
     __tablename__ = "candidates"
     __table_args__ = (
         sa.Index("ix_candidates_tenant", "tenant_id"),
+        sa.Index("ix_candidates_user_id", "user_id"),
         sa.Index("ix_candidates_search", "search_doc", postgresql_using="gin"),
         sa.Index("ix_candidates_skills", "skills", postgresql_using="gin"),
         # Blind-index uniques enforce Part 19 dedup (one person per tenant) WITHOUT
@@ -86,6 +87,12 @@ class Candidate(TenantScopedMixin, Base):
     )
     full_name: Mapped[str] = mapped_column(sa.Text, nullable=False)
     email: Mapped[str | None] = mapped_column(CITEXT)  # lookup/login/dedup anchor — kept CITEXT (DECISIONS)
+    # F3a (0032): EXPLICIT link to the candidate's portal login (soft ref to
+    # shared.users, matching jobs.owner_user_id — no cross-schema FK). NULL is
+    # valid (sourced candidates have no portal). Set at registration when the
+    # registrant already has a candidate login; carried through B.3 merges
+    # (both-different-logins → conflict FLAGGED, never silently dropped).
+    user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     # PII (Part 10): encrypted at rest via app-layer envelope encryption; the *_bidx
     # columns are deterministic HMAC blind indexes for exact-match/dedup.
     # `deferred=True` ⇒ ordinary `select(Candidate)` loads do NOT fetch/decrypt the
