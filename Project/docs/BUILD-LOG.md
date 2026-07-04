@@ -1492,6 +1492,36 @@ Pure frontend slice (no backend change; paths-ignore confirmed — no deploy).
   admin; bounce checks included). Two walk-script fixes en route (seeded interview lacked
   client_id — the scoping HID it correctly; bounce check must not follow redirects).
 
+## 2026-07-05 — F5: assessments UI — recruiter surface + admin waiver + the PUBLIC take page ✅
+
+Frontend + one compose tweak. NOTE: the docker-compose.yml change (local-only dummy AWS creds
+so presign signing works in the local loop) TRIGGERED the pipeline — paths-ignore covers only
+frontend/**. No backend code/migration changed; run `76f4d0c` deployed a content-identical
+image, watched to green, /readyz ok. Recorded for the deploy-history's honesty.
+
+- **Recruiter (/employee/assessments):** issue with a ONE-TIME-link modal (raw token shown
+  once; server stores only the hash), stage-precondition 409 surfaced cleanly; tests
+  dashboard preserving the B.7 honesty guarantee — waived rows show "Waived by admin — no
+  score", never a number.
+- **Admin (/admin/assessments):** waiver control conditioned on /me/features
+  assessment_waiver AND per-row eligibility; flag off → explicit "capability disabled" note,
+  read-only table. LEARNED + verified: with the flag OFF the endpoint 404s for EVERYONE
+  (probe-proof — it hides its existence; my walk initially expected recruiter-403, wrong);
+  flag-on non-admin 403 stays locked by B.8's parametrized boundary tests. The modal
+  requires the pass/fail RESULT decision + reason (WaiveIn.result — caught by the walk;
+  the first modal version omitted it and 422'd).
+- **PUBLIC take page (/take/[token], bare route — no shell/JWT):** 404 generic invalid-link ·
+  410 expired/used · 200 frozen paper. **No-answer-leak PROVEN by payload inspection:
+  no 'correct' key anywhere; question shape exactly {qid, stem, options}.** 60-min timer,
+  auto-submit at 0, double-fire guard, idempotent re-submit shows the stored result.
+  **Proctoring = PRESIGN-ONLY** (one wiring call, status chip); the capture loop
+  (webcam/face-api/lockdown) stays deferred per B.7 PENDING.
+- **Walk findings worth keeping:** options are SHUFFLED per candidate (fixed-index answers
+  score ~random — an accidental re-proof of the shuffle); presign 500'd locally on
+  NoCredentialsError → compose now carries dummy creds (offline signing needs SOME creds;
+  deployed tasks use the ECS role).
+- tsc/eslint/build clean; both surfaces + all token semantics walked green. Commit `76f4d0c`.
+
 ## Pending / next steps
 
 ➡️ **The canonical, durable register of ALL outstanding/deferred items is

@@ -175,9 +175,10 @@ Last refreshed: 2026-06-28 (after client-internal roles / owner-scoped jobs — 
   explicit link), /me/applications, real /me/overview; merge both-different-logins conflicts
   flagged durably. Candidate SELF-APPLY remains a deliberate non-feature (applications are
   staff-placed); if the business ever wants it, that's a new backend decision.
-- **F4 → DONE 2026-07-04** (client deep tabs + SLA boards). Remaining: F5 assessments UI
-  (issue/track/waive + public take page) → F6 CRM board + vendor screens → F7 notification
-  center + founder trend charts. Hosting still deferred (C1/D.6).
+- **F4 → DONE 2026-07-04**; **F5 → DONE 2026-07-05** (assessments UI + public take page;
+  proctoring CAPTURE LOOP still deferred — presign wiring only). Remaining: F6 CRM board +
+  vendor screens → F7 notification center + founder trend charts. Hosting still deferred
+  (C1/D.6).
 - **NEW — admin staff-roster endpoint:** /admin/employees UI stays ComingSoon until a small
   backend endpoint lists staff users+roles (no such surface exists; deliberate guard stop).
 - **Hosting still deferred (C1/D.6):** the frontend is local-only; "done" = built + verified
