@@ -42,5 +42,7 @@ def test_overview_returns_real_scoped_shape(candidate):
     body = r.json()
     for k in ("applications", "interviews", "offers", "profileComplete", "recent"):
         assert k in body
-    assert body["profileComplete"] == 100  # full_name + email + active all set
-    assert body["recent"] == []            # no staffing tables yet (Slice 3)
+    # F3a: completeness now has 5 factors (name, email, active, linked candidate,
+    # resume). This user has no linked candidate -> 3/5 = 60, and empty recent.
+    assert body["profileComplete"] == 60
+    assert body["recent"] == []
