@@ -1958,6 +1958,17 @@ notification-read(with take_link)→take→submit→enrolments-reflect chain, an
 isolation (B cannot read A's notification or A's live take token). FEATURE_ACADEMY confirmed
 back OFF on the live service (register/config + students/me/enrollments both 404).
 
+## 2026-07-05 — FE#5: result / discount view + course.fee surfaced in /me/enrollments ✅
+
+Result panel in the (student) portal for a graded enrolment (offered/active/completed): score →
+earned tier → list→discount→final, all the backend's numbers (never recomputed). <75 = FULL
+PRICE framed as the student's price, NOT a failure/gate (decision 5). "Proceed to payment" CTA →
+/academy/student/pay?enrollment={id} (404s until #6). **Backend: `course.fee` (the existing list
+fee, already public on the storefront) added to the GET /students/me/enrollments serializer so the
+"you saved X" line has list + final — NO new column, NO migration (dev stays head 0040). Isolation
+unchanged (the field addition didn't touch session-scoping — re-confirmed on dev).** Local <75 seed
+fixture (Farah, 60%→0%) added for the walk.
+
 ## Pending / next steps
 
 ➡️ **The canonical, durable register of ALL outstanding/deferred items is

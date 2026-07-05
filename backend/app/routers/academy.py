@@ -799,8 +799,11 @@ def my_enrollments(student: StudentContext = Depends(get_current_student),
                        if t is not None else None)
         out.append({
             "enrollment_id": str(e.id),
+            # course.fee = the LIST (pre-discount) fee — public (shown on the storefront);
+            # FE#5 needs it alongside final_fee for the "you saved X" line (never recomputed).
             "course": {"title": course.title if course else None,
-                       "slug": course.slug if course else None},
+                       "slug": course.slug if course else None,
+                       "fee": float(course.fee) if course else None},
             "status": e.status,
             "aptitude_score": float(e.aptitude_score) if e.aptitude_score is not None else None,
             "discount_percent": int(e.discount_percent) if e.discount_percent is not None else None,

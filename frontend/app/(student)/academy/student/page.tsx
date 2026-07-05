@@ -11,7 +11,7 @@ import { formatFee, realText } from "../../../(marketing)/academy/_lib";
 
 type Enrollment = {
   enrollment_id: string;
-  course: { title: string | null; slug: string | null };
+  course: { title: string | null; slug: string | null; fee: number | null };
   status: string;
   aptitude_score: number | null;
   discount_percent: number | null;
@@ -35,6 +35,55 @@ function StatusPill({ status }: { status: string }) {
     <span className="rounded-full px-2.5 py-1 text-xs font-semibold" style={{ background: bg, color: fg }}>
       {STATUS_COPY[status] ?? status}
     </span>
+  );
+}
+
+// FE#5 — result/discount panel. Shown for a graded enrolment (offered/active/
+// completed with a score). <75 earns no discount = FULL PRICE, framed as the
+// student's price (NOT a failure or a gate — decision 5). All money is the
+// backend's number (course.fee list + final_fee), never recomputed.
+const RESULT_STATES = ["offered", "active", "completed"];
+
+function ResultPanel({ e }: { e: Enrollment }) {
+  const score = e.aptitude_score;
+  const list = e.course.fee;
+  const final = e.final_fee;
+  const discount = e.discount_percent ?? 0;
+  if (score == null || list == null || final == null) return null;
+  const hasDiscount = discount > 0;
+  const saved = Math.max(0, list - final);
+  return (
+    <div className="mt-5 rounded-xl p-5"
+      style={{ background: hasDiscount ? "#F0FDF4" : "#F0F4FA", border: `1px solid ${hasDiscount ? "#BBF7D0" : "#EAEEF3"}` }}>
+      <p className="text-sm font-semibold" style={{ color: "#0A1628" }}>Your entrance result</p>
+      <p className="mt-1 text-sm" style={{ color: "#0A1628" }}>You scored <b>{score}%</b>.</p>
+      <p className="mt-0.5 text-sm" style={{ color: hasDiscount ? "#15803D" : "#6B7689" }}>
+        {hasDiscount
+          ? `Your score earned a ${discount}% discount.`
+          : "This programme is at the full fee for your entrance score."}
+      </p>
+      <div className="mt-4 space-y-1.5 text-sm">
+        <div className="flex justify-between" style={{ color: "#6B7689" }}>
+          <span>Programme fee</span><span>{formatFee(list, e.currency)}</span>
+        </div>
+        {hasDiscount && (
+          <div className="flex justify-between" style={{ color: "#15803D" }}>
+            <span>Discount ({discount}%)</span><span>−{formatFee(saved, e.currency)}</span>
+          </div>
+        )}
+        <div className="mt-1.5 flex justify-between border-t pt-2 text-base font-extrabold"
+          style={{ borderColor: "#E5EAF0", color: "#0A1628" }}>
+          <span>You pay</span><span>{formatFee(final, e.currency)}</span>
+        </div>
+      </div>
+      {e.payment_status !== "paid" && (
+        <Link href={`/academy/student/pay?enrollment=${e.enrollment_id}`}
+          className="mt-4 inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold"
+          style={{ background: "#E8A020", color: "#0A1628" }}>
+          Proceed to payment <ArrowRight size={15} />
+        </Link>
+      )}
+    </div>
   );
 }
 
@@ -88,27 +137,14 @@ export default function StudentHome() {
           <div className="space-y-5">
             {rows.map((e) => (
               <div key={e.enrollment_id} className="rounded-2xl bg-white p-6" style={{ border: "1px solid #EAEEF3" }}>
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <h3 className="text-lg font-extrabold" style={{ fontFamily: "'Outfit', sans-serif", color: "#0A1628" }}>
-                      {realText(e.course.title) ?? "Programme"}
-                    </h3>
-                    <div className="mt-2"><StatusPill status={e.status} /></div>
-                  </div>
-                  {e.final_fee != null && (
-                    <div className="text-right">
-                      <p className="text-xs" style={{ color: "#9AA6BC" }}>Your fee</p>
-                      <p className="text-lg font-extrabold" style={{ color: "#0A1628" }}>{formatFee(e.final_fee, e.currency)}</p>
-                    </div>
-                  )}
+                <div>
+                  <h3 className="text-lg font-extrabold" style={{ fontFamily: "'Outfit', sans-serif", color: "#0A1628" }}>
+                    {realText(e.course.title) ?? "Programme"}
+                  </h3>
+                  <div className="mt-2"><StatusPill status={e.status} /></div>
                 </div>
 
-                {(e.aptitude_score != null || e.discount_percent != null) && (
-                  <div className="mt-4 flex gap-6 text-sm" style={{ color: "#6B7689" }}>
-                    {e.aptitude_score != null && <span>Aptitude score: <b style={{ color: "#0A1628" }}>{e.aptitude_score}%</b></span>}
-                    {e.discount_percent != null && <span>Discount earned: <b style={{ color: "#0A1628" }}>{e.discount_percent}%</b></span>}
-                  </div>
-                )}
+                {RESULT_STATES.includes(e.status) && e.aptitude_score != null && <ResultPanel e={e} />}
 
                 {e.active_test ? (
                   <div className="mt-5 rounded-xl p-4" style={{ background: "#FFFBEB", border: "1px solid #FDE68A" }}>

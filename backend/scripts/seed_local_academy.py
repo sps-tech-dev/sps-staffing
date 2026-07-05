@@ -43,6 +43,7 @@ STUDENTS = [
     ("student-tested@local.test",  "[SAMPLE] Tarun Tested",  "tested",  80.0, 10, False),
     ("student@local.test",         "[SAMPLE] Ofelia Offered", "offered", 88.0, 15, True),
     ("student-active@local.test",  "[SAMPLE] Akhil Active",   "active",  96.0, 20, False),
+    ("student-fullprice@local.test", "[SAMPLE] Farah Fullprice", "offered", 60.0, 0, False),  # <75 → full price
 ]
 
 
