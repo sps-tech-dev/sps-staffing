@@ -84,7 +84,7 @@ def main() -> int:
         answers = {f["qid"]: f["correct"] for f in frozen}
         submit_answers(token=token, body=SubmitIn(answers=answers), db=db)
         db.refresh(enr)
-        assert enr.aptitude_score == 100.0 and enr.status == "tested"
+        assert enr.aptitude_score == 100.0 and enr.status == "offered"   # A5 extends the callback to offered
         print(f"3. LEG B: take → auto-grade → enrollment stamped "
               f"(aptitude_score={enr.aptitude_score}, status={enr.status}) ✅")
         ok = True

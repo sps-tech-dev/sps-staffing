@@ -295,3 +295,24 @@ Discovery surfaced internal inconsistencies in the architecture spec. Resolved a
   manager A sees only own pipeline / B invisible both directions; HR sees all; manager 403 offer-write / 200 read;
   HR releases → read-only on manager's job; HR reassign cascades / manager 403; cross-client + cross-tenant leakage
   = NONE (existing gates still green). Full suite 107 pass.
+
+### 2026-07-05 — Academy post-grade advances applied→tested→offered in ONE grade; a graded enrolment RESTS at 'offered'
+
+- **Decision:** the academy entrance-aptitude post-grade callback (take → auto-grade) advances
+  the enrollment `applied → tested → offered` in a SINGLE grade. It stamps `aptitude_score`,
+  then A5's `discount_percent` + `final_fee`, enqueues the payment-link email, and lands the
+  row at **`offered`**. `'tested'` is a **transient pass-through** on the happy path — a graded
+  academy enrollment is NEVER left at `'tested'`.
+- **Consequence (state plainly for future readers):** treat **`offered` = "graded, priced,
+  awaiting payment."** A6 (payment activation), A7 (admin roster), A9 (student dashboard) must
+  key their "has been graded" / "awaiting payment" logic on `offered`, NOT `tested`. A row at
+  `tested` in steady state would be an anomaly (an interrupted grade), not the normal graded state.
+- **Supersedes:** A4's original "academy grading ends at `tested`" — that was true only for the
+  A4 slice in isolation; A5 extends the SAME callback. A4's tests + the A4 dev probe were updated
+  to assert `offered`. Do NOT read the old A4 "ends at tested" note as current truth.
+- **Why:** the discount is computed from the score and the payment offer is made in the same
+  transaction — there is no happy-path state where an academy enrolment is graded but not yet
+  priced/offered. Full price (<75 → 0%) is still an offer, not a block, so it too lands at `offered`.
+- **What would change it:** if a manual admin review gate is ever inserted between grading and
+  the offer (e.g. discretionary scholarship review), `tested` would become a real resting state
+  and this decision is revisited.

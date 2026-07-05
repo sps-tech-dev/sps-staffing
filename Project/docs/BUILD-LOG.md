@@ -1796,6 +1796,32 @@ Reuse mandate honored — the B.7 engine extended ONCE at the issue seam; no aca
 - The E2E-3 staffing seed fixture was scoped to `business_unit_id='STAFFING'` so it no longer
   clobbers the academy bank (the issue path is BU-scoped now). **Tests 265 → 272.**
 
+## 2026-07-05 — A5: tiered discount + enrolment pricing (the money-logic slice) ✅
+
+No schema migration (A1 already has enrollments.discount_percent + final_fee); only a DATA-only
+migration 0037 (the payment-link notification template).
+
+- **`resolve_discount_percent` (pure, C.2-locked, inclusive-lower):** ≥95→20 | 85–<95→15 |
+  75–<85→10 | <75→0. `<75` is FULL PRICE, NOT a gate (decision 5) — returns 0, enrolment still
+  proceeds. Clean property: boundaries fall on EXACT integer correct-counts (57/51/45 of 60), no
+  rounding ambiguity.
+- **`final_fee = course.fee × (100−discount)/100`**, READ off the course row (per-course
+  configurable, never hardcoded 50000), rounded via the SAME `round(float,2)` convention as the
+  B.9 invoice fee. PRE-TAX — **GST/TDS stay INERT** (final_fee == pre-tax discounted fee exactly).
+  Discount stamps as a PRICE (decision 4): only discount_percent + final_fee on the enrollment;
+  no coupon entity.
+- **Post-grade callback (extends A4's academy branch):** stamps discount + final_fee, enqueues
+  the payment-link email, advances **applied→tested→offered in ONE grade** — see DECISIONS
+  (2026-07-05): a graded academy enrolment RESTS at `offered`, `tested` is transient. **This
+  supersedes A4's "ends at tested"** (A4 assertions + probe updated).
+- **Payment-link email (STUB):** new `academy_payment_link` template ([FOUNDER DRAFT]), to the
+  student, carrying course + discount % + final_fee + a clearly-marked stub link
+  `[STUB — A6/Part-D] /academy/pay/{enrollment_id}` (drop-in shape for A6's real Razorpay link).
+  B.10 ledger + ConsoleChannel (SES = Part-D). Idempotent on the graded ATTEMPT (test id): a
+  re-grade can't double-send; a fresh retake re-prices + re-sends.
+- **Migration 0037 (DATA-only, no schema change):** seeds the template via the idempotent
+  seed_notification_templates. up→down→up clean. **Tests 272 → 298.**
+
 ## Pending / next steps
 
 ➡️ **The canonical, durable register of ALL outstanding/deferred items is

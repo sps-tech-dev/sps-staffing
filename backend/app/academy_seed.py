@@ -65,6 +65,12 @@ SEED_NOTIFICATION_TEMPLATES: list[dict] = [
      "subject": "[FOUNDER DRAFT] New academy application: {full_name}",
      "body": "[FOUNDER DRAFT] {full_name} ({email}) applied for {course}. "
              "College: {college}. Review + trigger the aptitude link from the admin dashboard."},
+    # A5 — payment-link email (STUB link; real Razorpay link = A6/Part-D).
+    {"code": "academy_payment_link", "channel_type": "email",
+     "subject": "[FOUNDER DRAFT] Your SPS Academy enrolment — {course}",
+     "body": "[FOUNDER DRAFT] Hi {full_name}, based on your entrance aptitude you earned a "
+             "{discount_percent}% discount on {course}. Your enrolment fee is {final_fee} {currency} "
+             "(pre-tax). Complete payment here: {payment_link}"},
 ]
 
 

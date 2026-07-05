@@ -103,12 +103,35 @@ def submit_answers(token: str, body: SubmitIn, db: Session = Depends(get_db)):
     # enrollment (aptitude_score percentage + applied→tested); pricing (discount/
     # final_fee) is A5. STAFFING → the existing pipeline path (untouched below).
     if t.business_unit_id == "ACADEMY":
-        from ..models_academy import Enrollment
+        from ..models_academy import Course, Enrollment, Student
+        from ..academy_pricing import compute_final_fee, resolve_discount_percent
         enr = db.get(Enrollment, t.enrollment_id) if t.enrollment_id else None
         if enr is not None and enr.deleted_at is None:
-            enr.aptitude_score = round(score * 100, 2)   # percentage = correct/total × 100
-            if enr.status == "applied":
-                enr.status = "tested"
+            pct = round(score * 100, 2)                  # the canonical percentage
+            enr.aptitude_score = pct
+            # A5: stamp the tiered discount + PRE-TAX final fee (pricing lever, not
+            # a gate — <75 → 0% + full fee, enrolment still advances). fee READ off
+            # the course (per-course configurable), NEVER hardcoded. No GST/TDS.
+            discount = resolve_discount_percent(pct)
+            course = db.get(Course, enr.course_id)
+            enr.discount_percent = discount
+            enr.final_fee = compute_final_fee(course.fee, discount)
+            if enr.status in ("applied", "tested"):
+                enr.status = "offered"                   # tested→offered (value in the A1 machine)
+            # payment-link email (STUB link; real Razorpay link = A6/Part-D). Keyed
+            # on the graded ATTEMPT (test id): a re-grade of the same attempt cannot
+            # double-send (submit is idempotent above); a fresh retake = a new test =
+            # a new key = re-priced + re-sent.
+            student = db.get(Student, enr.student_id)
+            if student is not None and student.email:
+                notify.enqueue(
+                    db, template_code="academy_payment_link", recipient=student.email,
+                    vars={"full_name": student.full_name, "course": course.title,
+                          "discount_percent": discount, "final_fee": enr.final_fee,
+                          "currency": course.currency,
+                          "payment_link": f"[STUB — A6/Part-D] /academy/pay/{enr.id}"},
+                    tenant_id=t.tenant_id, business_unit_id="ACADEMY",
+                    idempotency_key=f"academy:payment_link:{t.id}")
         db.commit()
         return {"score": round(score, 4), "passed": passed, "pipeline_advanced": False,
                 "pass_threshold": settings.test_pass_threshold}

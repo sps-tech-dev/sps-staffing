@@ -63,6 +63,8 @@ def env():
                      student_id=student.id, course_id=course.id, status="applied")
     db.add(enr); db.commit()
     yield sps, db, enr, student
+    from app.models import Notification
+    db.execute(delete(Notification).where(Notification.tenant_id == sps.id))  # A5 take-branch enqueues
     for M in (Test,):
         db.execute(delete(M).where(M.tenant_id == sps.id, M.business_unit_id == "ACADEMY"))
     db.execute(delete(Enrollment).where(Enrollment.tenant_id == sps.id))
@@ -139,7 +141,8 @@ def test_issue_take_grade_stamps_enrollment(env):
     r = TestClient(app).post(f"/api/take/{token}/submit", json={"answers": answers}, headers=HOST)
     assert r.status_code == 200 and r.json()["pipeline_advanced"] is False
     db.refresh(enr)
-    assert enr.aptitude_score == 100.0 and enr.status == "tested"          # stamped, applied→tested
+    # A5 extends this same callback: applied→(tested)→offered in one grade, +pricing
+    assert enr.aptitude_score == 100.0 and enr.status == "offered"
 
 
 def test_bu_pairing_invariant_at_issue(env):
@@ -195,4 +198,4 @@ def test_grade_percentage_partial_score(env):
     r = TestClient(app).post(f"/api/take/{token}/submit", json={"answers": answers}, headers=HOST)
     assert r.status_code == 200
     db.refresh(enr)
-    assert enr.aptitude_score == 75.0 and enr.status == "tested"   # 45/60 × 100 = 75.00
+    assert enr.aptitude_score == 75.0 and enr.status == "offered"   # 45/60 × 100 = 75.00 (A5 → offered)
