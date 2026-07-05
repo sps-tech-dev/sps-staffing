@@ -50,3 +50,37 @@ def seed_courses(conn: sa.engine.Connection, tenant_id) -> int:
              "fee": DEFAULT_FEE})
         inserted += 1
     return inserted
+
+
+# ── A3: notification templates (global, no tenant) — single source of truth for
+# the migration seed AND the test fixture (E2E-3 reproducibility). channel_type
+# 'email' is the INTENDED channel; NOTIFY_CHANNEL_OVERRIDE routes to console in
+# dev. Subject/body are [FOUNDER DRAFT] placeholders (STOP-3 — not final copy).
+SEED_NOTIFICATION_TEMPLATES: list[dict] = [
+    {"code": "student_welcome", "channel_type": "email",
+     "subject": "[FOUNDER DRAFT] Welcome to SPS Academy, {full_name}",
+     "body": "[FOUNDER DRAFT] Hi {full_name}, your application for {course} is received. "
+             "Our team will share your entrance aptitude link shortly."},
+    {"code": "admin_new_student_application", "channel_type": "email",
+     "subject": "[FOUNDER DRAFT] New academy application: {full_name}",
+     "body": "[FOUNDER DRAFT] {full_name} ({email}) applied for {course}. "
+             "College: {college}. Review + trigger the aptitude link from the admin dashboard."},
+]
+
+
+def seed_notification_templates(conn: sa.engine.Connection) -> int:
+    """Idempotent insert of the academy notification templates (keyed on the
+    global-unique code). Returns the number inserted."""
+    inserted = 0
+    for t in SEED_NOTIFICATION_TEMPLATES:
+        exists = conn.execute(sa.text(
+            "SELECT 1 FROM shared.notification_templates WHERE code = :c"),
+            {"c": t["code"]}).scalar_one_or_none()
+        if exists:
+            continue
+        conn.execute(sa.text(
+            "INSERT INTO shared.notification_templates (code, channel_type, subject, body) "
+            "VALUES (:c, :ch, :s, :b)"),
+            {"c": t["code"], "ch": t["channel_type"], "s": t["subject"], "b": t["body"]})
+        inserted += 1
+    return inserted

@@ -73,6 +73,7 @@ class Student(TwoAxisMixin, Base):
         bu_check("students"),
         sa.UniqueConstraint("tenant_id", "email", name="uq_students_tenant_email"),
         sa.UniqueConstraint("tenant_id", "phone_bidx", name="uq_students_tenant_phone_bidx"),
+        sa.UniqueConstraint("tenant_id", "student_id", name="uq_students_tenant_student_id"),
         sa.Index("ix_students_tenant", "tenant_id"),
         sa.Index("ix_students_user_id", "user_id"),
         {"schema": SCHEMA},
@@ -86,6 +87,23 @@ class Student(TwoAxisMixin, Base):
     user_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     search_doc: Mapped[str | None] = mapped_column(TSVECTOR)
     source: Mapped[str | None] = mapped_column(sa.Text)
+    # A3: the student's OWN credential (argon2) — academy is a SEPARATE auth system,
+    # NOT shared.users. Set at registration; the academy login verifies against it.
+    password_hash: Mapped[str | None] = mapped_column(sa.Text)
+    # A3 registration/identity fields — college identity is PLAINTEXT (not PII in
+    # the DPDP sense; it's the enrolment identity). id_card_s3_key = a private
+    # document (like resumes) deleted on erasure. guardian_* for the under-18 branch.
+    student_id: Mapped[str | None] = mapped_column(sa.Text)
+    college_name: Mapped[str | None] = mapped_column(sa.Text)
+    course_degree: Mapped[str | None] = mapped_column(sa.Text)
+    year_of_study: Mapped[str | None] = mapped_column(sa.Text)
+    date_of_birth: Mapped["datetime.date | None"] = mapped_column(sa.Date)
+    id_card_s3_key: Mapped[str | None] = mapped_column(sa.Text)
+    guardian_name: Mapped[str | None] = mapped_column(sa.Text)
+    guardian_consent: Mapped[bool | None] = mapped_column(sa.Boolean)
+    # A3 consent = Option A: the DPDP consent lives in the canonical shared.consents
+    # ledger (subject_student_id soft-ref), NOT on this row. guardian_consent above
+    # records WHO consented for a minor.
 
 
 class Enrollment(TwoAxisMixin, Base):
