@@ -752,3 +752,47 @@ def confirm_payment(enrollment_id: uuid.UUID,
     _activate_payment(db, pay, enr, ctx, provider_ref=f"stub-{uuid.uuid4()}")
     db.commit()
     return _payment_result(pay, enr)
+
+
+# ═══════════════════════════════════════════════════════════════════
+# A4/FE#4 — student-facing enrolments read (the student's OWN data only)
+# ═══════════════════════════════════════════════════════════════════
+@router.get("/students/me/enrollments")
+def my_enrollments(student: StudentContext = Depends(get_current_student),
+                   db: Session = Depends(get_db)):
+    """The AUTHENTICATED student's OWN enrolments. STRICT SCOPING: the student is
+    derived from the SESSION only (StudentContext.student_id) — there is NO
+    student_id/enrollment_id path or query param, so student A has no request shape
+    by which to read student B's rows. NO ANSWER LEAK: `active_test` carries only a
+    test's presence + validity (never served questions, correct answers, or the
+    one-time token — which is unstored by design anyway)."""
+    now = dt.datetime.now(dt.timezone.utc)
+    rows = db.execute(select(Enrollment).where(
+        Enrollment.student_id == student.student_id,      # session-derived subject ONLY
+        Enrollment.business_unit_id == BU,
+        Enrollment.deleted_at.is_(None))
+        .order_by(Enrollment.created_at.desc())).scalars().all()
+    out = []
+    for e in rows:
+        course = db.get(Course, e.course_id)
+        # active test = issued/started, not yet submitted, not expired
+        t = db.execute(select(Test).where(
+            Test.enrollment_id == e.id, Test.business_unit_id == BU,
+            Test.status.in_(("issued", "started")), Test.submitted_at.is_(None),
+            Test.valid_until > now, Test.deleted_at.is_(None))
+            .order_by(Test.attempt_no.desc())).scalars().first()
+        active_test = ({"valid_until": t.valid_until.isoformat(), "attempt_no": t.attempt_no}
+                       if t is not None else None)
+        out.append({
+            "enrollment_id": str(e.id),
+            "course": {"title": course.title if course else None,
+                       "slug": course.slug if course else None},
+            "status": e.status,
+            "aptitude_score": float(e.aptitude_score) if e.aptitude_score is not None else None,
+            "discount_percent": int(e.discount_percent) if e.discount_percent is not None else None,
+            "final_fee": float(e.final_fee) if e.final_fee is not None else None,
+            "currency": course.currency if course else "INR",
+            "payment_status": e.payment_status,
+            "active_test": active_test,
+        })
+    return out

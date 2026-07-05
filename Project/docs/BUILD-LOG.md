@@ -1872,6 +1872,25 @@ locally. NOT a deployment change.
   route-smoke matrix allowlists the no-data `/api/academy/ping` diagnostic (visible only because
   local runs the academy flag ON). Suite 306 green on a clean DB.
 
+## 2026-07-05 — FE#4: student-facing enrolments read (backend) + take wiring
+
+- **`GET /api/academy/students/me/enrollments`** (get_current_student-gated, no schema change):
+  the student's OWN enrolments (course/status/aptitude_score/discount/final_fee/payment_status
+  + `active_test` presence). STRICT SCOPING — derived from the SESSION only, NO student_id/
+  enrollment_id param, so student A has no request shape to read B. NO answer leak (no served
+  questions/answers/token). Cross-student isolation + gate(401) + no-leak + active-test lifecycle
+  tested. Local-only until the backend track next pushes.
+- **CONSTRAINT surfaced:** the take LINK cannot be returned by a student endpoint — B.7 stores
+  only the SHA-256 of the one-time token (raw token shown once at issue, never stored). So
+  `active_test` is a presence indicator (valid_until, attempt_no); delivering the actual
+  `/take/{token}` link to the student needs an aptitude-invite notification at issue time (the
+  "stubbed hop as a notification row" pattern) — a follow-up decision.
+- **CARRY-FORWARD (record, do NOT fix now):** the take API `GET /take/{token}` returns
+  `time_limit_minutes = settings.test_time_limit_minutes` (the STAFFING config) regardless of the
+  test's business_unit. It's coincidentally also 60 min, so academy renders correctly today —
+  but the academy time-limit is accidentally coupled to staffing's value. Branch it on
+  business_unit_id eventually. Latent coupling, not blocking.
+
 ## Pending / next steps
 
 ➡️ **The canonical, durable register of ALL outstanding/deferred items is
