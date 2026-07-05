@@ -23,6 +23,7 @@ from .routers import notifications as notifications_router
 from .routers import founder as founder_router
 from .routers import crm as crm_router
 from .routers import vendor_mgmt as vendor_mgmt_router
+from .routers import academy as academy_router
 
 app = FastAPI(title="SPS Technosoft API", version="0.1.1")
 
@@ -51,6 +52,7 @@ app.include_router(notifications_router.router, prefix="/api", tags=["notificati
 app.include_router(founder_router.router, prefix="/api/dashboard/founder", tags=["founder-dashboard"])
 app.include_router(crm_router.router, prefix="/api", tags=["crm"])
 app.include_router(vendor_mgmt_router.router, prefix="/api", tags=["vendor-mgmt"])
+app.include_router(academy_router.router, prefix="/api/academy", tags=["academy"])
 # /api/take is the ONE-TIME-TOKEN candidate surface (B.7): no JWT, no cookies —
 # the token resolves the test row and is the entire authority.
 app.include_router(take_router.router, prefix="/api/take", tags=["take-test"])

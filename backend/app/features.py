@@ -22,6 +22,8 @@ _RESOLVERS = {
     # B.7 admin waiver — ctx-aware signature so per-tenant/plan resolution can
     # layer on later; env-global today, default OFF.
     "assessment_waiver": lambda ctx: settings.feature_assessment_waiver,
+    # A1 Academy vertical gate — the whole /api/academy/* surface 404s when off.
+    "academy": lambda ctx: settings.feature_academy,
 }
 
 

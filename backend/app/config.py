@@ -40,6 +40,10 @@ class Settings(BaseSettings):
     # toggle): admin-gated, reason-required, audited, never fakes a score. OFF by
     # default; 404 when off (probe-proof).
     feature_assessment_waiver: bool = False   # FEATURE_ASSESSMENT_WAIVER
+    # A1 EdTech/Academy vertical — the whole academy surface is gated behind this;
+    # OFF by default → /api/academy/* 404s (probe-proof). Per-tenant-capable
+    # signature (like the AI/waiver flags); env-global today.
+    feature_academy: bool = False             # FEATURE_ACADEMY
 
     # PII field encryption (Part 10). Envelope encryption + blind index.
     #   - PII_KMS_KEY_ID set  -> KMS mode (GenerateDataKey/Decrypt on the CMK).
