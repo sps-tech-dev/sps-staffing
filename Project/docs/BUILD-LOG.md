@@ -1822,6 +1822,34 @@ migration 0037 (the payment-link notification template).
 - **Migration 0037 (DATA-only, no schema change):** seeds the template via the idempotent
   seed_notification_templates. up→down→up clean. **Tests 272 → 298.**
 
+## 2026-07-05 — A6: payment activation (STUB, per the founder's STUB/PAID map) ✅
+
+Idempotent activation is the property this slice lives on. NOT a gateway decision — Razorpay is
+PAID→STUB in dev per the founder's map; Part-D swaps in the real order+HMAC webhook as a DROP-IN.
+
+- **Schema (STOP-1 approved, migration 0038):** `academy.payments` gains `paid_at` +
+  `receipt_s3_key` (both nullable, no backfill). The A1 payments table (amount/status/provider/
+  provider_ref) was reused unchanged. Migration 0039 (DATA-only) seeds the
+  `academy_enrolment_active` template.
+- **The single activation seam (`_activate_payment`):** the stub confirm AND the future
+  HMAC-verified Razorpay webhook BOTH enter it — marks paid + paid_at, activates the enrolment
+  (offered→active), renders the receipt PDF via the existing ReportLab+S3 seam, enqueues the
+  confirmation email. **Part-D adds signature-verify + order-lookup BEFORE this call and changes
+  NOTHING after it** (provider_ref holds the Razorpay payment id; stub uses `stub-<uuid>`).
+- **Amount is READ off `enrollment.final_fee`** (C.2) — never recomputed, never hardcoded.
+  Pre-tax; GST/TDS stay inert (no tax added at payment).
+- **Idempotency/guards (keyed on the PAYMENT ROW's own status, never the enrolment):**
+  (1) this payment already paid → no-op success (webhook REDELIVERY); (2) else the enrolment
+  must be at `offered` to activate — NOT offered (tested, or already-active via a DIFFERENT
+  payment) → 409 conflict, fail-closed (a distinct unpaid payment vs an active enrolment is a
+  real two-payments conflict, never swallowed). `_create_or_get_payment` refuses to mint a
+  second payable row against an active/paid enrolment (409 ENROLLMENT_NOT_PAYABLE).
+- **Consumes the A5 decision:** `offered` = "awaiting payment" → payment activates it to
+  `active`. The stub confirm is `POST /api/academy/enrollments/{id}/pay` (matches A5's stub link).
+- **Tests 298 → 306** (8 A6: amount-reads-final-fee, create-idempotency, happy path w/ receipt +
+  email, DOUBLE-CONFIRM redelivery no-op, wrong-state 409, SECOND-PAYMENT conflict 409,
+  create-against-active 409, no-tax). moto S3 for the receipt PDF.
+
 ## Pending / next steps
 
 ➡️ **The canonical, durable register of ALL outstanding/deferred items is

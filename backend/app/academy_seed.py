@@ -71,6 +71,12 @@ SEED_NOTIFICATION_TEMPLATES: list[dict] = [
      "body": "[FOUNDER DRAFT] Hi {full_name}, based on your entrance aptitude you earned a "
              "{discount_percent}% discount on {course}. Your enrolment fee is {final_fee} {currency} "
              "(pre-tax). Complete payment here: {payment_link}"},
+    # A6 — payment confirmed → enrolment ACTIVE.
+    {"code": "academy_enrolment_active", "channel_type": "email",
+     "subject": "[FOUNDER DRAFT] Enrolment confirmed — {course}",
+     "body": "[FOUNDER DRAFT] Hi {full_name}, we received your payment of {amount} {currency} for "
+             "{course}. Your enrolment is now ACTIVE. Your receipt is attached to your student "
+             "dashboard. Welcome to SPS Academy!"},
 ]
 
 

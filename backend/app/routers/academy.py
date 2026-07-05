@@ -30,7 +30,7 @@ from ..deps import get_current_context
 from ..features import is_enabled, require_feature
 from ..idempotency import get_cached, store
 from ..models import Tenant
-from ..models_academy import Cohort, Course
+from ..models_academy import Cohort, Course, Enrollment
 from .staffing import _require_staff, _tid
 
 router = APIRouter()
@@ -647,3 +647,108 @@ def issue_aptitude(enrollment_id: uuid.UUID,
            "time_limit_minutes": settings.academy_test_time_limit_minutes}
     store(str(ctx.tenant_id), idempotency_key, res)
     return res
+
+
+# ═══════════════════════════════════════════════════════════════════
+# A6 — payment activation (STUB; Part-D swaps in Razorpay order+webhook)
+# ═══════════════════════════════════════════════════════════════════
+from ..models_academy import Payment, Student  # noqa: E402
+from .. import academy_receipt_pdf  # noqa: E402
+
+
+def _create_or_get_payment(db, enr, ctx) -> Payment:
+    """Lazy, idempotent payment-intent seam (Part-D: also creates the Razorpay
+    ORDER here). ONE open (non-paid) row per enrollment: an existing open row is
+    returned; a create against an already-active/paid enrollment is refused with a
+    clean 4xx (never mint a second payable row against a paid enrolment)."""
+    if enr.status in ("active", "completed") or enr.payment_status == "paid":
+        raise _err(409, "ENROLLMENT_NOT_PAYABLE",
+                   "Enrollment is already active/paid — no new payment can be created")
+    existing = db.execute(select(Payment).where(
+        Payment.enrollment_id == enr.id, Payment.status == "created",
+        Payment.deleted_at.is_(None)).order_by(Payment.created_at.desc())).scalars().first()
+    if existing is not None:
+        return existing
+    # amount is READ off the enrollment's stamped final_fee — never recomputed (C.2)
+    pay = Payment(tenant_id=_tid(ctx), business_unit_id=BU, enrollment_id=enr.id,
+                  amount=enr.final_fee, currency="INR", status="created", provider="stub")
+    db.add(pay); db.flush()
+    return pay
+
+
+def _activate_payment(db, pay: Payment, enr, ctx, provider_ref: str) -> None:
+    """The SINGLE activation seam the stub confirm AND the future HMAC-verified
+    Razorpay webhook both enter. Part-D adds signature-verify + order-lookup BEFORE
+    this call and changes NOTHING after it. Marks paid, activates the enrolment,
+    renders+stores the receipt PDF, enqueues the confirmation email."""
+    now = dt.datetime.now(dt.timezone.utc)
+    pay.status = "paid"
+    pay.paid_at = now
+    pay.provider_ref = provider_ref
+    enr.payment_status = "paid"
+    enr.payment_id = pay.id
+    enr.status = "active"                                   # offered→active
+    # receipt PDF via the existing ReportLab+S3 seam
+    course = db.get(Course, enr.course_id)
+    student = db.get(Student, enr.student_id)
+    pdf = academy_receipt_pdf.build_receipt_pdf(
+        payment=pay, enrollment=enr, course_title=course.title if course else "—",
+        student_name=student.full_name if student else "—")
+    key = (f"tenant={enr.tenant_id}/business_unit=ACADEMY/enrollments/{enr.id}/"
+           f"receipts/{pay.id}.pdf")
+    storage._client().put_object(Bucket=storage.settings.storage_bucket, Key=key,
+                                 Body=pdf, ContentType="application/pdf")
+    pay.receipt_s3_key = key
+    write_audit(db, ctx, "academy.payment_activate", "payment", pay.id,
+                after={"enrollment_id": str(enr.id), "amount": float(pay.amount),
+                       "provider_ref": provider_ref, "receipt_s3_key": key})
+    # confirmation email — idempotent on the PAYMENT ROW (never the enrollment)
+    if student is not None and student.email:
+        enqueue(db, template_code="academy_enrolment_active", recipient=student.email,
+                vars={"full_name": student.full_name, "course": course.title if course else "—",
+                      "amount": float(pay.amount), "currency": pay.currency},
+                tenant_id=enr.tenant_id, business_unit_id=BU,
+                idempotency_key=f"academy:payment_confirmed:{pay.id}")
+
+
+def _payment_result(pay: Payment, enr) -> dict:
+    return {"payment_id": str(pay.id), "status": pay.status,
+            "amount": float(pay.amount), "currency": pay.currency,
+            "paid_at": pay.paid_at.isoformat() if pay.paid_at else None,
+            "enrollment_status": enr.status,
+            "receipt_url": storage.presign_get(pay.receipt_s3_key) if pay.receipt_s3_key else None}
+
+
+@router.post("/enrollments/{enrollment_id}/pay")
+def confirm_payment(enrollment_id: uuid.UUID,
+                    ctx: RequestContext = Depends(require_feature("academy")),
+                    db: Session = Depends(get_db)):
+    """STUB confirm — simulates the Razorpay webhook callback (Part-D replaces the
+    staff gate with HMAC signature verification + order lookup, then calls the SAME
+    _activate_payment). Idempotency is keyed on the PAYMENT ROW's own status:
+      1. this payment already paid → no-op success (webhook REDELIVERY of THIS payment).
+      2. else the enrolment MUST be at 'offered' to activate:
+         - offered → activate.
+         - NOT offered (tested, or already active via a DIFFERENT payment) → 4xx
+           conflict (a distinct unpaid payment vs an active enrolment is a real
+           two-payments conflict, never swallowed as success)."""
+    _require_staff(ctx)
+    enr = db.execute(select(Enrollment).where(
+        Enrollment.id == enrollment_id, Enrollment.tenant_id == _tid(ctx),
+        Enrollment.business_unit_id == BU, Enrollment.deleted_at.is_(None))).scalar_one_or_none()
+    if enr is None:
+        raise _err(404, "NOT_FOUND", "Enrollment not found")
+    current = db.execute(select(Payment).where(
+        Payment.enrollment_id == enr.id, Payment.deleted_at.is_(None))
+        .order_by(Payment.created_at.desc())).scalars().first()
+    # 1. redelivery of THIS payment (keyed on the payment row's status, not the enrolment)
+    if current is not None and current.status == "paid":
+        return _payment_result(current, enr)               # no-op success
+    # 2. this payment not paid → the enrolment must be offered to activate
+    if enr.status != "offered":
+        raise _err(409, "STATUS_INVALID",
+                   "Enrollment must be at 'offered' to activate payment")
+    pay = _create_or_get_payment(db, enr, ctx)
+    _activate_payment(db, pay, enr, ctx, provider_ref=f"stub-{uuid.uuid4()}")
+    db.commit()
+    return _payment_result(pay, enr)

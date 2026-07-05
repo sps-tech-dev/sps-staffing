@@ -225,4 +225,6 @@ class Payment(TwoAxisMixin, Base):
     currency: Mapped[str] = mapped_column(sa.Text, nullable=False, server_default=sa.text("'INR'"))
     status: Mapped[str] = mapped_column(sa.Text, nullable=False, server_default=sa.text("'created'"))
     provider: Mapped[str] = mapped_column(sa.Text, nullable=False, server_default=sa.text("'stub'"))
-    provider_ref: Mapped[str | None] = mapped_column(sa.Text)
+    provider_ref: Mapped[str | None] = mapped_column(sa.Text)   # Razorpay payment id in Part-D
+    paid_at: Mapped[datetime.datetime | None] = mapped_column(sa.DateTime(timezone=True))  # A6
+    receipt_s3_key: Mapped[str | None] = mapped_column(sa.Text)   # A6 receipt PDF
