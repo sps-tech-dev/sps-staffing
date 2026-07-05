@@ -157,7 +157,7 @@ Last refreshed: 2026-06-28 (after client-internal roles / owner-scoped jobs — 
 ## D. Product scope not yet built
 
 ### D1. Other verticals — Academy (Training/Internship) & Consulting (IT Services) portals
-- **What:** only the Staffing vertical is built. Academy + Consulting portals are not.
+- **What:** the Staffing vertical is built; **Academy is now built through A6 (backend, dev) + frontend surfaces #1–#4b** (2026-07-05). Consulting portal is not.
 - **Why deferred:** sequencing — Staffing first.
 - **Blocks:** those product lines.
 - **Trigger:** when the standing sequence reaches them.
@@ -175,7 +175,7 @@ Last refreshed: 2026-06-28 (after client-internal roles / owner-scoped jobs — 
   explicit link), /me/applications, real /me/overview; merge both-different-logins conflicts
   flagged durably. Candidate SELF-APPLY remains a deliberate non-feature (applications are
   staff-placed); if the business ever wants it, that's a new backend decision.
-- **ACADEMY (EdTech) vertical — A1+A2+A3 DONE 2026-07-05; A4–A10 remain** (plan
+- **ACADEMY (EdTech) vertical — A1–A6 DONE 2026-07-05 (dev, head 0040) + frontend surfaces #1–#4b + the two student reads (`/students/me/enrollments`, `/students/me/notifications`) + the aptitude-invite notification; A7–A10 remain** (plan
   `SPS_EDTECH_ACADEMY_BUILD_PLAN_V2.md`). A1 = schema (0033) + FEATURE_ACADEMY + students.user_id
   (F3a reuse) + 8-course seed. A2 = staff catalog CRUD + publish + cohorts + the PUBLIC
   published-only/safe-fields/tenant-by-Host listing (no migration). Next A3 (student registration +
@@ -193,6 +193,14 @@ Last refreshed: 2026-06-28 (after client-internal roles / owner-scoped jobs — 
     bridge-only (graduate→candidate), NOT auth. Consent went to shared.consents (Option A,
     `subject_student_id` soft-ref). A10 gate-matrix must cover `/api/academy/auth/*` +
     `/register/*` (wrong-token-type, both directions — already extended in A3).
+  - **A4–A6 additions (open deferrals):** the take API `time_limit_minutes` reads the STAFFING
+    config (coincidentally 60 min → academy renders correctly today) — branch on
+    `business_unit_id` eventually (latent coupling). The two student reads scope on different
+    session identities (enrolments on `student_id`, notifications on `recipient==email`) — correct
+    today; **reconcile trigger:** email-uniqueness weakening or a student changing email → move
+    `/me/notifications` to `student_id` (see DECISIONS 2026-07-05). Remaining academy FRONTEND
+    surfaces: **#5 result/discount · #6 pay · #7 dashboard · #8 admin roster**. Backend **A7–A10**
+    remain. Frontend has NO deploy target (see C1) — the academy frontend is local-verified only.
 - **E2E-1 → RESOLVED 2026-07-05:** 5 staffing GETs gated (`_require_staff`); the route-smoke
   matrix (which was a silent no-op — enumerated via app.routes past the `_IncludedRouter` wrapper)
   repaired to use `app.openapi()` + a fail-closed gate-matrix (candidate/client must 403 on staff

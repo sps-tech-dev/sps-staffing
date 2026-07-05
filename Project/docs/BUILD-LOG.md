@@ -1850,6 +1850,44 @@ PAID→STUB in dev per the founder's map; Part-D swaps in the real order+HMAC we
   email, DOUBLE-CONFIRM redelivery no-op, wrong-state 409, SECOND-PAYMENT conflict 409,
   create-against-active 409, no-tax). moto S3 for the receipt PDF.
 
+## 2026-07-05 — FE#1: public academy storefront (course listing + detail) ✅ (local-verified)
+
+Frontend only, local-verified — the frontend has no deploy target (C1). Two net-new pages in
+the (marketing) route group consuming the A2 public endpoints. commit `891914e`.
+
+- **/academy** (published-course grid) + **/academy/courses/{slug}** (detail) — built from the
+  F1 marketing design tokens (education gold accent, max-w-7xl, rounded-2xl cards) + the lib/api
+  client; loading/error/empty/404 states; fee formatted from the row's OWN currency (no hardcoded
+  number). Public = no auth (backend enforces published-only / safe-fields / tenant-by-Host).
+  APPLY routes to /academy/register?course={slug}.
+
+## 2026-07-05 — FE#2: public academy student registration + the local-S3 (MinIO) infra it required ✅
+
+Frontend register page (commit `7b5d08a`) + the local-S3 infra its ID-card upload needed (MinIO,
+commit `ba0bff1` — see its own entry below). Local-verified.
+
+- **/academy/register** (reads ?course=) consuming GET /register/config, POST /register/id-card/
+  presign, POST /register/student. Full form + client validation mirroring the backend, under-18
+  guardian gate, DPDP consent (the real FOUNDER-DRAFT notice from config), dev captcha stub, and
+  college-ID upload via presign→PUT→submit. **The id-card upload can't complete locally without
+  working S3** — which is why FE#2 pulled in the MinIO infra (ba0bff1). On success routes to
+  /academy/login (built in FE#3).
+
+## 2026-07-05 — FE#3: academy student login + student portal shell (A3 two-auth) ✅ (local-verified)
+
+The one net-new AUTH surface — wires the A3 academy cookie + the middleware that reads it.
+commit `3853c91`.
+
+- **/academy/login** sets the SEPARATE academy_access_token cookie (distinct secret from staff);
+  a (student) route-group portal shell at **/academy/student** (its own layout, calls /auth/me so
+  the session is proven to HOLD across reload/deep-link, not just the post-login redirect).
+- **Two-auth containment PROVEN BOTH DIRECTIONS** (the security property): middleware gates
+  /academy/student/* by the academy cookie via readAcademySessionFromCookie (requires
+  kind=academy_student); a staff access_token → bounced (307 → /academy/login); a student cookie
+  → bounced from /admin (307); the distinct backend secret rejects a staff token at
+  /academy/auth/me (401). Reload holds (SameSite=lax, Path=/, no Secure over http). Reuses the F1
+  /login POST + home-routing pattern.
+
 ## 2026-07-05 — Local S3 (MinIO) for frontend bring-up — dev/prod inert (infra, local-only)
 
 Local-only infra so the presign→browser-PUT→confirm flow (ID-card upload, receipts) works
@@ -1911,6 +1949,14 @@ locally. NOT a deployment change.
   row has no student_id column. If email-uniqueness ever weakens, or a student changes their
   email (past notifications keep the old recipient), the notification read should move to a
   student_id linkage to match the enrolments read. A latent inconsistency to note, not fix.
+
+## 2026-07-05 — Reconciliation push (FE#1–#4b) ✅
+
+FE#1–#4b pushed to develop; dev at head **0040**; Phase-3 dev probe GREEN on real RDS — staffing
+S3 round-trip inert with the presign-split deployed (envs unset), the academy issue→invite→
+notification-read(with take_link)→take→submit→enrolments-reflect chain, and cross-student token
+isolation (B cannot read A's notification or A's live take token). FEATURE_ACADEMY confirmed
+back OFF on the live service (register/config + students/me/enrollments both 404).
 
 ## Pending / next steps
 

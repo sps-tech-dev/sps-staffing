@@ -316,3 +316,47 @@ Discovery surfaced internal inconsistencies in the architecture spec. Resolved a
 - **What would change it:** if a manual admin review gate is ever inserted between grading and
   the offer (e.g. discretionary scholarship review), `tested` would become a real resting state
   and this decision is revisited.
+
+### 2026-07-05 — Academy student reads are presence-only; the take link reaches the student solely via the addressed invite notification
+
+- **Decision:** no student-facing endpoint returns a live `/take/{token}` link. `GET
+  /academy/students/me/enrollments` surfaces only a test's PRESENCE (`active_test = {valid_until,
+  attempt_no}`); the actual take link is delivered ONLY through the `academy_aptitude_invite`
+  notification addressed to that student, read via `GET /academy/students/me/notifications`.
+- **Why (security property):** B.7 stores only the SHA-256 HASH of the one-time take token — the
+  raw token is shown once at issue and never persisted. So a student endpoint *structurally
+  cannot* hand back a live link from stored state, and we deliberately did NOT change the storage
+  model to make it able to. The token reaches exactly the addressed student (their own
+  notification), and nowhere else — the enrolments read stays tokenless by design.
+- **What would change it:** never store the raw token to "make the link returnable" — that would
+  reintroduce a DB-leak → working-test-links risk. If a portal must show the link, it always comes
+  from the addressed notification.
+
+### 2026-07-05 — The two student reads scope on different session identities (student_id vs recipient-email) — historical, not intentional
+
+- **Decision (recorded, not a design goal):** `/academy/students/me/enrollments` scopes on the
+  SESSION `student_id`; `/academy/students/me/notifications` scopes on `recipient == session
+  email` (+ `business_unit_id='ACADEMY'`).
+- **Why:** the notification row has no `student_id` column (B.10 keys delivery on `recipient`), so
+  the notifications read has only the email to scope on. It is correct TODAY because an academy
+  student's email is unique per tenant and the BU filter excludes any staff notification that
+  happens to share an email (A3 email-reuse-across-boundary). Cross-student isolation is verified
+  on real RDS (Phase-3 probe).
+- **What would change it (reconcile trigger):** if academy email-uniqueness ever weakens, or a
+  student changes their email (past notifications keep the OLD recipient), move
+  `/me/notifications` to a `student_id` linkage so both reads key on the same identity.
+
+### 2026-07-05 — Local S3 (MinIO) presign-split is inert on dev/prod when both endpoint envs are unset
+
+- **Decision:** `storage._presign_client()` (distinct from `_client()`) signs presigned URLs
+  against `S3_PUBLIC_ENDPOINT_URL` so a local browser can PUT to MinIO at `localhost:9000` while
+  the backend reaches MinIO at `minio:9000` via `S3_ENDPOINT_URL`. Both envs are set ONLY in
+  docker-compose.
+- **Why inert for dev/prod:** dev/prod leave BOTH envs unset, so `_client()` AND `_presign_client()`
+  fall to the bare `boto3.client("s3", region_name=...)` — identical to before — and
+  `presign_put`/`presign_get` still emit virtual-host real-S3 SigV4 URLs. Proven locally (clear
+  the envs → identical construction + URL shape) AND confirmed on dev (Phase-3 leg 3A: a real
+  staffing S3 round-trip works with the split deployed and the envs unset). KMS is a dev/prod
+  bucket-default (no SSE in app code) → locally absent, dev/prod untouched.
+- **What would change it:** re-verify by clearing the two envs and asserting the presign output is
+  a `https://<bucket>.s3.<region>.amazonaws.com/...` URL (not a MinIO host).
