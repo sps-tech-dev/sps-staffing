@@ -24,15 +24,35 @@ services:
     image: redis:7
     # No host port mapping — backend reaches it over the compose network.
 
+  # LOCAL S3 (MinIO) — so the presign→browser-PUT→head_object flow (id-card upload,
+  # receipts) works locally. NOT a deployment target; dev/prod use real S3 + KMS.
+  # Published on :9000 (API) so the browser can reach the presigned-URL host, and
+  # :9001 (console). CORS is opened to the frontend origin for the browser PUT.
+  minio:
+    image: minio/minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_API_CORS_ALLOW_ORIGIN: "http://localhost:3000"
+    ports: ["9000:9000", "9001:9001"]
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 4s
+      timeout: 3s
+      retries: 20
+
   backend:
     build: ./backend
     environment:
       APP_ENV: dev
       AWS_REGION: ap-south-1
-      # local-only dummy creds: presigned-URL SIGNING is offline but needs SOME
-      # credentials; real access uses the ECS task role (never these).
-      AWS_ACCESS_KEY_ID: local-dev-dummy
-      AWS_SECRET_ACCESS_KEY: local-dev-dummy
+      # local S3 = MinIO: creds match the MinIO root user; the endpoint overrides
+      # route the client at MinIO (backend) and bake a browser-reachable presign host.
+      AWS_ACCESS_KEY_ID: minioadmin
+      AWS_SECRET_ACCESS_KEY: minioadmin
+      S3_ENDPOINT_URL: http://minio:9000            # backend → MinIO (compose network)
+      S3_PUBLIC_ENDPOINT_URL: http://localhost:9000  # presigned-URL host the browser hits
       DB_HOST: postgres
       DB_PORT: "5432"
       DB_NAME: sps_platform_dev
@@ -43,10 +63,16 @@ services:
       # Local-only auth secrets (NOT real; prod injects from Secrets Manager).
       JWT_ACCESS_SECRET: local-dev-access-secret-not-for-prod
       JWT_REFRESH_SECRET: local-dev-refresh-secret-not-for-prod
+      # A3 two-auth: the academy student cookie uses a DISTINCT secret (local-only).
+      JWT_ACADEMY_SECRET: local-dev-academy-secret-not-for-prod
       COOKIE_SECURE: "false"
+      # Academy (EdTech) vertical — ON locally so the frontend can walk A1–A6.
+      FEATURE_ACADEMY: "true"
     ports: ["8000:8000"]
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_started
+      minio:
+        condition: service_healthy

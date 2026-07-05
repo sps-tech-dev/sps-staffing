@@ -209,6 +209,7 @@ NON_STAFF_GET_PREFIXES = (
     "/api/academy/public/",    # A2 public course catalog (marketing-facing, published-only)
     "/api/academy/register/",  # A3 public student registration
     "/api/academy/auth/",      # A3 academy-STUDENT auth (separate token; staff sessions get 401 here)
+    "/api/academy/ping",       # A1 flag-proof diagnostic — returns no data, not staff-scoped
 )
 
 

@@ -16,9 +16,20 @@ from __future__ import annotations
 import pytest
 from sqlalchemy import delete, select, update
 
+from app.config import settings
 from app.db import get_sessionmaker
 from app.models import Tenant
 from app.models_staffing import Question, QuestionBank
+
+
+@pytest.fixture(autouse=True)
+def _no_local_s3_endpoint(monkeypatch):
+    """Tests use moto (or the bare client), NEVER the local MinIO endpoint. The
+    docker-compose backend sets S3_ENDPOINT_URL for the app; clear it per-test so
+    the storage client is the bare boto3 client moto intercepts — matching CI,
+    where the override is unset."""
+    monkeypatch.setattr(settings, "s3_endpoint_url", "", raising=False)
+    monkeypatch.setattr(settings, "s3_public_endpoint_url", "", raising=False)
 
 # 12 neutral SAMPLE questions. Constraints the tests rely on: exactly 12, valid
 # correct_index (0-3), and NO substring "correct" anywhere (the no-answer-leak

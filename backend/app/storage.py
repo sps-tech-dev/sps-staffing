@@ -32,6 +32,26 @@ RESUME_CONTENT_TYPES = {
 
 
 def _client():
+    # dev/prod (s3_endpoint_url unset) → EXACTLY as before: real S3, task-role creds,
+    # virtual-host addressing, bucket-default KMS. The override branch is LOCAL-ONLY
+    # (MinIO): a custom endpoint needs path-style addressing.
+    if settings.s3_endpoint_url:
+        from botocore.config import Config
+        return boto3.client("s3", region_name=settings.aws_region,
+                            endpoint_url=settings.s3_endpoint_url,
+                            config=Config(s3={"addressing_style": "path"}))
+    return boto3.client("s3", region_name=settings.aws_region)
+
+
+def _presign_client():
+    # Presigned URLs must carry a host the BROWSER can reach. dev/prod (both endpoint
+    # vars unset) → IDENTICAL to _client()'s real-S3 branch. Local → the published
+    # MinIO port (localhost:9000) so the browser PUT/GET resolves.
+    public = settings.s3_public_endpoint_url or settings.s3_endpoint_url
+    if public:
+        from botocore.config import Config
+        return boto3.client("s3", region_name=settings.aws_region, endpoint_url=public,
+                            config=Config(s3={"addressing_style": "path"}))
     return boto3.client("s3", region_name=settings.aws_region)
 
 
@@ -54,7 +74,7 @@ def presign_put(key: str, content_type: str, expires: int = PRESIGN_PUT_TTL) -> 
     Content-Type header fails the signature). Size cannot be bound into a presigned
     PUT — the declared size is validated at presign time and the REAL size is
     re-checked server-side at confirm() via head_object."""
-    return _client().generate_presigned_url(
+    return _presign_client().generate_presigned_url(
         "put_object",
         Params={"Bucket": settings.storage_bucket, "Key": key, "ContentType": content_type},
         ExpiresIn=expires,
@@ -62,7 +82,7 @@ def presign_put(key: str, content_type: str, expires: int = PRESIGN_PUT_TTL) -> 
 
 
 def presign_get(key: str, expires: int = PRESIGN_GET_TTL) -> str:
-    return _client().generate_presigned_url(
+    return _presign_client().generate_presigned_url(
         "get_object",
         Params={"Bucket": settings.storage_bucket, "Key": key},
         ExpiresIn=expires,

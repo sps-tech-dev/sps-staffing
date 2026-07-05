@@ -1850,6 +1850,28 @@ PAID→STUB in dev per the founder's map; Part-D swaps in the real order+HMAC we
   email, DOUBLE-CONFIRM redelivery no-op, wrong-state 409, SECOND-PAYMENT conflict 409,
   create-against-active 409, no-tax). moto S3 for the receipt PDF.
 
+## 2026-07-05 — Local S3 (MinIO) for frontend bring-up — dev/prod inert (infra, local-only)
+
+Local-only infra so the presign→browser-PUT→confirm flow (ID-card upload, receipts) works
+locally. NOT a deployment change.
+
+- **MinIO** added to docker-compose (`:9000` API, `:9001` console); backend wired via
+  `S3_ENDPOINT_URL` (backend→MinIO) + `S3_PUBLIC_ENDPOINT_URL` (browser-reachable presign host);
+  local bucket created idempotently by `seed_local_academy.py`, same NAME as dev so keys match;
+  browser CORS opened to `http://localhost:3000`.
+- **INVARIANT (documented so it's re-verifiable, not tribal):** presign now uses a SEPARATE
+  public-endpoint client (`storage._presign_client()`, distinct from `_client()`); dev/prod
+  behaviour is gated on BOTH `S3_ENDPOINT_URL` and `S3_PUBLIC_ENDPOINT_URL` being UNSET — proven
+  inert: with both empty, `_client()` AND `_presign_client()` construct byte-identical to the
+  prior bare `boto3.client("s3", region_name=...)`, and `presign_put`/`presign_get` still emit
+  virtual-host real-S3 SigV4 URLs (`https://<bucket>.s3.amazonaws.com/…`) — dev/prod presigned
+  URLs unchanged. KMS is a dev/prod bucket-default (no SSE in app code) → locally absent (no-op),
+  dev/prod untouched. Re-verify by clearing the two envs and asserting the presign output shape.
+- Test-robustness (CI unaffected — CI runs with the overrides unset + academy flag off): a
+  conftest autouse fixture clears the S3 endpoint per-test (tests use moto, never MinIO); the
+  route-smoke matrix allowlists the no-data `/api/academy/ping` diagnostic (visible only because
+  local runs the academy flag ON). Suite 306 green on a clean DB.
+
 ## Pending / next steps
 
 ➡️ **The canonical, durable register of ALL outstanding/deferred items is

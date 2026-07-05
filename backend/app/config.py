@@ -37,6 +37,14 @@ class Settings(BaseSettings):
         default="sps-technosoft-dev-storage",
         validation_alias=AliasChoices("S3_BUCKET", "STORAGE_BUCKET"),
     )
+    # LOCAL-ONLY S3 override (MinIO). BOTH default "" → dev/prod construct the S3
+    # client EXACTLY as before (real S3 + task-role creds + bucket-default KMS).
+    # s3_endpoint_url = the backend's own endpoint (compose network, http://minio:9000);
+    # s3_public_endpoint_url = the browser-reachable host baked into presigned URLs
+    # (http://localhost:9000). Set only in docker-compose.
+    s3_endpoint_url: str = Field(default="", validation_alias=AliasChoices("S3_ENDPOINT_URL"))
+    s3_public_endpoint_url: str = Field(
+        default="", validation_alias=AliasChoices("S3_PUBLIC_ENDPOINT_URL"))
 
     # Feature flags (F6). Non-GA features default OFF; gated routes 404 when off
     # (see app/features.py). AI assistive widgets are not GA — off in dev.
