@@ -186,7 +186,10 @@ Last refreshed: 2026-06-28 (after client-internal roles / owner-scoped jobs — 
 - **E2E-2 (minor, tracked): no write API for `client.fee_percent`** — settable only via DB
   (ClientIn lacks it; no PATCH /clients). Fine while fees are seeded, but the client-fee override
   from B.9 has no UI/endpoint path. Fold into a future commercial-admin slice.
-- **F4 → DONE 2026-07-04**; **F5 → DONE 2026-07-05**; **F6 → DONE 2026-07-05** (assessments UI + public take page;
+- **F-SERIES COMPLETE (F1–F7, done through 2026-07-05).** Staffing frontend backlog closed.
+  Remaining deferrals (not frontend-backlog): proctoring capture loop (B.7); real notification
+  delivery = Part-D SES/SMS/WhatsApp channels; hosting (C1/D.6); E2E-2 (client.fee_percent write
+  API — commercial-admin slice); the EdTech vertical (its own plan). (assessments UI + public take page;
   proctoring CAPTURE LOOP still deferred — presign wiring only). Remaining: F6 CRM board +
   vendor screens → F7 notification center + founder trend charts. Hosting still deferred
   (C1/D.6).

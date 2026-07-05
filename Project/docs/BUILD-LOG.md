@@ -1613,6 +1613,33 @@ fresh CI DB).
   trap — it hides until a fresh clone or a second environment (staging) exists. Worth an audit
   for other tests that assume seeded data before staging stands up.
 
+## 2026-07-05 — F7: notification center + founder trend charts ✅ (frontend backlog CLOSED)
+
+Last frontend-backlog slice. Frontend-only (no deploy; recharts was already a dep — no new package).
+
+- **Notification center (/admin/notifications):** read-only view of the B.10 LEDGER
+  (template/channel/recipient/status/attempts/last_error/time + status filters). Honest delivery
+  labeling: a banner states it's a ledger not a mailbox; console 'sent' = 'logged to console (dev
+  sink)', never 'delivered'; a still-pending row on an unregistered channel shows 'awaiting
+  channel (Part D) — parked'. **Correctness caught mid-build:** 'parked' is NOT a status
+  (ck_notifications_status = pending/sent/failed/skipped) — the parked state is DERIVED from
+  pending + unregistered channel, not a fake status value. Real DELIVERY is Part D.
+- **Founder trend charts (extends the F1 KPI strip):** trends line (revenue/placements/
+  applications, 6-month) + by-BU bars with Academy/Consulting rendering honestly zero (real
+  queries). Owner-gated by the SAME probe pattern as F1's FounderKpiStrip — a plain admin's 403
+  resolves the section to null; the page never breaks. B.11's 5-min cache is a feature (?refresh
+  busts).
+- **Verified:** tsc/eslint/build clean; owner+admin walk PASS (ledger honesty, owner charts,
+  admin graceful-403, by-bu honest zeros, refresh). Walk artifacts worth noting: two seed bugs
+  (rendered_body NOT NULL; the 'parked' status CHECK violation that surfaced the derived-state
+  correction) and a founder-cache stale-zero (cleared with ?refresh=1) — all harness, not code.
+- **THE F-SERIES (F1–F7) IS COMPLETE.** The staffing frontend backlog is closed: marketing→
+  login→role routing, all role dashboards, the recruiter pipeline (optimistic-locked), candidate
+  tabs, client-portal deep tabs, admin/SLA screens, assessments UI + public take page, CRM board,
+  vendor depth, notification center, founder charts. Deferred (unchanged): proctoring capture
+  loop, real notification delivery (Part-D channels), hosting (C1/D.6), E2E-2 (client.fee_percent
+  write API), the EdTech vertical.
+
 ## Pending / next steps
 
 ➡️ **The canonical, durable register of ALL outstanding/deferred items is
