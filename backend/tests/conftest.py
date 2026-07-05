@@ -88,3 +88,16 @@ def academy_course_seed():
     db.commit()
     db.close()
     yield
+
+
+# A3: the two academy notification templates are migration-seeded, but (E2E-3
+# lesson) tests must not depend on uncodified DB state. Idempotent ensure from
+# the same source of truth the migration uses.
+@pytest.fixture(scope="session", autouse=True)
+def academy_notification_templates():
+    from app.academy_seed import seed_notification_templates
+    db = get_sessionmaker()()
+    seed_notification_templates(db.connection())
+    db.commit()
+    db.close()
+    yield

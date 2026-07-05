@@ -207,6 +207,8 @@ NON_STAFF_GET_PREFIXES = (
     "/api/take/",              # public token surface (no JWT)
     "/api/register/",          # public registration
     "/api/academy/public/",    # A2 public course catalog (marketing-facing, published-only)
+    "/api/academy/register/",  # A3 public student registration
+    "/api/academy/auth/",      # A3 academy-STUDENT auth (separate token; staff sessions get 401 here)
 )
 
 
