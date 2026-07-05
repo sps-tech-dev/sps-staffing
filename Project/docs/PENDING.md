@@ -179,9 +179,10 @@ Last refreshed: 2026-06-28 (after client-internal roles / owner-scoped jobs — 
   matrix (which was a silent no-op — enumerated via app.routes past the `_IncludedRouter` wrapper)
   repaired to use `app.openapi()` + a fail-closed gate-matrix (candidate/client must 403 on staff
   GETs) + route-count floors. Commit `3964fcd`, dev-proven.
-- **E2E-3 (NEW, minor — test-infra gap):** the aptitude SEED question bank (12 questions) local
-  tests depend on is NOT codified (no conftest/seed script) — a fresh clone can't run
-  test_assessments green without manual seeding. Add a session-scoped seed fixture. Tracked.
+- **E2E-3 → RESOLVED 2026-07-05:** session-scoped autouse fixture (tests/conftest.py) seeds the
+  12-question aptitude bank deterministically; suite proven green from an empty DB. Test-only,
+  no deploy. (Local dev DB no longer carries the migration SAMPLE bank after the fresh-clone
+  simulation — irrelevant to tests now; dev RDS seed untouched.)
 - **E2E-2 (minor, tracked): no write API for `client.fee_percent`** — settable only via DB
   (ClientIn lacks it; no PATCH /clients). Fine while fees are seeded, but the client-fee override
   from B.9 has no UI/endpoint path. Fold into a future commercial-admin slice.

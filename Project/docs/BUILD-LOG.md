@@ -1592,6 +1592,27 @@ Backend micro-slice from the F6-E2E finding (no migration, head 0032).
   depend on — not a code break; reseeded (12 neutral-text active questions). Flags a real gap:
   the aptitude seed bank isn't reproducible from the repo (no conftest/seed script) — logged.
 
+## 2026-07-05 — E2E-3: aptitude seed bank made reproducible (test-infra) ✅
+
+Test-only slice (`backend/tests/conftest.py`). No app/migration/engine change; the deployed
+image is content-identical (CI run `28729671425` green — which also validates the fixture in a
+fresh CI DB).
+
+- **THE PROBLEM:** `test_assessments` assumed a persistent 12-question bank. Migration 0026
+  DOES data-seed a SAMPLE bank, so a freshly-*migrated* clone has it — but it's ordinary DML a
+  sweep deletes permanently, with nothing to recreate it (exactly how the suite broke mid-E2E-1).
+  A suite that only passes on uncodified DB state isn't truly reproducible.
+- **THE FIX:** a session-scoped autouse fixture guarantees EXACTLY 12 active neutral-text
+  questions for SPS001 independent of DB state — it deactivates any pre-existing active
+  questions, installs a deterministic fixture bank, and restores the prior state on teardown.
+  Decoupled from the migration seed on purpose (tests depend on the fixture, not on whatever is
+  or isn't in the DB).
+- **PROVEN:** wiped ALL questions to simulate a fresh clone → `test_assessments` 24 passed from
+  empty; full suite 247 green; teardown leaves 0 orphaned rows.
+- **LESSON:** a green suite that silently depends on uncodified local state is a reproducibility
+  trap — it hides until a fresh clone or a second environment (staging) exists. Worth an audit
+  for other tests that assume seeded data before staging stands up.
+
 ## Pending / next steps
 
 ➡️ **The canonical, durable register of ALL outstanding/deferred items is
