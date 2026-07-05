@@ -1741,6 +1741,29 @@ STOP-1 (migration) both approved.
   S3 object ✅ — PASS exit 0, self-cleaned. Flag-off live service: academy auth/register → 404;
   /readyz ok.
 
+## 2026-07-05 — A4 Part 1: staffing.tests generalized vertical-agnostic (migration 0035) ✅
+
+The one migration A4 forces (STOP-1 approved). Identity/discriminator ONLY — the 60Q/60min
+engine extension + academy bank + issue endpoint are the following A4 prompts.
+
+- **0035:** `staffing.tests` `application_id`/`candidate_id` → NULLABLE (keep within-schema FKs);
+  add `enrollment_id` + `student_id` soft-refs (no cross-schema FK, per convention); add
+  `ck_tests_one_identity` — EXACTLY ONE pairing set: staffing (application+candidate) OR academy
+  (enrollment+student); index the two new columns. NO FORK (reuse mandate): the take flow
+  (`/take/{token}`) stays identity-agnostic; only issue + the post-grade callback branch on
+  `business_unit_id`. NO backfill (0 existing rows violate the CHECK — all are staffing rows).
+  up→down→up clean. Not in the REVOKE list.
+- **Class-guard test** (`test_tests_identity_check.py`): the CHECK is now a permanent DB guard
+  (route-smoke discipline) — academy pairing inserts; mixed/half/all-null rows → IntegrityError.
+  Suite 264 → **265**.
+- **⚠️ A4-P2 CARRY-FORWARD (do NOT act until A4-P2):** `ck_tests_one_identity` guarantees
+  exactly-one-pairing but does NOT tie the pairing to `business_unit_id`. A row could carry
+  `business_unit_id=ACADEMY` with the STAFFING pairing and the CHECK wouldn't catch it — and the
+  post-grade callback branches on `business_unit_id`. **A4-P2 must enforce BU↔pairing consistency
+  at the ACADEMY issue path (service-layer assertion + targeted test), NOT as a DB CHECK** — a
+  BU-coupled CHECK would hardcode the BU axis value into the constraint (brittle). Keep the
+  invariant where the writer is.
+
 ## Pending / next steps
 
 ➡️ **The canonical, durable register of ALL outstanding/deferred items is

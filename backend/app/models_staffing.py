@@ -278,16 +278,28 @@ class Test(TwoAxisMixin, Base):
     __table_args__ = (
         bu_check("tests"),
         sa.CheckConstraint(f"status IN ({_TEST_SQL})", name="ck_tests_status"),
+        # A4 (0035): vertical-agnostic identity — EXACTLY ONE pairing is set,
+        # staffing (application+candidate) OR academy (enrollment+student).
+        sa.CheckConstraint(
+            "(application_id IS NOT NULL AND candidate_id IS NOT NULL "
+            " AND enrollment_id IS NULL AND student_id IS NULL) "
+            "OR (enrollment_id IS NOT NULL AND student_id IS NOT NULL "
+            " AND application_id IS NULL AND candidate_id IS NULL)",
+            name="ck_tests_one_identity"),
         sa.UniqueConstraint("link_token_hash", name="uq_tests_link_token_hash"),
         sa.Index("ix_tests_application_id", "application_id"),
+        sa.Index("ix_tests_enrollment_id", "enrollment_id"),
+        sa.Index("ix_tests_student_id", "student_id"),
         {"schema": SCHEMA},
     )
-    application_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), sa.ForeignKey(f"{SCHEMA}.applications.id"), nullable=False
-    )
-    candidate_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), sa.ForeignKey(f"{SCHEMA}.candidates.id"), nullable=False
-    )
+    # staffing identity (within-schema FKs, now NULLABLE for the academy branch)
+    application_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), sa.ForeignKey(f"{SCHEMA}.applications.id"))
+    candidate_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), sa.ForeignKey(f"{SCHEMA}.candidates.id"))
+    # academy identity (soft-refs — no cross-schema FK; A4 issue endpoint sets these)
+    enrollment_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
+    student_id: Mapped[uuid.UUID | None] = mapped_column(UUID(as_uuid=True))
     link_token_hash: Mapped[str] = mapped_column(sa.Text, nullable=False)
     valid_until: Mapped[datetime.datetime] = mapped_column(sa.DateTime(timezone=True), nullable=False)
     status: Mapped[str] = mapped_column(sa.Text, nullable=False, server_default=sa.text("'issued'"))
