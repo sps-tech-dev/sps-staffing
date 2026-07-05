@@ -72,3 +72,19 @@ def aptitude_seed_bank():
         db.execute(update(Question).where(Question.id.in_(prior_active)).values(is_active=True))
     db.commit()
     db.close()
+
+
+# A1: the 8 academy courses are migration-seeded, but (E2E-3 lesson) tests must
+# not depend on uncodified/persistent DB state. This session-scoped fixture
+# ensures the 8 courses exist for SPS001 from the SAME source of truth the
+# migration uses (idempotent create-if-absent), so academy tests pass from any
+# DB state (fresh, seeded, or swept). Test-only.
+@pytest.fixture(scope="session", autouse=True)
+def academy_course_seed():
+    from app.academy_seed import seed_courses
+    db = get_sessionmaker()()
+    sps = db.execute(select(Tenant).where(Tenant.code == "SPS001")).scalar_one()
+    seed_courses(db.connection(), sps.id)
+    db.commit()
+    db.close()
+    yield
