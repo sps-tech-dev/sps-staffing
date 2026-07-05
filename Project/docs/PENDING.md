@@ -175,12 +175,13 @@ Last refreshed: 2026-06-28 (after client-internal roles / owner-scoped jobs — 
   explicit link), /me/applications, real /me/overview; merge both-different-logins conflicts
   flagged durably. Candidate SELF-APPLY remains a deliberate non-feature (applications are
   staff-placed); if the business ever wants it, that's a new backend decision.
-- **E2E-1 (SECURITY, tracked — needs a backend micro-slice):** 5 staffing GET endpoints
-  (`/candidates`, `/clients`, `/jobs`, `/jobs/{id}/pipeline`, `/client-portal/overview`) lack
-  `_require_staff` — a candidate/client session reads staff data (candidate PII) within its
-  tenant. Proven in F6-E2E. Fix: add the gate to all 5 + extend the route-smoke matrix to assert
-  403 for candidate/client sessions on staff GETs (the matrix only checks no-500 today). STOP-1-
-  exempt, own deploy.
+- **E2E-1 → RESOLVED 2026-07-05:** 5 staffing GETs gated (`_require_staff`); the route-smoke
+  matrix (which was a silent no-op — enumerated via app.routes past the `_IncludedRouter` wrapper)
+  repaired to use `app.openapi()` + a fail-closed gate-matrix (candidate/client must 403 on staff
+  GETs) + route-count floors. Commit `3964fcd`, dev-proven.
+- **E2E-3 (NEW, minor — test-infra gap):** the aptitude SEED question bank (12 questions) local
+  tests depend on is NOT codified (no conftest/seed script) — a fresh clone can't run
+  test_assessments green without manual seeding. Add a session-scoped seed fixture. Tracked.
 - **E2E-2 (minor, tracked): no write API for `client.fee_percent`** — settable only via DB
   (ClientIn lacks it; no PATCH /clients). Fine while fees are seeded, but the client-fee override
   from B.9 has no UI/endpoint path. Fold into a future commercial-admin slice.

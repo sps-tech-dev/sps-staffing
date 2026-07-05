@@ -1562,6 +1562,36 @@ gate. **Fix = add `_require_staff` to all 5 + extend the smoke matrix to assert 
 sessions get 403 on staff GETs. Backend micro-slice (E2E-1), STOP-1-exempt, its own deploy —
 NOT folded into F6.** Triage: real, security-severity, but low blast radius on dev (little data).
 
+## 2026-07-05 — E2E-1: access-control fix + the route-smoke matrix repaired ✅ (deployed + dev proof)
+
+Backend micro-slice from the F6-E2E finding (no migration, head 0032).
+
+- **THE FIX:** `_require_staff(ctx)` added to the 5 ungated staffing GETs
+  (`/candidates`, `/clients`, `/jobs`, `/jobs/{id}/pipeline`, `/client-portal/overview`). A
+  full-class grep confirmed EXACTLY these 5: `employee/overview` has an equivalent inline gate;
+  the 4 privacy GET/POSTs are candidate-self (self-scoped to `ctx.user_id`), correct. No sixth.
+- **THE DEEPER FINDING (why E2E-1 escaped): the B.5-fix route-smoke matrix was a SILENT NO-OP
+  since it shipped.** `app.include_router` wraps every router in an opaque `_IncludedRouter`
+  (custom routing layer), so `isinstance(r, APIRoute)` over `app.routes` matched ONLY
+  /healthz+/readyz — **60 real /api GETs went untested every run.** The "found no other latent
+  500s" in B.5-fix was vacuously true. Fixed `_get_routes()` to enumerate from `app.openapi()`
+  (canonical, wrapper-immune) and added `_ROUTE_FLOOR >= 40` assertions to BOTH matrices so a
+  future collapse to no-op fails the test.
+- **THE CLASS-GUARD (fail-closed, PROVEN):** the new gate-matrix asserts every /api GET not on
+  an explicit non-staff allowlist (auth/me/privacy/client/take/register) returns 403 to a
+  candidate AND a client session; a 2xx is a flagged leak. Demonstrated fail-closed: removing a
+  gate made it fail with `/api/candidates [candidate] → 200`. A NEW ungated staff GET fails by
+  default. This is the SECOND class-guard added from a found regression — and this time the
+  guard itself had to be repaired to actually run.
+- **Deploy + proof:** 247 tests green (246 + gate-matrix); commit `3964fcd` → pipeline
+  `28728495905` green (migrate no-op, head 0032) → dev real-op as sps_app: all 5 return
+  candidate 403 / client 403 / staff-passes-gate on real RDS (were 200 for all pre-fix) — PASS
+  exit 0; unauth still 401.
+- **Process note:** the local suite briefly went red mid-slice because an over-aggressive debug
+  sweep deleted the UNCODIFIED local seed question bank (12 questions) the assessment tests
+  depend on — not a code break; reseeded (12 neutral-text active questions). Flags a real gap:
+  the aptitude seed bank isn't reproducible from the repo (no conftest/seed script) — logged.
+
 ## Pending / next steps
 
 ➡️ **The canonical, durable register of ALL outstanding/deferred items is
