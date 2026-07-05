@@ -22,6 +22,11 @@ class Settings(BaseSettings):
 
     jwt_access_secret: str = "change-me-access"
     jwt_refresh_secret: str = "change-me-refresh"
+    # A3 — SEPARATE academy-student auth (Option 1). A DISTINCT signing secret from
+    # jwt_access_secret so an academy token cryptographically FAILS verification in
+    # the staffing resolver (and vice-versa) — the token boundary is cryptographic,
+    # not just claim-based; a forgotten `kind` check still fails closed.
+    jwt_academy_secret: str = "change-me-academy"    # JWT_ACADEMY_SECRET
     access_ttl_seconds: int = 900       # 15 min
     refresh_ttl_seconds: int = 604800   # 7 days
     cookie_secure: bool = False         # COOKIE_SECURE — true in prod (HTTPS only)
@@ -44,6 +49,8 @@ class Settings(BaseSettings):
     # OFF by default → /api/academy/* 404s (probe-proof). Per-tenant-capable
     # signature (like the AI/waiver flags); env-global today.
     feature_academy: bool = False             # FEATURE_ACADEMY
+    # A3 academy admin alert recipient (config, not hardcoded). Real SES = Part-D.
+    academy_admin_email: str = "academy@spstechnosoft.com"   # ACADEMY_ADMIN_EMAIL
 
     # PII field encryption (Part 10). Envelope encryption + blind index.
     #   - PII_KMS_KEY_ID set  -> KMS mode (GenerateDataKey/Decrypt on the CMK).

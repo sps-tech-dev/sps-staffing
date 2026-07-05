@@ -35,7 +35,7 @@ router = APIRouter()
 PURPOSES = ("data_processing", "marketing", "cookies")
 # STOP-3: stubbed notice version + copy. Replace POLICY_TEXT with reviewed legal
 # wording before any real-user launch; bump POLICY_VERSION when the notice changes.
-POLICY_VERSION = "2026-06-stub"
+POLICY_VERSION = "2026-07-academy-draft"   # A3 bump — academy purpose added (FOUNDER DRAFT; STOP-3)
 POLICY_TEXT = {
     "data_processing": "[LEGAL COPY TBD] Notice describing processing of your data.",
     "marketing": "[LEGAL COPY TBD] Notice describing marketing communications.",

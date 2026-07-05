@@ -56,6 +56,17 @@ def decode_refresh_token(token: str) -> dict | None:
     return _decode(token, settings.jwt_refresh_secret, "refresh")
 
 
+def create_academy_token(claims: dict) -> str:
+    """A3 — academy-student access token. DISTINCT secret + DISTINCT type from the
+    staffing access token, so the two are non-interchangeable both cryptographically
+    (secret) and by claim (type='academy_access')."""
+    return _create(claims, settings.jwt_academy_secret, settings.access_ttl_seconds, "academy_access")
+
+
+def decode_academy_token(token: str) -> dict | None:
+    return _decode(token, settings.jwt_academy_secret, "academy_access")
+
+
 def _decode(token: str, secret: str, token_type: str) -> dict | None:
     try:
         payload = jwt.decode(token, secret, algorithms=[ALG])

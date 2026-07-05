@@ -328,3 +328,241 @@ def public_course_detail(slug: str, request: Request, db: Session = Depends(get_
     if c is None:
         raise _err(404, "NOT_FOUND", "Course not found")
     return _public_course_dict(c, _next_cohort_start(db, tenant.id, c.id))
+
+
+
+
+# ═══════════════════════════════════════════════════════════════════
+# A3 — SEPARATE academy-student auth + public registration + ID card
+# ═══════════════════════════════════════════════════════════════════
+import datetime as _dt  # noqa: E402
+
+from fastapi import Response  # noqa: E402
+from sqlalchemy.exc import IntegrityError  # noqa: E402
+from pydantic import BaseModel as _BM  # noqa: E402  (grouped A3 block)
+
+from ..academy_deps import ACADEMY_COOKIE, StudentContext, get_current_student  # noqa: E402
+from ..captcha import verify_captcha  # noqa: E402
+from ..crypto import blind_index  # noqa: E402
+from ..models import Consent  # noqa: E402
+from ..models_academy import Student  # noqa: E402
+from ..notify import enqueue  # noqa: E402
+from ..routers.privacy import POLICY_VERSION  # noqa: E402
+from ..security import create_academy_token, hash_password, verify_password  # noqa: E402
+from .. import storage  # noqa: E402
+from ..validation import normalize_phone, validate_email, validate_name, validate_password  # noqa: E402
+
+_ID_CARD_TYPES = {"image/jpeg": "jpg", "image/png": "png", "application/pdf": "pdf"}
+_ID_CARD_MAX_BYTES = 5 * 1024 * 1024   # 5 MB
+
+# [FOUNDER DRAFT — legal review pending]. STOP-3: not final legal prose. Minors'
+# verifiable-parental-consent flow is a launch-blocker needing legal (children's DPDP).
+_ACADEMY_CONSENT_NOTICE = (
+    "[FOUNDER DRAFT — legal review pending] I consent to SPS Technosoft Academy "
+    "processing the personal data and college ID I provide for enrolment, the "
+    "entrance aptitude test, and course administration. Under-18 applicants require "
+    "a parent/guardian to consent on their behalf.")
+
+
+def _now():
+    return _dt.datetime.now(_dt.timezone.utc)
+
+
+# ── the SEPARATE academy-student auth system ─────────────────────
+class AcademyLoginIn(_BM):
+    email: str
+    password: str
+
+
+@router.post("/auth/login")
+def academy_login(body: AcademyLoginIn, request: Request, response: Response,
+                  db: Session = Depends(get_db)):
+    """Authenticate an academy STUDENT against academy.students (argon2) and issue
+    the academy token in a DISTINCT cookie, signed with a DISTINCT secret. Never
+    touches shared.users → a staff/candidate/client credential cannot log in here."""
+    if not is_enabled("academy"):
+        raise _err(404, "NOT_FOUND", "Not found")
+    tenant = _public_tenant(request, db)   # tenant-from-Host + flag gate
+    st = db.execute(select(Student).where(
+        Student.tenant_id == tenant.id, Student.email == body.email,
+        Student.deleted_at.is_(None))).scalar_one_or_none()
+    if st is None or not st.password_hash or not verify_password(st.password_hash, body.password):
+        raise _err(401, "INVALID_CREDENTIALS", "Invalid email or password")
+    token = create_academy_token({"sub": str(st.id), "tenant_id": str(tenant.id),
+                                  "kind": "academy_student", "role": "student",
+                                  "email": st.email, "student_id": st.student_id})
+    response.set_cookie(key=ACADEMY_COOKIE, value=token, max_age=settings.access_ttl_seconds,
+                        httponly=True, secure=settings.cookie_secure, samesite="lax", path="/")
+    return {"student_id": str(st.id), "email": st.email, "full_name": st.full_name,
+            "home": "/academy/student"}
+
+
+@router.get("/auth/me")
+def academy_me(student: StudentContext = Depends(get_current_student),
+               db: Session = Depends(get_db)):
+    """The academy-student identity. Rejects a staffing token (wrong cookie/secret/kind)."""
+    st = db.get(Student, student.student_id)
+    return {"student_id": str(st.id), "email": st.email, "full_name": st.full_name,
+            "college_student_id": st.student_id, "college_name": st.college_name,
+            "course_degree": st.course_degree, "kind": "academy_student"}
+
+
+@router.post("/auth/logout")
+def academy_logout(response: Response):
+    response.delete_cookie(key=ACADEMY_COOKIE, path="/")
+    return {"ok": True}
+
+
+# ── public registration config + ID-card presign ────────────────
+@router.get("/register/config")
+def register_config():
+    if not is_enabled("academy"):
+        raise _err(404, "NOT_FOUND", "Not found")
+    return {"hcaptcha_sitekey": settings.hcaptcha_sitekey, "policy_version": POLICY_VERSION,
+            "consent_notice": _ACADEMY_CONSENT_NOTICE, "id_card_content_types": sorted(_ID_CARD_TYPES)}
+
+
+class IdCardPresignIn(_BM):
+    content_type: str
+
+
+@router.post("/register/id-card/presign")
+def id_card_presign(body: IdCardPresignIn, request: Request, db: Session = Depends(get_db)):
+    """Public: presign an ID-card PUT (B.1 resume pattern). Client uploads to the
+    key, then submits it to /register/student which CONFIRMS via head_object."""
+    tenant = _public_tenant(request, db)
+    ext = _ID_CARD_TYPES.get(body.content_type)
+    if ext is None:
+        raise _err(422, "UNSUPPORTED_TYPE", "ID card must be JPEG, PNG or PDF")
+    key = f"tenant={tenant.id}/business_unit=ACADEMY/students/idcard/{uuid.uuid4()}.{ext}"
+    return {"upload_url": storage.presign_put(key, body.content_type), "key": key,
+            "expires_in": storage.PRESIGN_PUT_TTL}
+
+
+# ── public student registration (academy.students credential, NO shared.users) ──
+class StudentRegisterIn(_BM):
+    full_name: str
+    email: str
+    phone: str
+    password: str
+    student_id: str
+    college_name: str
+    course_degree: str
+    year_of_study: str
+    date_of_birth: _dt.date
+    id_card_key: str
+    consent_data_processing: bool
+    guardian_name: str | None = None
+    guardian_consent: bool | None = None
+
+    @field_validator("full_name")
+    @classmethod
+    def _n(cls, v): return validate_name(v)
+
+    @field_validator("email")
+    @classmethod
+    def _e(cls, v): return validate_email(v)
+
+    @field_validator("password")
+    @classmethod
+    def _p(cls, v): return validate_password(v)
+
+    @field_validator("student_id", "college_name", "course_degree", "year_of_study")
+    @classmethod
+    def _req(cls, v):
+        v = (v or "").strip()
+        if not v:
+            raise ValueError("This field is required")
+        return v
+
+
+def _age_on(dob: _dt.date, today: _dt.date) -> int:
+    return today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
+
+
+@router.post("/register/student")
+def register_student(body: StudentRegisterIn, request: Request, db: Session = Depends(get_db),
+                     captcha_token: str | None = Header(default=None),
+                     idempotency_key: str | None = Header(default=None)):
+    """PUBLIC academy student registration (one all-or-nothing txn), students-only:
+    captcha → age/guardian → consent → tenant → academy dedup → academy.students row
+    (argon2 password_hash + encrypted phone + identity + confirmed id_card + consent
+    on-row) + audit → 2 B.10 emails. NO shared.users write. students.user_id stays
+    null (bridge-only, not auth)."""
+    if not is_enabled("academy"):
+        raise _err(404, "NOT_FOUND", "Not found")
+    if not verify_captcha(captcha_token):
+        raise _err(400, "CAPTCHA_FAILED", "Captcha verification failed — please retry")
+    if not body.consent_data_processing:
+        raise _err(422, "CONSENT_REQUIRED", "Consent to data processing is required")
+
+    today = _now().date()
+    age = _age_on(body.date_of_birth, today)
+    is_minor = age < 18
+    if is_minor and not (body.guardian_name and body.guardian_name.strip()
+                         and body.guardian_consent is True):
+        raise _err(422, "GUARDIAN_CONSENT_REQUIRED",
+                   "Applicants under 18 require a guardian name and guardian consent")
+
+    tenant = _public_tenant(request, db)
+    if (cached := get_cached(str(tenant.id), idempotency_key)):
+        return cached
+
+    # academy dedup: an existing academy student with this email OR student_id → 409
+    if db.execute(select(Student).where(
+            Student.tenant_id == tenant.id, Student.deleted_at.is_(None),
+            (Student.email == body.email) | (Student.student_id == body.student_id))).first():
+        raise _err(409, "STUDENT_EXISTS", "A student with this email or student ID already exists")
+
+    # confirm the pre-uploaded ID card (server-side size/type re-check; B.1 pattern)
+    if not body.id_card_key.startswith(f"tenant={tenant.id}/business_unit=ACADEMY/students/idcard/"):
+        raise _err(422, "BAD_ID_CARD_KEY", "Invalid ID card reference")
+    meta = storage.head_object(body.id_card_key)
+    if meta is None:
+        raise _err(422, "ID_CARD_MISSING", "Upload your college ID card before submitting")
+    if meta.get("ContentLength", 0) > _ID_CARD_MAX_BYTES:
+        raise _err(422, "ID_CARD_TOO_LARGE", "ID card exceeds the 5 MB limit")
+
+    phone = normalize_phone(body.phone)
+    student = Student(
+        tenant_id=tenant.id, business_unit_id=BU, full_name=body.full_name, email=body.email,
+        password_hash=hash_password(body.password),      # academy credential (argon2)
+        phone_enc=phone, phone_bidx=blind_index(phone), user_id=None,  # user_id = bridge-only
+        source="self_registration", student_id=body.student_id, college_name=body.college_name,
+        course_degree=body.course_degree, year_of_study=body.year_of_study,
+        date_of_birth=body.date_of_birth, id_card_s3_key=body.id_card_key,
+        guardian_name=body.guardian_name.strip() if (is_minor and body.guardian_name) else None,
+        guardian_consent=body.guardian_consent if is_minor else None)
+    db.add(student)
+    try:
+        db.flush()
+    except IntegrityError:
+        db.rollback()
+        raise _err(409, "STUDENT_EXISTS", "A student with this email or student ID already exists")
+
+    # Option A: DPDP consent in the canonical shared.consents ledger (subject_student_id
+    # soft-ref). Guardian consent is recorded on the student row + the audit trail.
+    db.add(Consent(tenant_id=tenant.id, subject_student_id=student.id, purpose="data_processing",
+                   granted=True, policy_version=POLICY_VERSION))
+    ctx = RequestContext(tenant_id=str(tenant.id), business_unit_id=BU, user_id=None, roles=("student",))
+    if is_minor:
+        write_audit(db, ctx, "academy.guardian_consent", "student", student.id,
+                    after={"guardian_name": student.guardian_name, "age": age})
+    write_audit(db, ctx, "academy.student_register", "student", student.id,
+                after={"minor": is_minor, "policy_version": POLICY_VERSION})
+
+    enqueue(db, template_code="student_welcome", recipient=body.email,
+            vars={"full_name": body.full_name, "course": body.course_degree},
+            tenant_id=tenant.id, business_unit_id=BU,
+            idempotency_key=f"academy:welcome:{student.id}")
+    enqueue(db, template_code="admin_new_student_application", recipient=settings.academy_admin_email,
+            vars={"full_name": body.full_name, "email": body.email, "course": body.course_degree,
+                  "college": body.college_name},
+            tenant_id=tenant.id, business_unit_id=BU,
+            idempotency_key=f"academy:admin:{student.id}")
+    db.commit()
+
+    res = {"id": str(student.id), "status": "registered", "minor": is_minor,
+           "policy_version": POLICY_VERSION}
+    store(str(tenant.id), idempotency_key, res)
+    return res

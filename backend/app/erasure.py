@@ -162,3 +162,23 @@ def auto_purge_due_requests(db: Session) -> int:
     # Even when a period is set, Stage 1 performs NO deletion — guard against premature purge.
     log.warning("auto-purge is a Stage-1 stub — deletion deliberately not implemented; purging NOTHING")
     return 0
+
+
+def anonymize_student(db: Session, student) -> dict:
+    """A3: irreversibly scrub an academy student's PII + delete the private ID-card
+    object (S3 sits outside the DB cascade — like resumes). Students are a SEPARATE
+    identity (own password_hash), so this is invoked by the academy DPDP flow (a
+    later slice), not the shared.users erasure. Returns a non-PII summary."""
+    key = student.id_card_s3_key
+    student.full_name = ERASED
+    student.email = None
+    student.phone_enc = None
+    student.phone_bidx = None
+    student.search_doc = None
+    student.id_card_s3_key = None
+    student.guardian_name = None
+    student.password_hash = "!erased"     # unusable → academy login impossible
+    if student.deleted_at is None:
+        student.deleted_at = _now()
+    id_card_deleted = _delete_resume_objects([key]) if key else 0
+    return {"student_anonymized": True, "id_card_objects_deleted": id_card_deleted}
