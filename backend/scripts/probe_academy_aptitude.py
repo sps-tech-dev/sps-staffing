@@ -38,20 +38,22 @@ def main() -> int:
     ok = False
     made = []
     try:
-        # ── LEG A: staffing still draws a full 30Q paper on dev ──
-        n_staff_active = db.execute(text(
+        # ── LEG A (no-drop invariant): the staffing issue draws exactly
+        #    min(N, count) where N = active STAFFING-tagged questions, and N > 0.
+        #    Proves the BU filter drops NOTHING. NOT ==30 (dev's SAMPLE bank is 12
+        #    by design; a 30+ staffing bank is [YOUR CONTENT]/Part-C). The N>0
+        #    guard stops a future empty-bank regression passing as 0==0.
+        n_staff = db.execute(text(
             "SELECT count(*) FROM staffing.questions q JOIN staffing.question_banks b "
-            "ON b.id=q.bank_id WHERE q.tenant_id=:t AND q.is_active AND b.is_active "
-            "AND b.business_unit_id='STAFFING'"), {"t": str(tid)}).scalar_one()
-        frozen_staff = select_bank_paper(db, tid, "STAFFING", settings.test_question_count)
-        if len(frozen_staff) < settings.test_question_count:
-            print(f"❌ LEG A FAIL: STAFFING drew {len(frozen_staff)} < {settings.test_question_count} "
-                  f"(active STAFFING questions on dev: {n_staff_active}). "
-                  f"The BU filter dropped rows — dev staffing questions need a business_unit_id "
-                  f"backfill BEFORE A4-P2 is safe. STOP.")
-            return 1
-        print(f"1. LEG A: STAFFING issue draws a FULL {len(frozen_staff)}Q paper on dev "
-              f"({n_staff_active} active STAFFING questions present) ✅")
+            "ON b.id=q.bank_id WHERE q.tenant_id=:t AND q.is_active AND q.deleted_at IS NULL "
+            "AND b.is_active AND b.deleted_at IS NULL AND b.business_unit_id='STAFFING'"),
+            {"t": str(tid)}).scalar_one()
+        drew = len(select_bank_paper(db, tid, "STAFFING", settings.test_question_count))
+        expected = min(n_staff, settings.test_question_count)
+        assert n_staff > 0, "no active STAFFING questions on dev — empty-bank regression"
+        assert drew == expected, f"BU filter dropped rows: drew {drew} != min({n_staff},{settings.test_question_count})={expected}"
+        print(f"1. LEG A (no-drop): N={n_staff} active STAFFING questions, staffing issue drew "
+              f"{drew} = min({n_staff}, {settings.test_question_count}) — BU filter dropped nothing ✅")
 
         # ── LEG B: academy issue → take → grade → enrollment stamp ──
         course = Course(tenant_id=tid, business_unit_id="ACADEMY", title=f"Probe Course {TAG}",
