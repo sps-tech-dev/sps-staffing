@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { readSessionFromCookie, type Role } from "@/lib/auth/session";
+import { readSessionFromCookie, readAcademySessionFromCookie, type Role } from "@/lib/auth/session";
 
 // Unified login page (Slice 1). Role-specific login screens (/admin/login etc.)
 // arrive in later slices; for now everyone authenticates at /login.
@@ -18,6 +18,20 @@ const NEED: { prefix: string; role: Role; login: string }[] = [
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
+
+  // A3 two-auth: the academy student portal is gated by the SEPARATE academy cookie
+  // (distinct name + secret). A staff access_token does NOT carry it → bounced; and
+  // readAcademySessionFromCookie additionally requires kind=academy_student, so a
+  // staff token can never satisfy this gate. Conversely the staff rules below read
+  // only access_token, so an academy student can't reach staff areas. Both directions.
+  if (pathname.startsWith("/academy/student")) {
+    const acad = readAcademySessionFromCookie(req.cookies.get("academy_access_token")?.value);
+    if (acad) return NextResponse.next();
+    const url = req.nextUrl.clone();
+    url.pathname = "/academy/login"; url.search = "";
+    return NextResponse.redirect(url);
+  }
+
   const rule = NEED.find((r) => pathname.startsWith(r.prefix));
   if (!rule) return NextResponse.next();
   // Role is read from the httpOnly access-token JWT cookie set by the backend.
@@ -35,5 +49,5 @@ export function middleware(req: NextRequest) {
   return NextResponse.redirect(url);
 }
 export const config = {
-  matcher: ["/client/:path*", "/admin/:path*", "/employer/:path*", "/employee/:path*", "/candidate/:path*", "/privacy-rights/:path*"],
+  matcher: ["/client/:path*", "/admin/:path*", "/employer/:path*", "/employee/:path*", "/candidate/:path*", "/privacy-rights/:path*", "/academy/student/:path*"],
 };
