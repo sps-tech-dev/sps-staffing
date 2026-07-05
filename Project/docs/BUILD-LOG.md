@@ -1969,6 +1969,24 @@ fee, already public on the storefront) added to the GET /students/me/enrollments
 unchanged (the field addition didn't touch session-scoping — re-confirmed on dev).** Local <75 seed
 fixture (Farah, 60%→0%) added for the walk.
 
+## 2026-07-06 — FE#6 backend: student-INITIATE pay endpoint (shares _activate_payment with the A6 staff confirm) ✅
+
+- **`POST /api/academy/students/me/enrollments/{id}/pay`** — get_current_student-gated (academy
+  cookie only). STRICT SCOPING: the enrolment is resolved as the STUDENT'S OWN (session
+  student_id) — a student can pay ONLY their own enrolment; NO param by which A pays B's (B's row
+  won't match A's session → 404, fail closed). Money makes this isolation load-bearing (A paying
+  B's enrolment would activate someone else's row).
+- **Shared seam:** calls the SAME `_activate_payment` the A6 staff webhook-confirm uses —
+  idempotency (`academy:payment_confirmed:{pay.id}`, redelivery no-op), offered→active, receipt
+  PDF, and email all UNCHANGED; the ONLY differences are auth + this INITIATE trigger. Proven by
+  a test asserting both paths produce the identical activation effect.
+- **Two-endpoint split is INTENTIONAL (Part-D):** this student endpoint is the INITIATE seam →
+  in Part-D it becomes "create Razorpay order"; the A6 staff `POST /enrollments/{id}/pay` stays
+  the HMAC-verified webhook CONFIRM (server-to-server); `_activate_payment` is what both share and
+  neither changes. The A6 staff endpoint is UNCHANGED (pure append, 0 deletions).
+- NO migration (endpoint on existing tables; dev stays head 0040). Tests 316 → 321 (isolation +
+  happy/redelivery + wrong-state 409 + gate 401 + shared-seam). Dev-probed on real RDS.
+
 ## Pending / next steps
 
 ➡️ **The canonical, durable register of ALL outstanding/deferred items is

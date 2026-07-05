@@ -837,3 +837,43 @@ def my_notifications(student: StudentContext = Depends(get_current_student),
              "take_link": (n.vars or {}).get("take_link"),
              "status": n.status,
              "created_at": n.created_at.isoformat() if n.created_at else None} for n in rows]
+
+
+@router.post("/students/me/enrollments/{enrollment_id}/pay")
+def student_pay(enrollment_id: uuid.UUID,
+                student: StudentContext = Depends(get_current_student),
+                db: Session = Depends(get_db)):
+    """Student-INITIATE payment (get_current_student-gated; academy cookie only).
+    STRICT SCOPING: the enrolment is resolved as the STUDENT'S OWN (session
+    student_id) — a student can pay ONLY their own enrolment; there is NO param by
+    which student A triggers pay on B's enrolment (B's row won't match A's session →
+    404, fail closed). Calls the SAME `_activate_payment` seam as the A6 staff
+    webhook-confirm — idempotency (redelivery no-op), offered→active, receipt PDF,
+    and email are UNCHANGED; the ONLY differences are auth + this INITIATE trigger.
+    Part-D: this endpoint becomes 'create Razorpay order'; the A6 staff endpoint
+    stays the HMAC-verified webhook CONFIRM; `_activate_payment` is what both share
+    and neither changes."""
+    enr = db.execute(select(Enrollment).where(
+        Enrollment.id == enrollment_id,
+        Enrollment.student_id == student.student_id,       # OWN enrolment ONLY
+        Enrollment.tenant_id == uuid.UUID(student.tenant_id),
+        Enrollment.business_unit_id == BU,
+        Enrollment.deleted_at.is_(None))).scalar_one_or_none()
+    if enr is None:
+        raise _err(404, "NOT_FOUND", "Enrollment not found")
+    ctx = RequestContext(tenant_id=student.tenant_id, business_unit_id=BU,
+                         user_id=None, roles=("student",))
+    current = db.execute(select(Payment).where(
+        Payment.enrollment_id == enr.id, Payment.deleted_at.is_(None))
+        .order_by(Payment.created_at.desc())).scalars().first()
+    # 1. redelivery of THIS payment (same contract as the A6 staff path)
+    if current is not None and current.status == "paid":
+        return _payment_result(current, enr)               # no-op success
+    # 2. not paid → the enrolment must be offered to activate
+    if enr.status != "offered":
+        raise _err(409, "STATUS_INVALID",
+                   "Enrollment must be at 'offered' to activate payment")
+    pay = _create_or_get_payment(db, enr, ctx)
+    _activate_payment(db, pay, enr, ctx, provider_ref=f"stub-student-{uuid.uuid4()}")
+    db.commit()
+    return _payment_result(pay, enr)
