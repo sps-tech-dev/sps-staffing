@@ -1640,6 +1640,36 @@ Last frontend-backlog slice. Frontend-only (no deploy; recharts was already a de
   loop, real notification delivery (Part-D channels), hosting (C1/D.6), E2E-2 (client.fee_percent
   write API), the EdTech vertical.
 
+## 2026-07-05 — A1: Academy foundation (EdTech vertical begins) ✅ (deployed + real-op proof)
+
+First slice of the Academy vertical (EdTech plan v2 §4). STOP-1-approved big migration.
+
+- **Migration 0033 — the whole `academy` schema (9 tables):** courses/cohorts/students/
+  enrollments/attendance/assignments/assignment_submissions/certificates/payments. Two-axis
+  tagged (business_unit_id='ACADEMY'), soft-delete, TwoAxisMixin (updated_at included uniformly).
+  CHECKs per the plan (cohort mode/status, enrollment status/payment_status, payment status).
+  Within-schema refs = real FKs; cross-schema (trainer_id, students.user_id, graded_by,
+  enrollments.application_id) = SOFT-REFS (no FK, matching jobs.owner_user_id/candidates.user_id).
+- **Student PII = the candidate treatment:** phone_enc/pan_enc (bytea AES-256-GCM) + phone_bidx/
+  pan_bidx (HMAC blind index) + CITEXT email + tsvector; UNIQUE(tenant,email) +
+  UNIQUE(tenant,phone_bidx) dedup. Proven on dev: sps_app inserted a student, ciphertext at
+  rest, decrypts on access.
+- **Student↔login reuses F3a exactly:** students.user_id soft-ref + ix_students_user_id (A3
+  auto-links at registration; column + docstring land now). Test asserts no FK on user_id.
+- **FEATURE_ACADEMY (default OFF):** /api/academy/* 404s when off (probe-proof, like AI/waiver);
+  A1 ships only the gate + /ping. Test-locked 404-off / 200-on.
+- **8-course seed, reproducible from the repo (E2E-3 lesson):** app/academy_seed.py::seed_courses
+  is the single source of truth (idempotent), called by BOTH migration 0033 and the test
+  fixture — no uncodified seed state. Default fee ₹50,000, placeholder content, is_published=
+  false (A2 publishes). Titles: .NET FS, AI/ML, Python, Data Analyst, Data Engineer, Cloud,
+  Java FS, Angular/React.
+- **Grants:** academy tables are normal-DML — NOT in the append-only REVOKE list; the bootstrap's
+  ALTER DEFAULT PRIVILEGES IN SCHEMA academy auto-granted sps_app DML on the migrate-created
+  tables (proven by the probe's successful student INSERT — no bootstrap re-run needed).
+- **Tests 247 → 252.** Deploy: commits `860ad59..03b6f18` → pipeline `28730935120`/`28731124911`
+  green (migrate 0033 exit 0, seed applied) → dev probe as sps_app: 9 tables ✅, 8 courses at
+  ₹50k ✅, encrypted-PII round-trip ✅ — PASS exit 0. /readyz ok.
+
 ## Pending / next steps
 
 ➡️ **The canonical, durable register of ALL outstanding/deferred items is

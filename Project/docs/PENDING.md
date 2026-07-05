@@ -175,6 +175,11 @@ Last refreshed: 2026-06-28 (after client-internal roles / owner-scoped jobs — 
   explicit link), /me/applications, real /me/overview; merge both-different-logins conflicts
   flagged durably. Candidate SELF-APPLY remains a deliberate non-feature (applications are
   staff-placed); if the business ever wants it, that's a new backend decision.
+- **ACADEMY (EdTech) vertical — A1 DONE 2026-07-05; A2–A10 remain** (plan
+  `SPS_EDTECH_ACADEMY_BUILD_PLAN_V2.md`). A1 = schema (0033) + FEATURE_ACADEMY + students.user_id
+  (F3a reuse) + 8-course seed. Next A2 (catalog + public listing). Stub/paid map (plan §3): student/
+  admin/payment emails → B.10 ledger + ConsoleChannel now, real SES = Part-D; payment link/checkout
+  → stub POST .../pay now, real Razorpay = Part-D; hCaptcha test-mode now, real keys = Part-D.
 - **E2E-1 → RESOLVED 2026-07-05:** 5 staffing GETs gated (`_require_staff`); the route-smoke
   matrix (which was a silent no-op — enumerated via app.routes past the `_IncludedRouter` wrapper)
   repaired to use `app.openapi()` + a fail-closed gate-matrix (candidate/client must 403 on staff
