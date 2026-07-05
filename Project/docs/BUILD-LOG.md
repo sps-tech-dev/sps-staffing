@@ -1670,6 +1670,31 @@ First slice of the Academy vertical (EdTech plan v2 §4). STOP-1-approved big mi
   green (migrate 0033 exit 0, seed applied) → dev probe as sps_app: 9 tables ✅, 8 courses at
   ₹50k ✅, encrypted-PII round-trip ✅ — PASS exit 0. /readyz ok.
 
+## 2026-07-05 — A2: Academy course catalog + public listing ✅ (deployed + real-op proof)
+
+Second academy slice. NO MIGRATION — the 0033 tables cover it (head stays 0033).
+
+- **Staff catalog (FEATURE_ACADEMY + _require_staff, tenant+ACADEMY scoped, idempotent, audited):**
+  course create/patch/list(incl. unpublished)/get; the publish toggle (is_published +
+  status='active'); minimal cohort create/list. Slug auto-derived or validated; duplicate slug
+  409; title accepts dots/slashes/parens (real course names like '.NET Full-Stack').
+- **PUBLIC surface (unauthenticated, marketing-facing) — the leak-nothing guarantees, each
+  structural:** `GET /api/academy/public/courses` + `/{slug}`. (a) PUBLISHED-ONLY — WHERE
+  is_published=true AND status='active' AND not-deleted → no draft ever leaks; (b) SAFE-FIELDS-
+  ONLY — `_public_course_dict` is an explicit allowlist (title/slug/description/syllabus/level/
+  duration/fee/currency/next_cohort_start), NO id/tenant/status/is_published/timestamps, and
+  courses carry no PII; (c) TENANT-BY-HOST — resolved like public registration, so a subdomain
+  sees only its own catalog. Also flag-gated via `is_enabled` (no ctx) so the whole vertical is
+  probe-proof even unauthenticated (dev smoke: flag-off live service → 404).
+- **NEW PUBLIC ENDPOINT — noted for A10:** `/api/academy/public/` added to the route-smoke
+  gate-matrix's non-staff allowlist (legitimately unauthenticated; A10 extends the matrix to
+  academy).
+- **Tests 252 → 257.** Manual walk PASS (publish→appears-safe-fields→unpublish→gone). Deploy:
+  commits `3cae384..64a4a10` → pipeline `28731650555` green → dev probe as sps_app (flag flipped
+  in-process; deployed service stays OFF): seeded course invisible until published → published
+  shows safe-fields-only → fresh draft doesn't leak → unpublish→gone — PASS exit 0, self-cleaned.
+  Live service (flag off) public route → 404; /readyz ok.
+
 ## Pending / next steps
 
 ➡️ **The canonical, durable register of ALL outstanding/deferred items is
