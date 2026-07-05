@@ -645,3 +645,32 @@ export function useStaffClients() {
   return useQuery({ queryKey: ["staff-clients"],
     queryFn: () => api<import("./types").StaffClient[]>("/clients"), retry: false });
 }
+
+// ── F7: notification ledger (B.10) ──
+export function useNotifications(status?: string) {
+  return useQuery({
+    queryKey: ["notifications", status ?? "all"],
+    queryFn: () => api<import("./types").NotificationRow[]>(
+      `/notifications${status ? `?status=${status}` : ""}`),
+    retry: false,
+  });
+}
+
+// ── F7: founder trends + by-BU (B.11, owner-gated) ──
+// retry:false so a plain admin's 403 resolves immediately to the graceful hidden
+// state (mirrors useFounderOverview from F1).
+export function useFounderTrends(metric: string, range = 6) {
+  return useQuery({
+    queryKey: ["founder", "trends", metric, range],
+    queryFn: () => api<import("./types").FounderTrend>(
+      `/dashboard/founder/trends?metric=${metric}&range=${range}`),
+    retry: false,
+  });
+}
+export function useFounderByBu() {
+  return useQuery({
+    queryKey: ["founder", "by-bu"],
+    queryFn: () => api<import("./types").FounderByBu>("/dashboard/founder/by-bu"),
+    retry: false,
+  });
+}

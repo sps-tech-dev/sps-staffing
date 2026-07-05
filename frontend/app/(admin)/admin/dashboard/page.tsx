@@ -7,6 +7,7 @@ import { SectionCard } from "@/components/kit/section-card";
 import { KpiGrid } from "@/components/widgets/kpi-grid";
 import { Skeleton } from "@/components/kit/skeleton";
 import { FounderKpiStrip } from "@/components/widgets/founder-kpi-strip";
+import { FounderCharts } from "@/components/widgets/founder-charts";
 import { useAdminCandidates, useAdminClients, useAdminJobs } from "@/lib/api/hooks";
 
 /** F1: the admin console landing — real headline totals from the admin list
@@ -54,12 +55,13 @@ export default function AdminDashboard() {
         </SectionCard>
         <SectionCard title="Coming soon">
           <p className="text-sm text-muted">
-            Employees roster, the org-wide SLA board, notification center and the
-            founder trend charts arrive in upcoming releases. Their entries are
+            The employees roster arrives in an upcoming release. Its entry is
             already in the sidebar so the navigation is stable.
           </p>
         </SectionCard>
       </div>
+
+      <FounderCharts />
     </AppShell>
   );
 }

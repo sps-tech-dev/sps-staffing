@@ -183,3 +183,16 @@ export interface VendorScorecard {
   active_in_guarantee: number; commission_accrued: number; commission_paid: number;
 }
 export interface StaffClient { id: string; name: string; status: string }
+
+/** B.10 notification ledger row (F7). status: pending/sent/failed/skipped/parked.
+ *  channel_type: console (dev sink) vs email/sms/whatsapp (parked until Part-D). */
+export interface NotificationRow {
+  id: string; template_code: string; channel_type: string; recipient: string;
+  status: string; attempts: number; last_error: string | null;
+  created_at: string | null; sent_at: string | null;
+}
+
+/** B.11 founder trends + by-BU (F7, owner-only, PII-free aggregates). */
+export interface FounderTrend { metric: string; series: Record<string, number> }
+export interface ByBuRow { jobs: number; applications: number; placements: number; fees_billed: number }
+export type FounderByBu = Record<string, ByBuRow>;
