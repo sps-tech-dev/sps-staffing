@@ -206,6 +206,7 @@ NON_STAFF_GET_PREFIXES = (
     "/api/client/",            # client-portal surface (client-gated, not staff)
     "/api/take/",              # public token surface (no JWT)
     "/api/register/",          # public registration
+    "/api/academy/public/",    # A2 public course catalog (marketing-facing, published-only)
 )
 
 
