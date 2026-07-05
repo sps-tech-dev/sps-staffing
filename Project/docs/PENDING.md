@@ -175,7 +175,7 @@ Last refreshed: 2026-06-28 (after client-internal roles / owner-scoped jobs — 
   explicit link), /me/applications, real /me/overview; merge both-different-logins conflicts
   flagged durably. Candidate SELF-APPLY remains a deliberate non-feature (applications are
   staff-placed); if the business ever wants it, that's a new backend decision.
-- **ACADEMY (EdTech) vertical — A1+A2 DONE 2026-07-05; A3–A10 remain** (plan
+- **ACADEMY (EdTech) vertical — A1+A2+A3 DONE 2026-07-05; A4–A10 remain** (plan
   `SPS_EDTECH_ACADEMY_BUILD_PLAN_V2.md`). A1 = schema (0033) + FEATURE_ACADEMY + students.user_id
   (F3a reuse) + 8-course seed. A2 = staff catalog CRUD + publish + cohorts + the PUBLIC
   published-only/safe-fields/tenant-by-Host listing (no migration). Next A3 (student registration +
@@ -184,6 +184,15 @@ Last refreshed: 2026-06-28 (after client-internal roles / owner-scoped jobs — 
   matrix to all academy routes. Stub/paid map (plan §3): student/admin/payment emails → B.10 ledger +
   ConsoleChannel now, real SES = Part-D; payment link/checkout → stub POST .../pay now, real Razorpay
   = Part-D; hCaptcha test-mode now, real keys = Part-D.
+  - **A3 additions:** SEPARATE academy-student auth (distinct cookie `academy_access_token` +
+    distinct secret `jwt_academy_secret` + kind claim; `get_current_student` resolver). LAUNCH-
+    BLOCKERS: (C.1) academy consent copy = FOUNDER DRAFT needing legal; MINORS' verifiable
+    parental consent = a children's-DPDP launch-blocker (the checkbox branch is built but not
+    legally sufficient). Student-initiated DPDP erasure TRIGGER = a later slice (the
+    `anonymize_student` mechanism + id-card delete are built + tested). `students.user_id` =
+    bridge-only (graduate→candidate), NOT auth. Consent went to shared.consents (Option A,
+    `subject_student_id` soft-ref). A10 gate-matrix must cover `/api/academy/auth/*` +
+    `/register/*` (wrong-token-type, both directions — already extended in A3).
 - **E2E-1 → RESOLVED 2026-07-05:** 5 staffing GETs gated (`_require_staff`); the route-smoke
   matrix (which was a silent no-op — enumerated via app.routes past the `_IncludedRouter` wrapper)
   repaired to use `app.openapi()` + a fail-closed gate-matrix (candidate/client must 403 on staff

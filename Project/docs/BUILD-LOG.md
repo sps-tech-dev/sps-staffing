@@ -1695,6 +1695,52 @@ Second academy slice. NO MIGRATION — the 0033 tables cover it (head stays 0033
   shows safe-fields-only → fresh draft doesn't leak → unpublish→gone — PASS exit 0, self-cleaned.
   Live service (flag off) public route → 404; /readyz ok.
 
+## 2026-07-05 — A3: Academy student registration + SEPARATE student auth ✅ (deployed + real-op proof)
+
+Third academy slice — the most privilege-sensitive: a SECOND auth system. STOP-0 (identity) +
+STOP-1 (migration) both approved.
+
+- **Identity (Option 1, approved):** academy students are a DISTINCT identity in
+  `academy.students` with their OWN argon2 `password_hash` — **NO `shared.users` row** for a
+  student; the staffing identity spine is untouched. Email is reusable across the boundary
+  (different tables). `students.user_id` stays null (bridge-only, not auth).
+- **The two-auth separation (the security core), built with BOTH your conditions:**
+  - **Distinct cookie** `academy_access_token` (staffing = `access_token`) — a dual-identity
+    browser holds both without collision; each resolver reads only its own.
+  - **Distinct signing secret** `jwt_academy_secret` + distinct `type=academy_access` +
+    `kind=academy_student` claim. An academy token **cryptographically fails** verification in
+    the staffing decoder and vice-versa — fail-closed even if a `kind` check were forgotten.
+  - **Separate resolver** `get_current_student` (never a branch of the UNCHANGED
+    `get_current_context`) — a staff endpoint structurally cannot accept a student token.
+  - `/api/academy/auth/{login,me,logout}` authenticate against `academy.students` (argon2);
+    neither auth path authenticates the other's identity.
+- **Containment PROVEN both directions, incl. the dual-identity person** (same email, staffing
+  candidate + academy student): academy token bounced from all staff surfaces; staffing token
+  bounced from academy-student surfaces; dual-holder correct per cookie. The E2E-1 gate-matrix
+  extended (fail-closed) with `/api/academy/auth/` + `/register/`.
+- **Consent = Option A (approved):** student DPDP consent in the canonical `shared.consents`
+  ledger via a NEW `subject_student_id` soft-ref (uuid, no cross-schema FK, mirroring
+  `subject_candidate_id`); one-subject CHECK widened to `num_nonnulls(user,candidate,student)=1`.
+  Guardian consent on the student row + audit. **This touched `shared.consents` (NOT
+  `shared.users`).**
+- **Registration:** one all-or-nothing txn — captcha (test-mode) → under-18 guardian gate (422
+  without) → consent → tenant-from-Host → academy dedup (email OR student_id → 409) →
+  `academy.students` (argon2 + encrypted phone + identity + confirmed ID-card via B.1
+  presign/head_object) + `shared.consents` row + audit → 2 B.10 emails (ConsoleChannel dev,
+  SES = Part-D). Password argon2, never plaintext. POLICY_VERSION bumped; consent notice
+  `[FOUNDER DRAFT]`. ID-card private S3, deleted by `anonymize_student` (student DPDP trigger =
+  later slice).
+- **Migration 0034** (revision id kept ≤32 chars — `alembic_version` is varchar(32)):
+  `academy.students` credential/identity/id-card/guardian columns + `shared.consents`
+  subject_student_id. up→down→up clean. Not in REVOKE list. **Tests 257 → 264.** Deploy:
+  commits `9a26dce..` → pipeline `28736511541` green (migrate 0034 exit 0). Dev probe as sps_app
+  (flag flipped in-process; deployed service stays OFF): (1) registered — academy.students row
+  (argon2 + encrypted PII + real id_card S3 object) + shared.consents row + NO shared.users row
+  ✅; (2) CONTAINMENT both directions — academy token rejected by the staffing decoder AND
+  vice-versa (distinct secret + type) ✅; (3) erasure scrubbed the student + deleted the id_card
+  S3 object ✅ — PASS exit 0, self-cleaned. Flag-off live service: academy auth/register → 404;
+  /readyz ok.
+
 ## Pending / next steps
 
 ➡️ **The canonical, durable register of ALL outstanding/deferred items is
