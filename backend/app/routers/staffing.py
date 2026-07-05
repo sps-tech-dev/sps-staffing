@@ -138,6 +138,7 @@ def create_client(body: ClientIn, ctx: RequestContext = Depends(get_current_cont
 
 @router.get("/clients")
 def list_clients(ctx: RequestContext = Depends(get_current_context), db: Session = Depends(get_db)):
+    _require_staff(ctx)  # E2E-1: was ungated — a candidate/client session read staff data
     rows = db.execute(select(Client).where(Client.tenant_id == _tid(ctx), Client.business_unit_id == BU,
                                            Client.deleted_at.is_(None)).order_by(Client.created_at.desc())).scalars().all()
     return [_client_dict(c) for c in rows]
@@ -178,6 +179,7 @@ def create_candidate(body: CandidateIn, ctx: RequestContext = Depends(get_curren
 @router.get("/candidates")
 def list_candidates(q: str | None = Query(default=None), ctx: RequestContext = Depends(get_current_context),
                     db: Session = Depends(get_db)):
+    _require_staff(ctx)  # E2E-1: was ungated — leaked candidate PII to candidate/client sessions
     stmt = select(Candidate).where(Candidate.tenant_id == _tid(ctx), Candidate.deleted_at.is_(None))
     if q:
         stmt = stmt.where(Candidate.full_name.ilike(f"%{q}%"))
@@ -276,6 +278,7 @@ def create_job(body: JobIn, ctx: RequestContext = Depends(get_current_context),
 @router.get("/jobs")
 def list_jobs(status: str | None = Query(default=None), ctx: RequestContext = Depends(get_current_context),
               db: Session = Depends(get_db)):
+    _require_staff(ctx)  # E2E-1: was ungated
     stmt = select(Job).where(Job.tenant_id == _tid(ctx), Job.business_unit_id == BU, Job.deleted_at.is_(None))
     if status:
         stmt = stmt.where(Job.status == status)
@@ -285,6 +288,7 @@ def list_jobs(status: str | None = Query(default=None), ctx: RequestContext = De
 
 @router.get("/jobs/{job_id}/pipeline")
 def job_pipeline(job_id: uuid.UUID, ctx: RequestContext = Depends(get_current_context), db: Session = Depends(get_db)):
+    _require_staff(ctx)  # E2E-1: was ungated (clients use /api/client/pipeline instead)
     job = db.execute(select(Job).where(Job.id == job_id, Job.tenant_id == _tid(ctx),
                                        Job.business_unit_id == BU)).scalar_one_or_none()
     if job is None:
@@ -477,6 +481,7 @@ def change_stage(app_id: uuid.UUID, body: StageIn, ctx: RequestContext = Depends
 # ── employer overview read-model ─────────────────────────────────
 @router.get("/client-portal/overview")
 def employer_overview(ctx: RequestContext = Depends(get_current_context), db: Session = Depends(get_db)):
+    _require_staff(ctx)  # E2E-1: was ungated
     tid = _tid(ctx)
 
     def _count(stmt):

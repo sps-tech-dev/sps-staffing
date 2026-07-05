@@ -148,16 +148,25 @@ def test_employer_overview_correct_nonzero_counts(world):
 
 
 # ── the class-guard: no shipped GET route may 500 under a valid session ──
+# E2E-1 fix: enumerate from the OpenAPI schema, NOT `app.routes`. The app wraps
+# every included router in an opaque `_IncludedRouter` (a custom routing layer),
+# so `isinstance(r, APIRoute)` at the top level matched ONLY /healthz+/readyz —
+# this matrix was a silent NO-OP since B.5-fix (60 real /api GETs went untested),
+# which is exactly why the E2E-1 ungated endpoints escaped it. The openapi() spec
+# is the canonical route list and immune to the wrapper.
+_ROUTE_FLOOR = 40   # fail-closed: far below the real count; a no-op enumeration trips this
+
+
 def _get_routes():
-    out = []
-    for r in app.routes:
-        if isinstance(r, APIRoute) and "GET" in r.methods and r.path.startswith("/api"):
-            out.append(r.path)
-    return sorted(out)
+    paths = app.openapi().get("paths", {})
+    return sorted(p for p, methods in paths.items()
+                  if "get" in methods and p.startswith("/api"))
 
 
 def test_route_smoke_matrix_no_get_500s(world):
     sps, db, ids = world
+    assert len(_get_routes()) >= _ROUTE_FLOOR, \
+        f"route enumeration collapsed to {len(_get_routes())} — the matrix would be a no-op"
     rec = TestClient(app); _login(rec, RECRUITER)
     own = TestClient(app); _login(own, OWNER)
     failures = []
@@ -183,3 +192,73 @@ def test_pipeline_rows_expose_version(world):
     stages = c.get(f"/api/jobs/{ids['job_id']}/pipeline", headers=HOST).json()["stages"]
     row = next(r for r in stages["screening"] if r["id"] == ids["app_id"])
     assert isinstance(row["version"], int) and row["version"] >= 1
+
+
+# ── E2E-1 class-guard: staff-only GET routes must 403 candidate/client sessions ──
+# Fail-closed: every /api GET route is treated as STAFF-ONLY (must reject a
+# candidate AND a client session) UNLESS its prefix is on NON_STAFF_GET_PREFIXES.
+# A NEW ungated staff GET therefore FAILS this test by default until either gated
+# or explicitly declared non-staff here — the net that would have caught E2E-1.
+NON_STAFF_GET_PREFIXES = (
+    "/api/auth/",              # me/features — any authenticated user
+    "/api/me/",                # candidate self-service
+    "/api/privacy/",           # DPDP self-service (self-scoped to caller)
+    "/api/client/",            # client-portal surface (client-gated, not staff)
+    "/api/take/",              # public token surface (no JWT)
+    "/api/register/",          # public registration
+)
+
+
+def _mk_client_session(db, sps):
+    """A bound client-portal user (client_id set) — the session that E2E-1 leaked to."""
+    from app.models_staffing import Client
+    old = db.execute(select(User).where(User.tenant_id == sps.id,
+                                        User.email == "smoke-client@local.test")).scalar_one_or_none()
+    if old is not None:
+        db.execute(delete(ClientUser).where(ClientUser.user_id == old.id))
+        db.execute(delete(Membership).where(Membership.user_id == old.id))
+        db.execute(delete(User).where(User.id == old.id))
+    client = db.execute(select(Client).where(Client.tenant_id == sps.id).limit(1)).scalar_one()
+    u = User(tenant_id=sps.id, email="smoke-client@local.test",
+             password_hash=PasswordHasher().hash(PW), full_name="Smoke Client", status="active")
+    db.add(u); db.flush()
+    db.add(ClientUser(tenant_id=sps.id, user_id=u.id, client_id=client.id,
+                      role="client_admin", status="active"))
+    db.commit()
+    return u
+
+
+def test_gate_matrix_staff_gets_reject_candidate_and_client(world):
+    sps, db, ids = world
+    assert len(_get_routes()) >= _ROUTE_FLOOR, \
+        f"route enumeration collapsed to {len(_get_routes())} — the gate matrix would be a no-op"
+    cand = _mk_user(db, sps, "smoke-cand@local.test", ["candidate"])
+    _mk_client_session(db, sps)
+    try:
+        cc = TestClient(app); _login(cc, "smoke-cand@local.test")     # candidate session
+        cl = TestClient(app); _login(cl, "smoke-client@local.test")   # client-portal session
+        leaks = []
+        for path in _get_routes():
+            if any(path.startswith(p) for p in NON_STAFF_GET_PREFIXES):
+                continue                                              # legitimately non-staff
+            import re as _re
+            filled = path
+            for name in ("candidate_id", "job_id", "app_id", "application_id", "interview_id",
+                         "invoice_id", "placement_id", "vendor_id", "lead_id", "review_id", "token"):
+                filled = filled.replace("{" + name + "}", ids.get(name, str(uuid.uuid4())))
+            filled = _re.sub(r"\{[^}]+\}", str(uuid.uuid4()), filled)
+            for who, client in (("candidate", cc), ("client", cl)):
+                sc = client.get(filled, headers=HOST).status_code
+                if 200 <= sc < 300:                                   # a 2xx = the leak
+                    leaks.append(f"{path} [{who}] → {sc} (staff data reachable by non-staff)")
+        assert not leaks, ("staff GET routes reachable by candidate/client sessions:\n"
+                           + "\n".join(leaks))
+    finally:
+        db.execute(delete(Membership).where(Membership.user_id == cand.id))
+        db.execute(delete(User).where(User.id == cand.id))
+        cu = db.execute(select(User).where(User.tenant_id == sps.id,
+                                           User.email == "smoke-client@local.test")).scalar_one_or_none()
+        if cu is not None:
+            db.execute(delete(ClientUser).where(ClientUser.user_id == cu.id))
+            db.execute(delete(User).where(User.id == cu.id))
+        db.commit()
