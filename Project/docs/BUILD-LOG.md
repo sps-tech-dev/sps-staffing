@@ -1891,6 +1891,27 @@ locally. NOT a deployment change.
   but the academy time-limit is accidentally coupled to staffing's value. Branch it on
   business_unit_id eventually. Latent coupling, not blocking.
 
+## 2026-07-05 — FE#4b: aptitude-invite notification (take link reaches the student in-app)
+
+- At `POST /enrollments/{id}/aptitude/issue`, enqueue `academy_aptitude_invite` to the student
+  (`vars.take_link = /take/{raw_token}`, captured at the one moment the raw token exists),
+  idempotent on the test (`academy:aptitude_invite:{test.id}`). New read
+  `GET /api/academy/students/me/notifications` (get_current_student-gated) returns the student's
+  own academy notifications with `take_link`. "My Academy" links the "Take aptitude test" button
+  to the take link pulled from the student's OWN invite. Migration 0040 (data-only) seeds the
+  template. Cross-student notification isolation + gate + idempotent-on-test + enrolments-stay-
+  tokenless tested. **Suite 311 → 316.** RETAKE verified: fail → re-issue = a NEW test = a NEW
+  token = a SECOND invite (not suppressed by the prior key).
+- **CARRY-FORWARD (latent inconsistency — record, do NOT fix now):** the two student-facing reads
+  key on DIFFERENT session identities — `/students/me/enrollments` scopes on
+  `StudentContext.student_id`, `/students/me/notifications` scopes on
+  `recipient == session email` (+ `business_unit_id='ACADEMY'`). Correct TODAY (academy email is
+  unique per tenant, and the BU filter excludes staff notifications sharing an email). But the
+  divergence is HISTORICAL, not intentional: notifications key on email because the Notification
+  row has no student_id column. If email-uniqueness ever weakens, or a student changes their
+  email (past notifications keep the old recipient), the notification read should move to a
+  student_id linkage to match the enrolments read. A latent inconsistency to note, not fix.
+
 ## Pending / next steps
 
 ➡️ **The canonical, durable register of ALL outstanding/deferred items is

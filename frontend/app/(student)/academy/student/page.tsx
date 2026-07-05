@@ -4,7 +4,8 @@
  * The take LINK is not returnable by a student endpoint (B.7 one-time token is
  * unstored) — see the note under an active test. */
 import { useEffect, useState } from "react";
-import { GraduationCap, ClipboardCheck } from "lucide-react";
+import Link from "next/link";
+import { GraduationCap, ClipboardCheck, ArrowRight } from "lucide-react";
 import { api, ApiError } from "@/lib/api/client";
 import { formatFee, realText } from "../../../(marketing)/academy/_lib";
 
@@ -37,15 +38,26 @@ function StatusPill({ status }: { status: string }) {
   );
 }
 
+type Notif = { template_code: string; take_link: string | null; created_at: string | null };
+
 export default function StudentHome() {
   const [rows, setRows] = useState<Enrollment[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // the one-time take link lives ONLY in the student's own invite notification
+  // (the enrolments endpoint stays presence-only) — pull the latest one here.
+  const [takeLink, setTakeLink] = useState<string | null>(null);
 
   useEffect(() => {
     let alive = true;
     api<Enrollment[]>("/academy/students/me/enrollments")
       .then((d) => { if (alive) setRows(d); })
       .catch((e) => { if (alive) setError(e instanceof ApiError ? e.message : "Something went wrong"); });
+    api<Notif[]>("/academy/students/me/notifications")
+      .then((ns) => {
+        const invite = ns.find((n) => n.template_code === "academy_aptitude_invite" && n.take_link);
+        if (alive && invite) setTakeLink(invite.take_link);
+      })
+      .catch(() => {});
     return () => { alive = false; };
   }, []);
 
@@ -107,9 +119,14 @@ export default function StudentHome() {
                       </p>
                     </div>
                     <p className="mt-1 text-xs" style={{ color: "#92400E" }}>
-                      Valid until {new Date(e.active_test.valid_until).toLocaleString()}. Open the test using the
-                      link from your invitation to begin.
+                      Valid until {new Date(e.active_test.valid_until).toLocaleString()}.
                     </p>
+                    {takeLink && (
+                      <Link href={takeLink} className="mt-3 inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold"
+                        style={{ background: "#E8A020", color: "#0A1628" }}>
+                        Take aptitude test <ArrowRight size={15} />
+                      </Link>
+                    )}
                   </div>
                 ) : e.status === "applied" ? (
                   <p className="mt-4 text-sm" style={{ color: "#9AA6BC" }}>No aptitude test assigned yet.</p>

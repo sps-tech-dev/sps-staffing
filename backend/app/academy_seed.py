@@ -77,6 +77,11 @@ SEED_NOTIFICATION_TEMPLATES: list[dict] = [
      "body": "[FOUNDER DRAFT] Hi {full_name}, we received your payment of {amount} {currency} for "
              "{course}. Your enrolment is now ACTIVE. Your receipt is attached to your student "
              "dashboard. Welcome to SPS Academy!"},
+    # A4/FE#4b — aptitude-invite carrying the one-time /take/{token} link to the student.
+    {"code": "academy_aptitude_invite", "channel_type": "email",
+     "subject": "[FOUNDER DRAFT] Your SPS Academy entrance test — {course}",
+     "body": "[FOUNDER DRAFT] Hi {full_name}, your entrance aptitude test for {course} is ready. "
+             "Take it here: {take_link} (valid until {valid_until})."},
 ]
 
 

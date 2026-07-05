@@ -29,7 +29,7 @@ from ..db import get_db
 from ..deps import get_current_context
 from ..features import is_enabled, require_feature
 from ..idempotency import get_cached, store
-from ..models import Tenant
+from ..models import Notification, Tenant
 from ..models_academy import Cohort, Course, Enrollment
 from .staffing import _require_staff, _tid
 
@@ -640,6 +640,20 @@ def issue_aptitude(enrollment_id: uuid.UUID,
     write_audit(db, ctx, "academy.aptitude_issue", "test", test.id,
                 after={"enrollment_id": str(enr.id), "attempt_no": test.attempt_no,
                        "question_count": len(frozen)})
+    # aptitude-invite notification — carries the /take/{token} link to the STUDENT.
+    # The raw token exists ONLY here (new_link_token shows it once); capture it now.
+    # Idempotent on the issued test: re-issue/retake = new test = new token = new
+    # invite; the same issue can't double-send (unique idempotency_key).
+    _student = db.get(Student, enr.student_id)
+    _course = db.get(Course, enr.course_id)
+    if _student is not None and _student.email:
+        enqueue(db, template_code="academy_aptitude_invite", recipient=_student.email,
+                vars={"full_name": _student.full_name,
+                      "course": _course.title if _course else "your course",
+                      "take_link": f"/take/{raw_token}",
+                      "valid_until": test.valid_until.date().isoformat()},
+                tenant_id=_tid(ctx), business_unit_id=BU,
+                idempotency_key=f"academy:aptitude_invite:{test.id}")
     db.commit()
     res = {"test_id": str(test.id), "take_path": f"/api/take/{raw_token}",
            "valid_until": test.valid_until.isoformat(), "attempt_no": test.attempt_no,
@@ -796,3 +810,27 @@ def my_enrollments(student: StudentContext = Depends(get_current_student),
             "active_test": active_test,
         })
     return out
+
+
+@router.get("/students/me/notifications")
+def my_notifications(student: StudentContext = Depends(get_current_student),
+                     db: Session = Depends(get_db)):
+    """The AUTHENTICATED student's OWN academy notifications. STRICT SCOPING: keyed
+    on the SESSION email (recipient) + BU=ACADEMY — no param, so student A (email A)
+    cannot read B's rows. This matters more than the enrolments read: an aptitude
+    invite's `vars.take_link` is a LIVE one-time test token, so a cross-student leak
+    would hand over a working test link. Academy student email is unique per tenant,
+    and the BU filter excludes any staff notification that happens to share an email
+    (A3 email-reuse-across-boundary)."""
+    if not student.email:
+        return []
+    rows = db.execute(select(Notification).where(
+        Notification.recipient == student.email,
+        Notification.tenant_id == uuid.UUID(student.tenant_id),
+        Notification.business_unit_id == BU)
+        .order_by(Notification.created_at.desc()).limit(50)).scalars().all()
+    return [{"id": str(n.id), "template_code": n.template_code,
+             "subject": n.rendered_subject, "body": n.rendered_body,
+             "take_link": (n.vars or {}).get("take_link"),
+             "status": n.status,
+             "created_at": n.created_at.isoformat() if n.created_at else None} for n in rows]
