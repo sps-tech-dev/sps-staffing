@@ -47,8 +47,11 @@ def aptitude_seed_bank():
     sps = db.execute(select(Tenant).where(Tenant.code == "SPS001")).scalar_one()
 
     # deactivate any pre-existing active questions so the served count is exactly 12
+    # scope to STAFFING only — the issue path is BU-scoped since A4, so the academy
+    # aptitude bank (business_unit_id='ACADEMY') must stay active alongside.
     prior_active = db.execute(select(Question.id).where(
-        Question.tenant_id == sps.id, Question.is_active.is_(True))).scalars().all()
+        Question.tenant_id == sps.id, Question.is_active.is_(True),
+        Question.business_unit_id == "STAFFING")).scalars().all()
     if prior_active:
         db.execute(update(Question).where(Question.id.in_(prior_active)).values(is_active=False))
 
@@ -98,6 +101,20 @@ def academy_notification_templates():
     from app.academy_seed import seed_notification_templates
     db = get_sessionmaker()()
     seed_notification_templates(db.connection())
+    db.commit()
+    db.close()
+    yield
+
+
+# A4: the course-independent academy aptitude bank (migration-seeded) — idempotent
+# ensure from the same source of truth, so academy aptitude tests pass from any
+# DB state (E2E-3 lesson).
+@pytest.fixture(scope="session", autouse=True)
+def academy_aptitude_bank():
+    from app.academy_seed import seed_aptitude_bank
+    db = get_sessionmaker()()
+    sps = db.execute(select(Tenant).where(Tenant.code == "SPS001")).scalar_one()
+    seed_aptitude_bank(db.connection(), sps.id)
     db.commit()
     db.close()
     yield

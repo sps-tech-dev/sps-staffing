@@ -45,6 +45,24 @@ def _err(status, code, message):
     return HTTPException(status_code=status, detail={"code": code, "message": message})
 
 
+def select_bank_paper(db, tenant_id, business_unit_id: str, count: int) -> list[dict]:
+    """A4 engine seam (the ONLY generic extension): draw `count` active questions
+    from the ACTIVE bank(s) of a SPECIFIC business unit, then freeze. Threads the
+    BU + count through — freeze_paper/select_questions signatures are untouched.
+    The BU filter also ISOLATES verticals (academy questions never leak into a
+    staffing paper and vice-versa)."""
+    questions = db.execute(
+        select(Question)
+        .join(QuestionBank, QuestionBank.id == Question.bank_id)
+        .where(Question.tenant_id == tenant_id, Question.is_active.is_(True),
+               Question.deleted_at.is_(None), QuestionBank.is_active.is_(True),
+               QuestionBank.deleted_at.is_(None),
+               QuestionBank.business_unit_id == business_unit_id)).scalars().all()
+    if not questions:
+        raise _err(409, "NO_QUESTIONS", "No active question bank for this business unit")
+    return engine.freeze_paper(engine.select_questions(questions, count))
+
+
 @router.post("/applications/{app_id}/tests/issue")
 def issue_test(app_id: uuid.UUID, ctx: RequestContext = Depends(get_current_context),
                db: Session = Depends(get_db),
@@ -79,17 +97,7 @@ def issue_test(app_id: uuid.UUID, ctx: RequestContext = Depends(get_current_cont
             raise _err(409, "RETAKE_COOLDOWN",
                        f"Retake allowed after {cooldown_ends.date().isoformat()}")
 
-    questions = db.execute(
-        select(Question)
-        .join(QuestionBank, QuestionBank.id == Question.bank_id)
-        .where(Question.tenant_id == _tid(ctx), Question.is_active.is_(True),
-               Question.deleted_at.is_(None), QuestionBank.is_active.is_(True),
-               QuestionBank.deleted_at.is_(None))).scalars().all()
-    if not questions:
-        raise _err(409, "NO_QUESTIONS", "No active question bank for this tenant")
-
-    picked = engine.select_questions(questions, settings.test_question_count)
-    frozen = engine.freeze_paper(picked)
+    frozen = select_bank_paper(db, _tid(ctx), BU, settings.test_question_count)
     raw_token, token_hash = engine.new_link_token()
     test = Test(tenant_id=_tid(ctx), business_unit_id=BU, application_id=appn.id,
                 candidate_id=appn.candidate_id, link_token_hash=token_hash,

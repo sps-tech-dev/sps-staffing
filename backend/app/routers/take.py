@@ -99,6 +99,20 @@ def submit_answers(token: str, body: SubmitIn, db: Session = Depends(get_db)):
     t.status = "submitted"
     t.submitted_at = _now()
 
+    # A4: post-grade callback branches on the test's vertical. ACADEMY → stamp the
+    # enrollment (aptitude_score percentage + applied→tested); pricing (discount/
+    # final_fee) is A5. STAFFING → the existing pipeline path (untouched below).
+    if t.business_unit_id == "ACADEMY":
+        from ..models_academy import Enrollment
+        enr = db.get(Enrollment, t.enrollment_id) if t.enrollment_id else None
+        if enr is not None and enr.deleted_at is None:
+            enr.aptitude_score = round(score * 100, 2)   # percentage = correct/total × 100
+            if enr.status == "applied":
+                enr.status = "tested"
+        db.commit()
+        return {"score": round(score, 4), "passed": passed, "pipeline_advanced": False,
+                "pass_threshold": settings.test_pass_threshold}
+
     appn = db.get(Application, t.application_id)
     ctx = RequestContext(tenant_id=str(t.tenant_id), business_unit_id="STAFFING",
                          user_id=None, roles=())

@@ -566,3 +566,84 @@ def register_student(body: StudentRegisterIn, request: Request, db: Session = De
            "policy_version": POLICY_VERSION}
     store(str(tenant.id), idempotency_key, res)
     return res
+
+
+# ═══════════════════════════════════════════════════════════════════
+# A4 — admin-triggered entrance aptitude issue (60Q academy)
+# ═══════════════════════════════════════════════════════════════════
+import datetime as _dt2  # noqa: E402
+
+from ..models_academy import Enrollment  # noqa: E402
+from ..models_staffing import Test  # noqa: E402
+from .. import assessment_engine as _engine  # noqa: E402
+from .assessments import select_bank_paper  # noqa: E402  (shared engine seam)
+
+
+def _require_academy_pairing(enr) -> None:
+    """BU↔pairing INVARIANT (carry-forward from the 0035 CHECK, enforced at the
+    WRITER not a BU-coupled DB CHECK): an ACADEMY test must carry the academy
+    pairing (enrollment + student), never the staffing one. A RAISED domain error
+    (canonical envelope) — NOT a bare assert, which would 500 and be stripped under
+    python -O. Also guards a null student_id (folds the 0035->A4 carry-forward:
+    an academy pairing with a null student_id would otherwise hit ck_tests_one_identity
+    with a raw IntegrityError)."""
+    if BU != "ACADEMY" or enr.student_id is None:
+        raise _err(409, "BU_PAIRING_INVARIANT",
+                   "Academy aptitude tests require an academy enrollment with a student")
+
+
+@router.post("/enrollments/{enrollment_id}/aptitude/issue")
+def issue_aptitude(enrollment_id: uuid.UUID,
+                   ctx: RequestContext = Depends(require_feature("academy")),
+                   db: Session = Depends(get_db),
+                   idempotency_key: str | None = Header(default=None)):
+    """ADMIN-triggered (decision 8): freeze a 60Q academy aptitude paper for an
+    enrollment at status='applied' + mint the one-time take link. Writes the
+    ACADEMY identity pairing on the test row (enrollment_id + student_id set,
+    staffing refs null). Student/candidate role → 403 (cannot self-issue)."""
+    _require_staff(ctx)
+    if (cached := get_cached(str(ctx.tenant_id), idempotency_key)):
+        return cached
+    enr = db.execute(select(Enrollment).where(
+        Enrollment.id == enrollment_id, Enrollment.tenant_id == _tid(ctx),
+        Enrollment.business_unit_id == BU, Enrollment.deleted_at.is_(None))).scalar_one_or_none()
+    if enr is None:
+        raise _err(404, "NOT_FOUND", "Enrollment not found")
+    if enr.status != "applied":
+        raise _err(409, "STATUS_INVALID", "Enrollment must be at 'applied' to issue an aptitude test")
+
+    now = _dt2.datetime.now(_dt2.timezone.utc)
+    prior = db.execute(select(Test).where(Test.enrollment_id == enr.id, Test.deleted_at.is_(None))
+                       .order_by(Test.attempt_no.desc())).scalars().all()
+    for t in prior:
+        if t.status in ("issued", "started") and t.valid_until > now:
+            raise _err(409, "TEST_ACTIVE", "An active aptitude link already exists for this enrollment")
+    last_sub = next((t for t in prior if t.status == "submitted"), None)
+    if last_sub is not None and last_sub.passed is False:
+        cooldown = last_sub.submitted_at + _dt2.timedelta(days=settings.test_retake_cooldown_days)
+        if now < cooldown:
+            raise _err(409, "RETAKE_COOLDOWN", f"Retake allowed after {cooldown.date().isoformat()}")
+
+    frozen = select_bank_paper(db, _tid(ctx), BU, settings.academy_test_question_count)
+    raw_token, token_hash = _engine.new_link_token()
+
+    _require_academy_pairing(enr)
+    test = Test(tenant_id=_tid(ctx), business_unit_id=BU,
+                application_id=None, candidate_id=None,          # staffing pairing NULL
+                enrollment_id=enr.id, student_id=enr.student_id,  # academy pairing SET
+                link_token_hash=token_hash,
+                valid_until=now + _dt2.timedelta(hours=settings.test_link_ttl_hours),
+                attempt_no=(max((t.attempt_no for t in prior), default=0) + 1),
+                served_questions=frozen)
+    db.add(test)
+    db.flush()
+    write_audit(db, ctx, "academy.aptitude_issue", "test", test.id,
+                after={"enrollment_id": str(enr.id), "attempt_no": test.attempt_no,
+                       "question_count": len(frozen)})
+    db.commit()
+    res = {"test_id": str(test.id), "take_path": f"/api/take/{raw_token}",
+           "valid_until": test.valid_until.isoformat(), "attempt_no": test.attempt_no,
+           "question_count": len(frozen),
+           "time_limit_minutes": settings.academy_test_time_limit_minutes}
+    store(str(ctx.tenant_id), idempotency_key, res)
+    return res

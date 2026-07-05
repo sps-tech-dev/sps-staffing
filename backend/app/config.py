@@ -84,6 +84,10 @@ class Settings(BaseSettings):
     test_link_ttl_hours: int = 72        # TEST_LINK_TTL_HOURS (one-time link validity)
     test_retake_cooldown_days: int = 30  # TEST_RETAKE_COOLDOWN_DAYS (after a fail)
     test_max_snapshots: int = 500        # TEST_MAX_SNAPSHOTS (proctoring uploads per test)
+    # A4 — academy entrance aptitude config (60Q/60min; staffing stays 30Q/60min).
+    # Course-INDEPENDENT bank (quant/logical/verbal/English); reuses the B.7 engine.
+    academy_test_question_count: int = 60         # ACADEMY_TEST_QUESTION_COUNT
+    academy_test_time_limit_minutes: int = 60     # ACADEMY_TEST_TIME_LIMIT_MINUTES
 
     # Notification service (B.10). ConsoleChannel is the ONLY implemented channel;
     # the override routes ALL enqueues to it (dev sink). Part D: set the override

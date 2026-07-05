@@ -1764,6 +1764,38 @@ engine extension + academy bank + issue endpoint are the following A4 prompts.
   BU-coupled CHECK would hardcode the BU axis value into the constraint (brittle). Keep the
   invariant where the writer is.
 
+## 2026-07-05 — A4 Part 2: aptitude engine extension (60Q) + academy bank + admin-triggered issue ✅
+
+Reuse mandate honored — the B.7 engine extended ONCE at the issue seam; no academy.tests fork.
+
+- **Engine seam (the only generic change):** `select_bank_paper(db, tenant_id, business_unit_id,
+  count)` — threads BU + count; `freeze_paper`/`select_questions`/`grade` signatures untouched.
+  The BU filter also ISOLATES verticals (academy questions never leak into a staffing paper).
+  Staffing issue now calls it with `('STAFFING', 30)` — result-preserving (the staffing bank is
+  STAFFING-BU); the 24 staffing-assessment tests + the 0035 guard stay green.
+- **Academy bank (migration 0036, data-only):** course-INDEPENDENT aptitude/reasoning/verbal/
+  english bank, 60 active `[SAMPLE]` questions, seeded via the idempotent
+  `app.academy_seed.seed_aptitude_bank` (shared source of truth: migration + conftest fixture,
+  E2E-3 reproducibility). **Minimum to draw a 60Q paper = 60. CARRY-FORWARD:** a PRODUCTION bank
+  must be a pool MUCH larger than 60 for question-level paper variety / anti-leak — with exactly
+  60, papers differ only by option-shuffle; `[SAMPLE]` is a dev placeholder, real = `[YOUR CONTENT]`.
+- **Admin-triggered issue:** `POST /api/academy/enrollments/{id}/aptitude/issue` (admin-gated,
+  FEATURE_ACADEMY, `applied`-precondition), draws 60 from the academy bank, one-time token,
+  writes the ACADEMY identity pairing (enrollment+student, staffing refs null). Candidate → 403
+  (can't self-issue, decision 8); flag off → 404.
+- **BU↔pairing invariant (0035 carry-forward):** enforced at the WRITER as a RAISED domain error
+  (`_require_academy_pairing` → 409 BU_PAIRING_INVARIANT, canonical envelope) — NOT a bare assert
+  (which would 500 + be stripped under `python -O`). This also **RESOLVES the null-student_id
+  carry-forward** (the same guard rejects a null student_id with the envelope, not a raw
+  IntegrityError from ck_tests_one_identity) — folded here since it's the same invalid state.
+- **Take + post-grade branch:** `/take/{token}` unchanged; the callback branches on
+  `business_unit_id`: ACADEMY → stamp `enrollment.aptitude_score = correct/60×100` + `applied→
+  tested` (pricing = A5); STAFFING → the existing pipeline path (untouched). No-answer-leak
+  preserved. **Grade arithmetic verified at a non-trivial value:** 45/60 → 75.0 (A5's 75/85/95
+  discount boundaries stand on this).
+- The E2E-3 staffing seed fixture was scoped to `business_unit_id='STAFFING'` so it no longer
+  clobbers the academy bank (the issue path is BU-scoped now). **Tests 265 → 272.**
+
 ## Pending / next steps
 
 ➡️ **The canonical, durable register of ALL outstanding/deferred items is

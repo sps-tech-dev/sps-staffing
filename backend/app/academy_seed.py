@@ -84,3 +84,55 @@ def seed_notification_templates(conn: sa.engine.Connection) -> int:
             {"c": t["code"], "ch": t["channel_type"], "s": t["subject"], "b": t["body"]})
         inserted += 1
     return inserted
+
+
+# ── A4: course-INDEPENDENT aptitude bank (decision 1) — the single source of
+# truth for the migration seed AND the test fixture (E2E-3 reproducibility).
+# Categories = quant / logical / verbal / english; selection is by aptitude
+# category, NOT by course. MINIMUM to draw a 60Q paper = 60 active questions.
+# CARRY-FORWARD (BUILD-LOG): a PRODUCTION bank must be a pool MUCH larger than 60
+# for question-level paper variety / anti-leak — with exactly 60, papers differ
+# only by option-shuffle. [SAMPLE] content is a dev placeholder; real = [YOUR CONTENT].
+APTITUDE_BANK_NAME = "Academy Entrance Aptitude"
+_APT_CATEGORIES = ("quant", "logical", "verbal", "english")
+
+
+def _sample_aptitude_questions() -> list[dict]:
+    # 60 neutral [SAMPLE] questions (15 per category). Stems/options carry NO
+    # substring "correct" (the no-answer-leak check asserts it never appears).
+    out = []
+    for cat in _APT_CATEGORIES:
+        for i in range(15):
+            out.append({
+                "category": cat, "difficulty": "medium",
+                "stem": f"[SAMPLE] {cat} item {i + 1}: choose the best option.",
+                "options": [f"option A{i}", f"option B{i}", f"option C{i}", f"option D{i}"],
+                "correct_index": i % 4,
+            })
+    return out
+
+
+def seed_aptitude_bank(conn: sa.engine.Connection, tenant_id) -> int:
+    """Idempotent: create the academy aptitude bank + its 60 questions for this
+    tenant if absent (keyed on the bank name + business_unit). Returns questions
+    inserted (0 if already present)."""
+    bank_id = conn.execute(sa.text(
+        "SELECT id FROM staffing.question_banks WHERE tenant_id = :t "
+        "AND business_unit_id = 'ACADEMY' AND name = :n AND deleted_at IS NULL"),
+        {"t": str(tenant_id), "n": APTITUDE_BANK_NAME}).scalar_one_or_none()
+    if bank_id is not None:
+        return 0
+    bank_id = conn.execute(sa.text(
+        "INSERT INTO staffing.question_banks (tenant_id, business_unit_id, name, category, is_active) "
+        "VALUES (:t, 'ACADEMY', :n, 'aptitude', true) RETURNING id"),
+        {"t": str(tenant_id), "n": APTITUDE_BANK_NAME}).scalar_one()
+    n = 0
+    for q in _sample_aptitude_questions():
+        conn.execute(sa.text(
+            "INSERT INTO staffing.questions (tenant_id, business_unit_id, bank_id, category, "
+            "difficulty, stem, options, correct_index, is_active) VALUES "
+            "(:t, 'ACADEMY', :b, :cat, :d, :s, CAST(:o AS jsonb), :c, true)"),
+            {"t": str(tenant_id), "b": str(bank_id), "cat": q["category"], "d": q["difficulty"],
+             "s": q["stem"], "o": __import__("json").dumps(q["options"]), "c": q["correct_index"]})
+        n += 1
+    return n
