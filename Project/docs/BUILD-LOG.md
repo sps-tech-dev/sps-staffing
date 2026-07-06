@@ -2026,6 +2026,19 @@ My Academy → take → result/discount → pay → enrolled + receipt.
   vs-false + gate tested (5). Suite 321 → 326. Dev-probed on real RDS through the real S3 presign
   seam (first time the receipt read hits real S3 — local was MinIO).
 
+## 2026-07-06 — FE#7 (B) frontend: student dashboard — has_receipt-gated receipt download ✅ (local-verified)
+
+Frontend only, local-verified (no deploy target, C1). Enhanced "My Academy" (the all-states
+enrolment list from #4/#5) with the paid/receipt block on a graded enrolment: payment_status!=paid
+→ "Proceed to payment" (#5); paid → "✓ Paid — you're enrolled" + a **"Download receipt" button
+ONLY where has_receipt is true** (never gated on payment_status — a paid-but-no-receipt row, the
+seed shortcut / Part-D pending window, shows NO button, so the button never promises a receipt
+that 404s). Download → GET …/receipt → opens a FRESH presigned URL each click (5-min TTL never
+stale). Errors: RECEIPT_NOT_AVAILABLE → "receipt isn't ready yet" (clean, per-card); 401 →
+re-login; never a raw error. Verified: seeded active (paid, receipt_s3_key null) → no button; a
+real #6-paid enrolment → has_receipt=true → button → PDF opens. Reuses the portal shell + result
+panel + F1 tokens.
+
 ## Pending / next steps
 
 ➡️ **The canonical, durable register of ALL outstanding/deferred items is

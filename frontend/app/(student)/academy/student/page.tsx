@@ -5,7 +5,8 @@
  * unstored) — see the note under an active test. */
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { GraduationCap, ClipboardCheck, ArrowRight } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { GraduationCap, ClipboardCheck, ArrowRight, Download, CheckCircle2 } from "lucide-react";
 import { api, ApiError } from "@/lib/api/client";
 import { formatFee, realText } from "../../../(marketing)/academy/_lib";
 
@@ -18,8 +19,11 @@ type Enrollment = {
   final_fee: number | null;
   currency: string;
   payment_status: string;
+  has_receipt: boolean;
   active_test: { valid_until: string; attempt_no: number } | null;
 };
+
+type ReceiptErr = { id: string; msg: string } | null;
 
 const STATUS_COPY: Record<string, string> = {
   applied: "Applied", tested: "Test complete", offered: "Offer ready",
@@ -44,7 +48,8 @@ function StatusPill({ status }: { status: string }) {
 // backend's number (course.fee list + final_fee), never recomputed.
 const RESULT_STATES = ["offered", "active", "completed"];
 
-function ResultPanel({ e }: { e: Enrollment }) {
+function ResultPanel({ e, onDownload, receiptErr }:
+  { e: Enrollment; onDownload: (id: string) => void; receiptErr: ReceiptErr }) {
   const score = e.aptitude_score;
   const list = e.course.fee;
   const final = e.final_fee;
@@ -76,12 +81,31 @@ function ResultPanel({ e }: { e: Enrollment }) {
           <span>You pay</span><span>{formatFee(final, e.currency)}</span>
         </div>
       </div>
-      {e.payment_status !== "paid" && (
+      {e.payment_status !== "paid" ? (
         <Link href={`/academy/student/pay?enrollment=${e.enrollment_id}`}
           className="mt-4 inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold"
           style={{ background: "#E8A020", color: "#0A1628" }}>
           Proceed to payment <ArrowRight size={15} />
         </Link>
+      ) : (
+        <div className="mt-4">
+          <p className="flex items-center gap-1.5 text-sm font-semibold" style={{ color: "#15803D" }}>
+            <CheckCircle2 size={15} /> Paid — you&apos;re enrolled
+          </p>
+          {/* "Download receipt" ONLY where has_receipt is true — the button's presence
+              is truthful; a paid-but-no-receipt row (seed shortcut / Part-D pending
+              window) shows NO button. */}
+          {e.has_receipt && (
+            <button onClick={() => onDownload(e.enrollment_id)}
+              className="mt-2 inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold"
+              style={{ background: "#F0F4FA", color: "#0A1628" }}>
+              <Download size={15} /> Download receipt
+            </button>
+          )}
+          {receiptErr?.id === e.enrollment_id && (
+            <p className="mt-2 text-xs" style={{ color: "#B91C1C" }}>{receiptErr.msg}</p>
+          )}
+        </div>
       )}
     </div>
   );
@@ -90,8 +114,29 @@ function ResultPanel({ e }: { e: Enrollment }) {
 type Notif = { template_code: string; take_link: string | null; created_at: string | null };
 
 export default function StudentHome() {
+  const router = useRouter();
   const [rows, setRows] = useState<Enrollment[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [receiptErr, setReceiptErr] = useState<ReceiptErr>(null);
+
+  async function downloadReceipt(id: string) {
+    setReceiptErr(null);
+    try {
+      // GET the receipt — a FRESH presigned URL each click (5-min TTL never stale).
+      const res = await api<{ receipt_url: string }>(`/academy/students/me/enrollments/${id}/receipt`);
+      if (res.receipt_url) window.open(res.receipt_url, "_blank", "noopener");
+      else setReceiptErr({ id, msg: "Your receipt isn't ready yet — please check back shortly." });
+    } catch (e) {
+      if (e instanceof ApiError) {
+        if (e.code === "UNAUTHENTICATED") { router.replace("/academy/login"); return; }
+        setReceiptErr({ id, msg: e.code === "RECEIPT_NOT_AVAILABLE"
+          ? "Your receipt isn't ready yet — please check back shortly."
+          : "Couldn't fetch your receipt — please try again." });
+      } else {
+        setReceiptErr({ id, msg: "Couldn't reach the server — please try again." });
+      }
+    }
+  }
   // the one-time take link lives ONLY in the student's own invite notification
   // (the enrolments endpoint stays presence-only) — pull the latest one here.
   const [takeLink, setTakeLink] = useState<string | null>(null);
@@ -144,7 +189,8 @@ export default function StudentHome() {
                   <div className="mt-2"><StatusPill status={e.status} /></div>
                 </div>
 
-                {RESULT_STATES.includes(e.status) && e.aptitude_score != null && <ResultPanel e={e} />}
+                {RESULT_STATES.includes(e.status) && e.aptitude_score != null &&
+                  <ResultPanel e={e} onDownload={downloadReceipt} receiptErr={receiptErr} />}
 
                 {e.active_test ? (
                   <div className="mt-5 rounded-xl p-4" style={{ background: "#FFFBEB", border: "1px solid #FDE68A" }}>
