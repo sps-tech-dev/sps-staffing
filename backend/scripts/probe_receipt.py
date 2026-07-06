@@ -80,6 +80,7 @@ def main() -> int:
         payA = db.execute(select(Payment).where(Payment.enrollment_id == ea.id)).scalar_one()
         receipt_key = payA.receipt_s3_key
         payB = db.execute(select(Payment).where(Payment.enrollment_id == eb.id)).scalar_one()
+        receipt_key_b = payB.receipt_s3_key   # capture as a STRING (payB is deleted in the finally)
 
         # 1. own receipt → 200 → fetch real %PDF from real S3
         res = student_receipt(enrollment_id=ea.id, student=ctxA, db=db)
@@ -123,7 +124,7 @@ def main() -> int:
                 db.execute(delete(type(obj)).where(type(obj).id == obj.id))
         db.commit()
         # delete both real S3 receipt objects
-        for key in {receipt_key, locals().get("payB").receipt_s3_key if locals().get("payB") else None}:
+        for key in {receipt_key, locals().get("receipt_key_b")}:
             if key:
                 try:
                     storage._client().delete_object(Bucket=storage.settings.storage_bucket, Key=key)
