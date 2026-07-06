@@ -1987,6 +1987,26 @@ fixture (Farah, 60%→0%) added for the walk.
 - NO migration (endpoint on existing tables; dev stays head 0040). Tests 316 → 321 (isolation +
   happy/redelivery + wrong-state 409 + gate 401 + shared-seam). Dev-probed on real RDS.
 
+## 2026-07-06 — FE#6 frontend: pay confirmation page (onto the student-initiate endpoint) ✅ (local-verified)
+
+Frontend only, local-verified (no deploy target, C1). Pay page at /academy/student/pay?enrollment={id}
+in the (student) shell, onto POST /academy/students/me/enrollments/{id}/pay. The risk is the
+frontend's handling of a state-changing money-adjacent call:
+- **IN-FLIGHT GUARD (load-bearing):** a `useRef(false)` flag checked + set SYNCHRONOUSLY before the
+  awaited POST (cleared in finally) — a double/impatient click fires EXACTLY ONE POST (proven
+  headless: the identical control-flow → 1 POST; not relying on backend idempotency as the only
+  defense). `disabled` is the secondary/visual guard.
+- **NETWORK-UNKNOWN:** a non-ApiError throw (lost response) → "Confirming your payment…" → re-check
+  /me/enrollments for server truth; never says "failed", never silently re-POSTs.
+- **409 mapping:** STATUS_INVALID → reconcile (if actually active → enrolled) else a distinct
+  "not awaiting payment" message — not a generic toast.
+- **Load-gated:** offered → pay CTA · active/paid → enrolled + receipt (no CTA) · applied/tested →
+  "nothing due". Receipt fetched FRESH per download (POST /pay idempotent → fresh presigned URL,
+  handling the ~5-min TTL). Honestly labelled a dev/STUB payment (Razorpay = Part-D).
+
+The academy student happy path is now walkable end-to-end locally: storefront → register → login →
+My Academy → take → result/discount → pay → enrolled + receipt.
+
 ## Pending / next steps
 
 ➡️ **The canonical, durable register of ALL outstanding/deferred items is
