@@ -2039,6 +2039,26 @@ re-login; never a raw error. Verified: seeded active (paid, receipt_s3_key null)
 real #6-paid enrolment → has_receipt=true → button → PDF opens. Reuses the portal shell + result
 panel + F1 tokens.
 
+## 2026-07-06 — FE#8a backend: admin roster read (staff-gated, tenant+BU-scoped cross-student) ✅
+
+The staff side INVERTS the student /me/* model: not own-scoping, but tenant + BU correctness +
+the staff-role/client-rejection/flag gate. Two read endpoints, reusing the existing academy
+staff gate (require_feature + get_current_context + _require_staff) + `tenant_id==_tid(ctx)` +
+`business_unit_id=='ACADEMY'` verbatim.
+- **`GET /api/academy/enrollments`** — roster across students (filters status/course_id/cohort_id);
+  each row = enrolment (status/score/discount/final_fee/payment_status/has_receipt) + course +
+  cohort + UNMASKED student (name/email/college_student_id/college_name). has_receipt in one
+  batched query. No pagination (matches list_courses; flag for large cohorts).
+- **`GET /api/academy/enrollments/{id}`** — staff detail: full enrolment + unmasked student
+  (+ course_degree/year_of_study/dob) + payment + test blocks. Id outside the staff's tenant/BU
+  → 404 (no existence oracle across the tenant boundary).
+- **phone_enc/pan_enc EXCLUDED** everywhere (envelope-encrypted PII; a separate access decision).
+- The GATE is load-bearing (not own-scoping): flag-off→404, no session→401, STUDENT academy
+  session→401 (student cookie ≠ staff), bound CLIENT session→403 (no cross-client leak), staff→
+  200 sees ALL in-tenant (cross-student is CORRECT), tenant isolation (a real 2nd tenant's
+  enrolment invisible + its id→404), filters, student /me stays own-scoped. Tests 326→334.
+- NO migration (reads on existing tables; dev 0040). Dev-probed on real RDS.
+
 ## Pending / next steps
 
 ➡️ **The canonical, durable register of ALL outstanding/deferred items is

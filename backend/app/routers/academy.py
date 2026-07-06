@@ -913,3 +913,99 @@ def student_receipt(enrollment_id: uuid.UUID,
         raise _err(404, "RECEIPT_NOT_AVAILABLE", "No receipt is available for this enrolment yet")
     return {"receipt_url": storage.presign_get(pay.receipt_s3_key),
             "expires_in": storage.PRESIGN_GET_TTL}
+
+
+# ═══════════════════════════════════════════════════════════════════
+# FE#8a — ADMIN ROSTER (staff-gated, tenant+BU-scoped CROSS-student read).
+# INVERTS the student /me/* model: not own-scoped, but tenant + BU correctness +
+# the staff-role/client-rejection/flag gate. Returns UNMASKED student identity
+# (staff manage real people) — EXCLUDES phone_enc/pan_enc (envelope-encrypted PII;
+# a separate PII-access decision, not needed to run a roster).
+# ═══════════════════════════════════════════════════════════════════
+def _student_public(s) -> dict:
+    return {"id": str(s.id), "full_name": s.full_name, "email": s.email,
+            "college_student_id": s.student_id, "college_name": s.college_name}
+
+
+def _roster_row(e, course, cohort, student, has_receipt) -> dict:
+    return {
+        "enrollment_id": str(e.id),
+        "status": e.status,
+        "aptitude_score": float(e.aptitude_score) if e.aptitude_score is not None else None,
+        "discount_percent": int(e.discount_percent) if e.discount_percent is not None else None,
+        "final_fee": float(e.final_fee) if e.final_fee is not None else None,
+        "currency": course.currency if course else "INR",
+        "payment_status": e.payment_status,
+        "has_receipt": has_receipt,
+        "course": {"id": str(course.id), "title": course.title, "slug": course.slug} if course else None,
+        "cohort": {"id": str(cohort.id), "name": cohort.name} if cohort else None,
+        "student": _student_public(student) if student else None,
+        "enrolled_at": e.enrolled_at.isoformat() if e.enrolled_at else None,
+    }
+
+
+@router.get("/enrollments")
+def list_enrollments(status: str | None = None,
+                     course_id: uuid.UUID | None = None,
+                     cohort_id: uuid.UUID | None = None,
+                     ctx: RequestContext = Depends(require_feature("academy")),
+                     db: Session = Depends(get_db)):
+    """STAFF roster — ALL enrolments in the tenant's ACADEMY BU (a legitimate
+    cross-student read; NOT own-scoped). Filters: status / course_id / cohort_id.
+    Unmasked student identity (staff view). No pagination — matches the academy
+    staff-list convention (list_courses); large cohorts may need it later."""
+    _require_staff(ctx)
+    stmt = select(Enrollment).where(
+        Enrollment.tenant_id == _tid(ctx), Enrollment.business_unit_id == BU,
+        Enrollment.deleted_at.is_(None))
+    if status:
+        stmt = stmt.where(Enrollment.status == status)
+    if course_id:
+        stmt = stmt.where(Enrollment.course_id == course_id)
+    if cohort_id:
+        stmt = stmt.where(Enrollment.cohort_id == cohort_id)
+    enrs = db.execute(stmt.order_by(Enrollment.created_at.desc())).scalars().all()
+    enr_ids = [e.id for e in enrs]
+    receipted = set(db.execute(select(Payment.enrollment_id).where(
+        Payment.enrollment_id.in_(enr_ids), Payment.status == "paid",
+        Payment.receipt_s3_key.isnot(None), Payment.deleted_at.is_(None))).scalars()) if enr_ids else set()
+    return [_roster_row(e, db.get(Course, e.course_id), db.get(Cohort, e.cohort_id),
+                        db.get(Student, e.student_id), e.id in receipted) for e in enrs]
+
+
+@router.get("/enrollments/{enrollment_id}")
+def enrollment_detail(enrollment_id: uuid.UUID,
+                      ctx: RequestContext = Depends(require_feature("academy")),
+                      db: Session = Depends(get_db)):
+    """STAFF detail for one enrolment — tenant+BU-scoped. An id outside the staff's
+    tenant/BU → 404 (no existence oracle across the tenant boundary, never 403).
+    Full enrolment + UNMASKED student + course + payment + latest aptitude test."""
+    _require_staff(ctx)
+    e = db.execute(select(Enrollment).where(
+        Enrollment.id == enrollment_id, Enrollment.tenant_id == _tid(ctx),
+        Enrollment.business_unit_id == BU, Enrollment.deleted_at.is_(None))).scalar_one_or_none()
+    if e is None:
+        raise _err(404, "NOT_FOUND", "Enrollment not found")
+    course = db.get(Course, e.course_id); cohort = db.get(Cohort, e.cohort_id)
+    student = db.get(Student, e.student_id)
+    pay = db.execute(select(Payment).where(
+        Payment.enrollment_id == e.id, Payment.deleted_at.is_(None))
+        .order_by(Payment.created_at.desc())).scalars().first()
+    test = db.execute(select(Test).where(
+        Test.enrollment_id == e.id, Test.deleted_at.is_(None))
+        .order_by(Test.attempt_no.desc())).scalars().first()
+    has_receipt = pay is not None and pay.status == "paid" and pay.receipt_s3_key is not None
+    row = _roster_row(e, course, cohort, student, has_receipt)
+    # staff-only extended student fields (still no phone/pan)
+    if student is not None:
+        row["student"].update({"course_degree": student.course_degree,
+                               "year_of_study": student.year_of_study,
+                               "date_of_birth": student.date_of_birth.isoformat() if student.date_of_birth else None})
+    row["payment"] = ({"status": pay.status, "amount": float(pay.amount), "currency": pay.currency,
+                       "paid_at": pay.paid_at.isoformat() if pay.paid_at else None,
+                       "provider": pay.provider} if pay else None)
+    row["test"] = ({"attempt_no": test.attempt_no, "status": test.status,
+                    "score": float(test.score) if test.score is not None else None,
+                    "submitted_at": test.submitted_at.isoformat() if test.submitted_at else None,
+                    "valid_until": test.valid_until.isoformat() if test.valid_until else None} if test else None)
+    return row
