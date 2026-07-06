@@ -2007,6 +2007,25 @@ frontend's handling of a state-changing money-adjacent call:
 The academy student happy path is now walkable end-to-end locally: storefront → register → login →
 My Academy → take → result/discount → pay → enrolled + receipt.
 
+## 2026-07-06 — FE#7 (B) backend: durable receipt read + has_receipt signal ✅
+
+- **`GET /api/academy/students/me/enrollments/{id}/receipt`** — get_current_student-gated,
+  own-scoped (session student_id). Resolves the paid payment (enrollment_id + status=='paid' +
+  receipt_s3_key non-null), returns a FRESH presigned URL via `storage.presign_get` reused
+  verbatim (the MinIO-split-aware seam; ~5-min TTL). Failure shapes: not-yours/nonexistent →
+  404 NOT_FOUND (indistinguishable — the isolation property, a presigned PII-document link);
+  own-but-unpaid/no-receipt → 404 RECEIPT_NOT_AVAILABLE (reachable only after ownership,
+  leaks nothing cross-student).
+- **`has_receipt: bool` added to /me/enrollments** — EXISTS(paid payment WITH receipt_s3_key
+  non-null), NOT payment_status=='paid'. The precise "there is a fetchable receipt" signal: the
+  seeded direct-insert paid row (receipt_s3_key null) and Part-D paid-before-receipt windows are
+  paid-without-receipt, so the dashboard gates "Download receipt" on has_receipt and never
+  promises a receipt that 404s.
+- NO migration (computed from the existing Payment row; dev stays head 0040). +36 lines to
+  academy.py, 0 deletions. Cross-student isolation + wrong-state (both 404s) + has_receipt-true-
+  vs-false + gate tested (5). Suite 321 → 326. Dev-probed on real RDS through the real S3 presign
+  seam (first time the receipt read hits real S3 — local was MinIO).
+
 ## Pending / next steps
 
 ➡️ **The canonical, durable register of ALL outstanding/deferred items is

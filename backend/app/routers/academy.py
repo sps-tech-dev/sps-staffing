@@ -797,6 +797,13 @@ def my_enrollments(student: StudentContext = Depends(get_current_student),
             .order_by(Test.attempt_no.desc())).scalars().first()
         active_test = ({"valid_until": t.valid_until.isoformat(), "attempt_no": t.attempt_no}
                        if t is not None else None)
+        # has_receipt = there is a FETCHABLE receipt (paid payment WITH a receipt_s3_key).
+        # NOT payment_status=='paid' — the seeded direct-insert paid row has a null
+        # receipt_s3_key, and Part-D has paid-before-receipt windows; this is the precise
+        # signal so the dashboard's "Download receipt" never promises a receipt that 404s.
+        has_receipt = db.execute(select(Payment.id).where(
+            Payment.enrollment_id == e.id, Payment.status == "paid",
+            Payment.receipt_s3_key.isnot(None), Payment.deleted_at.is_(None))).first() is not None
         out.append({
             "enrollment_id": str(e.id),
             # course.fee = the LIST (pre-discount) fee — public (shown on the storefront);
@@ -810,6 +817,7 @@ def my_enrollments(student: StudentContext = Depends(get_current_student),
             "final_fee": float(e.final_fee) if e.final_fee is not None else None,
             "currency": course.currency if course else "INR",
             "payment_status": e.payment_status,
+            "has_receipt": has_receipt,
             "active_test": active_test,
         })
     return out
@@ -877,3 +885,31 @@ def student_pay(enrollment_id: uuid.UUID,
     _activate_payment(db, pay, enr, ctx, provider_ref=f"stub-student-{uuid.uuid4()}")
     db.commit()
     return _payment_result(pay, enr)
+
+
+@router.get("/students/me/enrollments/{enrollment_id}/receipt")
+def student_receipt(enrollment_id: uuid.UUID,
+                    student: StudentContext = Depends(get_current_student),
+                    db: Session = Depends(get_db)):
+    """Durable receipt download for the student's OWN paid enrolment. STRICT SCOPING:
+    the enrolment is resolved as the session student's own — a not-yours/nonexistent
+    id is INDISTINGUISHABLE (both 404 NOT_FOUND), so A can never learn of, or fetch,
+    B's receipt (a presigned PII-document link). Reuses storage.presign_get verbatim
+    (the MinIO-split-aware seam; a FRESH ~5-min URL each call)."""
+    enr = db.execute(select(Enrollment).where(
+        Enrollment.id == enrollment_id,
+        Enrollment.student_id == student.student_id,       # OWN enrolment ONLY
+        Enrollment.tenant_id == uuid.UUID(student.tenant_id),
+        Enrollment.business_unit_id == BU,
+        Enrollment.deleted_at.is_(None))).scalar_one_or_none()
+    if enr is None:
+        raise _err(404, "NOT_FOUND", "Enrollment not found")      # identical for not-yours + nonexistent
+    # ownership confirmed → now a distinct signal for own-but-no-receipt is safe
+    pay = db.execute(select(Payment).where(
+        Payment.enrollment_id == enr.id, Payment.status == "paid",
+        Payment.receipt_s3_key.isnot(None), Payment.deleted_at.is_(None))
+        .order_by(Payment.created_at.desc())).scalars().first()
+    if pay is None:
+        raise _err(404, "RECEIPT_NOT_AVAILABLE", "No receipt is available for this enrolment yet")
+    return {"receipt_url": storage.presign_get(pay.receipt_s3_key),
+            "expires_in": storage.PRESIGN_GET_TTL}
