@@ -1,9 +1,9 @@
 "use client";
-/* FE#8a — STAFF enrolment detail (admin, read-only). Full unmasked student +
- * pricing/payment + test/score. NO mutation controls (issue/status-move/waive are
- * 8b, gated on the transition-machine STOP-0) — an intentionally empty actions slot,
- * not a stub. */
-import { useEffect, useState } from "react";
+/* FE#8a detail + 8b STAFF action controls. The actions slot renders ONLY the moves
+ * the 8b-1 machine permits FROM the enrolment's current status (the frontend mirror
+ * of the transition table) — never a control the backend would 409. NO "activate"
+ * control ever: 'active' is reached only by pay/waive, never a manual move. */
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { AppShell } from "@/components/shell/app-shell";
@@ -12,6 +12,33 @@ import { Skeleton } from "@/components/kit/skeleton";
 import { StatusPill } from "@/components/kit/status-pill";
 import { api, ApiError } from "@/lib/api/client";
 import { ArrowLeft } from "lucide-react";
+
+// The frontend mirror of the 8b-1 transition table: the legal MANUAL moves from
+// each status. Terminal states (cancelled/dropped/completed) → no controls. A
+// 'waive' is 8b-3 (offered only). NO entry produces 'active' — never a manual move.
+type Action =
+  | { kind: "waive"; label: string; title: string; danger?: boolean }
+  | { kind: "status"; to_state: string; label: string; title: string; danger?: boolean };
+
+function actionsFor(status: string): Action[] {
+  switch (status) {
+    case "offered":
+      return [
+        { kind: "waive", label: "Waive fee", title: "Waive the fee (enrol without payment)" },
+        { kind: "status", to_state: "cancelled", label: "Cancel", title: "Cancel this enrolment", danger: true },
+      ];
+    case "applied":
+    case "tested":
+      return [{ kind: "status", to_state: "cancelled", label: "Cancel", title: "Cancel this enrolment", danger: true }];
+    case "active":
+      return [
+        { kind: "status", to_state: "completed", label: "Mark completed", title: "Mark this enrolment completed" },
+        { kind: "status", to_state: "dropped", label: "Mark dropped", title: "Mark this enrolment dropped", danger: true },
+      ];
+    default:
+      return []; // terminal — nothing legal
+  }
+}
 
 type Detail = {
   enrollment_id: string;
@@ -45,23 +72,73 @@ function Field({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
+/** Action confirm — reason is REQUIRED (both endpoints 422 without one); submit is
+ *  disabled until reason is non-empty (mirrors the backend). In-flight guard: a
+ *  synchronous ref gate + disabled button → exactly one request per confirm. */
+function ActionModal({ enrollmentId, action, onCancel, onDone }:
+  { enrollmentId: string; action: Action; onCancel: () => void; onDone: () => void }) {
+  const [reason, setReason] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const inFlight = useRef(false);
+
+  async function submit() {
+    if (inFlight.current || !reason.trim()) return;   // synchronous double-fire guard
+    inFlight.current = true; setBusy(true); setErr(null);
+    try {
+      if (action.kind === "waive") {
+        await api(`/academy/enrollments/${enrollmentId}/waive`, { method: "POST", body: JSON.stringify({ reason: reason.trim() }) });
+      } else {
+        await api(`/academy/enrollments/${enrollmentId}/status`, { method: "POST", body: JSON.stringify({ to_state: action.to_state, reason: reason.trim() }) });
+      }
+      onDone();                                        // success → parent refreshes the detail
+    } catch (e) {
+      // the machine's 409 (a race — status changed under us) or any error: show it +
+      // refresh so a now-illegal control doesn't linger.
+      setErr(e instanceof ApiError ? e.message : "Couldn't complete the action.");
+      inFlight.current = false; setBusy(false);
+      if (e instanceof ApiError && e.code === "ILLEGAL_TRANSITION") onDone();
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" role="dialog" aria-modal="true">
+      <div className="w-full max-w-sm rounded-2xl border border-cardline bg-card p-5 shadow-lg">
+        <h3 className="font-display text-base font-bold text-ink">{action.title} — reason required</h3>
+        <p className="mt-1 text-xs text-muted">This is recorded against the enrolment and attributed to you.</p>
+        <textarea value={reason} onChange={(e) => setReason(e.target.value)} rows={3} autoFocus
+          placeholder="Reason (required)"
+          className="mt-3 w-full rounded-lg border border-cardline bg-white px-3 py-2 text-sm text-ink outline-none focus:border-[#1B5FE8]" />
+        {err && <p role="alert" className="mt-2 text-xs text-[#DC2626]">{err}</p>}
+        <div className="mt-4 flex justify-end gap-2">
+          <button onClick={onCancel} disabled={busy} className="rounded-lg px-3 py-1.5 text-sm text-muted hover:bg-page disabled:opacity-40">Cancel</button>
+          <button disabled={!reason.trim() || busy} onClick={submit}
+            className={`rounded-lg px-3 py-1.5 text-sm font-medium text-white disabled:opacity-40 ${action.danger ? "bg-[#DC2626]" : "bg-[#1B5FE8]"}`}>
+            {busy ? "Working…" : `Confirm — ${action.label}`}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function EnrolmentDetail() {
   const router = useRouter();
   const { id } = useParams<{ id: string }>();
   const [d, setD] = useState<Detail | null>(null);
   const [err, setErr] = useState<{ notFound: boolean; msg: string } | null>(null);
+  const [action, setAction] = useState<Action | null>(null);
 
-  useEffect(() => {
-    let alive = true;
+  const load = useCallback(() => {
     api<Detail>(`/academy/enrollments/${id}`)
-      .then((x) => { if (alive) setD(x); })
+      .then(setD)
       .catch((e) => {
-        if (!alive) return;
         if (e instanceof ApiError && e.code === "UNAUTHENTICATED") { router.replace("/login?role=admin"); return; }
         setErr({ notFound: e instanceof ApiError && e.code === "NOT_FOUND", msg: e instanceof ApiError ? e.message : "Something went wrong" });
       });
-    return () => { alive = false; };
   }, [id, router]);
+
+  useEffect(() => { load(); }, [load]);
 
   const back = (
     <Link href="/admin/academy/enrollments" className="mb-4 inline-flex items-center gap-1.5 text-sm font-semibold text-sps-blue">
@@ -128,9 +205,37 @@ export default function EnrolmentDetail() {
                 ) : <p className="text-sm text-muted">No payment yet.</p>}
               </div>
             </SectionCard>
-            {/* Actions (issue test / status move / waive) arrive in 8b — intentionally empty, not stubbed. */}
+            {/* 8b action controls — ONLY the moves legal from d.status (machine mirror). */}
+            {(() => {
+              const acts = actionsFor(d.status);
+              return (
+                <SectionCard title="Actions">
+                  {acts.length === 0 ? (
+                    <p className="py-1 text-sm text-muted">
+                      This enrolment is {d.status} — no further actions.
+                    </p>
+                  ) : (
+                    <div className="flex flex-wrap gap-2">
+                      {acts.map((a) => (
+                        <button key={a.label} onClick={() => setAction(a)} title={a.title}
+                          className={`rounded-xl px-4 py-2 text-sm font-semibold ${a.danger
+                            ? "border border-[#DC2626] text-[#DC2626] hover:bg-[#FEF2F2]"
+                            : "border border-cardline text-ink hover:bg-page"}`}>
+                          {a.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </SectionCard>
+              );
+            })()}
           </div>
         </div>
+      )}
+      {d !== null && action !== null && (
+        <ActionModal enrollmentId={d.enrollment_id} action={action}
+          onCancel={() => setAction(null)}
+          onDone={() => { setAction(null); setD(null); load(); }} />
       )}
     </AppShell>
   );

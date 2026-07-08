@@ -2139,6 +2139,25 @@ money, routed through the same offered→active [system] transition, NOT a manua
 - Tests 347→352 (waiver no-Payment-row + has_receipt-false coherence + payment-path-unchanged +
   gate + tenant isolation + preconditions). Dev-probed on real RDS.
 
+## 2026-07-08 — 8b frontend controls: admin status-move + waive buttons (the 8a actions slot) ✅ (local)
+
+The staff mutation surface's UI. The 8a detail view's empty actions slot now renders STATE-AWARE
+controls onto the dev-proven 8b-2 (POST .../status) + 8b-3 (POST .../waive) endpoints. Frontend
+only, local-verified (no deploy target, C1).
+- actionsFor(status) is the frontend MIRROR of the 8b-1 transition table — renders ONLY the moves
+  legal FROM the current status: offered→[Waive fee][Cancel], applied/tested→[Cancel],
+  active→[Mark completed][Mark dropped], terminal→none. NEVER an "activate" control (grep-proven:
+  the only to_state values are cancelled/completed/dropped) — 'active' is reached only by pay/waive.
+- Truthfulness proven functionally: the controls the UI hides genuinely 409 on the backend
+  (offered→completed/active 409; active→cancelled 409; terminal→any 409), the shown ones 200.
+- ActionModal (mirrors the F1 assessments WaiveModal): REQUIRED reason (submit disabled until
+  non-empty — mirrors the backend 422), in-flight guard (synchronous useRef + disabled button →
+  ONE request per confirm, the FE#6 discipline). On success → setD(null)+re-read (controls
+  recompute from the fresh status; no stale-control window). On the machine's 409 race → show +
+  re-read. Reuses F1 admin chrome (SectionCard/StatusPill/AppShell), not the storefront.
+- This completes the staff academy mutation surface: 8b-1 machine + 8b-2 status-move + 8b-3
+  fee-waive, now with staff UI.
+
 ## Pending / next steps
 
 ➡️ **The canonical, durable register of ALL outstanding/deferred items is
