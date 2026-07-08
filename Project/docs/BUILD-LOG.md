@@ -2097,6 +2097,22 @@ write_audit/shared.audit_logs — the status-transition trail that did NOT exist
 - PENDING flagged: NO production enrolment-CREATE path (the whole student track walks seed-created
   enrolments).
 
+## 2026-07-08 — 8b-2: STAFF manual status-move endpoint (a manual caller of the 8b-1 machine) ✅
+
+`POST /api/academy/enrollments/{id}/status` {to_state, reason} — staff-gated, tenant/BU-scoped
+(reuses the 8a gate verbatim: require_feature + get_current_context + _require_staff +
+tenant_id==_tid(ctx) + BU=='ACADEMY'; an id outside → 404, no oracle). DELEGATES legality to
+academy_transitions.transition(kind="manual") — the single authority; the endpoint does NOT
+duplicate the machine's rules. Its own two checks: to_state must be a known status value (422)
+and tenant/BU ownership (404). Everything the machine rejects surfaces through it: a manual
+→active (system edge) → 409 (so a manual move STRUCTURALLY cannot activate a non-payer, proven
+by the endpoint not pre-empting it), from-terminal → 409, not-in-table → 409, missing reason →
+422. actor = the staff user (ctx.user_id) → the transition audit is attributable to a PERSON,
+not a system actor. No-op (same-state) naturally 409s via the machine — no special-casing.
+NO new mutation beyond this endpoint (fee-waive = 8b-3). NO migration (existing tables + audit
+mechanism; dev 0040). Tests 342→347 (gate + tenant isolation + happy moves w/ staff actor +
+delegation of all rejections). Dev-probed on real RDS.
+
 ## Pending / next steps
 
 ➡️ **The canonical, durable register of ALL outstanding/deferred items is

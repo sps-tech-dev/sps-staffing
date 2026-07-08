@@ -1014,3 +1014,43 @@ def enrollment_detail(enrollment_id: uuid.UUID,
                     "submitted_at": test.submitted_at.isoformat() if test.submitted_at else None,
                     "valid_until": test.valid_until.isoformat() if test.valid_until else None} if test else None)
     return row
+
+
+# ═══════════════════════════════════════════════════════════════════
+# 8b-2 — STAFF manual status move (a manual-kind caller of the 8b-1 machine).
+# The machine (academy_transitions.transition) is the SINGLE authority for
+# legality; this endpoint does NOT duplicate its rules — it reuses the 8a staff
+# gate + tenant/BU scope and delegates every transition decision to transition().
+# ═══════════════════════════════════════════════════════════════════
+_VALID_STATUSES = frozenset(
+    {"applied", "tested", "offered", "active", "completed", "dropped", "cancelled"})
+
+
+class StatusMoveIn(_BM):
+    to_state: str
+    reason: str | None = None
+
+
+@router.post("/enrollments/{enrollment_id}/status")
+def move_enrollment_status(enrollment_id: uuid.UUID, body: StatusMoveIn,
+                           ctx: RequestContext = Depends(require_feature("academy")),
+                           db: Session = Depends(get_db)):
+    """STAFF manual status move — a manual-kind caller of the 8b-1 transition machine.
+    Reuses the 8a staff gate + tenant/BU scope (an id outside the staff's tenant/
+    ACADEMY BU → 404, no oracle). Legality is DELEGATED to transition(): a manual
+    →active, a from-terminal move, or a not-in-table move all surface as the
+    machine's 409; a missing reason as its 422 — this endpoint never pre-empts or
+    duplicates those rules. actor = the staff user, so the audit records WHO moved it."""
+    _require_staff(ctx)
+    if body.to_state not in _VALID_STATUSES:
+        raise _err(422, "VALIDATION_ERROR", f"Unknown status '{body.to_state}'")
+    enr = db.execute(select(Enrollment).where(
+        Enrollment.id == enrollment_id, Enrollment.tenant_id == _tid(ctx),
+        Enrollment.business_unit_id == BU, Enrollment.deleted_at.is_(None))).scalar_one_or_none()
+    if enr is None:
+        raise _err(404, "NOT_FOUND", "Enrollment not found")
+    from ..academy_transitions import transition as _enr_transition
+    _enr_transition(db, enr, body.to_state, kind="manual", reason=body.reason,
+                    actor=str(ctx.user_id) if ctx.user_id else "staff", ctx=ctx)
+    db.commit()
+    return {"enrollment_id": str(enr.id), "status": enr.status}
