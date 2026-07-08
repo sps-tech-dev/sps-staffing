@@ -1,4 +1,4 @@
-import { LayoutDashboard, Bell, Briefcase, Users, FileText, ClipboardList, ShieldCheck, Building2, GraduationCap, KanbanSquare, Timer, Send, FileSignature, CalendarClock, Receipt } from "lucide-react";
+import { LayoutDashboard, Bell, Briefcase, Users, FileText, ClipboardList, ShieldCheck, Building2, GraduationCap, KanbanSquare, Timer, Send, FileSignature, CalendarClock, Receipt, BookOpen } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import type { Role } from "./auth/session";
 
@@ -47,6 +47,7 @@ export const NAV: Record<Role, NavItem[]> = {
     { label: "Client Sign-ups", href: "/admin/client-registrations", icon: Building2 },
     { label: "Jobs", href: "/admin/jobs", icon: Briefcase },
     { label: "Assessments", href: "/admin/assessments", icon: GraduationCap },
+    { label: "Academy", href: "/admin/academy/enrollments", icon: BookOpen },
     { label: "Notifications", href: "/admin/notifications", icon: Bell },
     { label: "Employees", href: "/admin/employees", icon: GraduationCap },
     { label: "SLA Board", href: "/admin/sla-board", icon: Timer },

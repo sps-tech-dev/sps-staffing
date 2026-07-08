@@ -2059,6 +2059,24 @@ staff gate (require_feature + get_current_context + _require_staff) + `tenant_id
   enrolment invisible + its id→404), filters, student /me stays own-scoped. Tests 326→334.
 - NO migration (reads on existing tables; dev 0040). Dev-probed on real RDS.
 
+## 2026-07-08 — FE#8a frontend: admin academy roster (staff table + detail) ✅ (local-verified)
+
+The FIRST staff academy page — in the STAFF world ((admin) route group, staff access_token,
+/admin/* middleware role=admin), NOT the (student) group/academy cookie. Frontend only,
+local-verified (no deploy target, C1).
+- **/admin/academy/enrollments** — cross-student roster onto GET /academy/enrollments: unmasked
+  student (name/email/college), course, cohort, status, score, discount, fee, payment. Filters
+  status/course/cohort (cohort populated from the selected course), wired to the query params.
+  + an "Academy" admin nav entry. **/admin/academy/enrollments/{id}** — detail: full unmasked
+  student (+ degree/year/DOB), aptitude-test block, pricing, payment. NO phone/PAN (the API
+  excludes them; verified the whole detail payload).
+- READ-ONLY — NO mutation controls (issue/status-move/waive = 8b, gated on the transition-machine
+  STOP-0); the detail actions slot is intentionally EMPTY, not stubbed.
+- Reused F1 admin components (AppShell/SectionCard/StatusPill/EmptyState/Skeleton + lib/api), NOT
+  the student storefront styling. 401 → /login?role=admin (staff login, not academy).
+- Staff-gate verified BOTH layers (reverse of the student gate): a STUDENT academy session →
+  /admin/academy/* → 307 → staff login (middleware) AND the roster API → 401.
+
 ## Pending / next steps
 
 ➡️ **The canonical, durable register of ALL outstanding/deferred items is
