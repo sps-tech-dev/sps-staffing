@@ -48,6 +48,22 @@ Last refreshed: 2026-06-28 (after client-internal roles / owner-scoped jobs — 
 
 ---
 
+### A4b. **NO production enrolment-CREATE path (the `applied` entry state has no producer)** — added 2026-07-08 (8b-1 dig)
+- **What:** grep of `app/` finds **zero `Enrollment(...)` instantiations** — enrolments exist ONLY
+  via the local seed and dev probes. There is **no "student applies to a course" endpoint**. So
+  the `applied` state (the entry point of the enrolment transition machine) has **no producer**,
+  and **the entire student track (#1–#7) walks SEED-CREATED enrolments.**
+- **Why it matters:** 8b-1's transition machine + the two refactored writers (grade, pay) are
+  proven to preserve behaviour, but **not** that create→`applied` works — it doesn't exist. Every
+  academy student surface built to date is exercised on enrolments the seed fabricated.
+- **Also:** `tested` has **no code ingress** (seed-only; the grade writes `offered` in one step and
+  advances a seed-set `tested` OUT via `tested→offered`); `completed/dropped/cancelled` are
+  terminal with **no callers until 8b-2** (manual status-move).
+- **Blocks:** any real student self-enrolment; a launchable student flow. Not a transition-machine
+  problem — a separate slice.
+- **Trigger:** build the "apply to a course" create endpoint (∅→`applied`), likely part of A7+ —
+  its own auth/dedup/validation, feeding the existing machine's `applied` entry.
+
 ## B. DPDP / compliance follow-ups
 
 ### B1. DPDP erasure engine — STAGE 1 BUILT; auto-purge STUBBED pending legal retention periods

@@ -699,9 +699,14 @@ def _activate_payment(db, pay: Payment, enr, ctx, provider_ref: str) -> None:
     pay.status = "paid"
     pay.paid_at = now
     pay.provider_ref = provider_ref
-    enr.payment_status = "paid"
+    enr.payment_status = "paid"                            # separate axis — NOT the status machine
     enr.payment_id = pay.id
-    enr.status = "active"                                   # offered→active
+    # 8b-1: route the status move through the central machine (offered→active,
+    # [system]) — sets status + emits the transition audit. The upstream
+    # `if enr.status != "offered": 409` guard stays (belt-and-suspenders).
+    from ..academy_transitions import transition as _enr_transition
+    _enr_transition(db, enr, "active", kind="system", reason="payment_activated",
+                    actor="payment", ctx=ctx)
     # receipt PDF via the existing ReportLab+S3 seam
     course = db.get(Course, enr.course_id)
     student = db.get(Student, enr.student_id)

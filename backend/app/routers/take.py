@@ -117,7 +117,11 @@ def submit_answers(token: str, body: SubmitIn, db: Session = Depends(get_db)):
             enr.discount_percent = discount
             enr.final_fee = compute_final_fee(course.fee, discount)
             if enr.status in ("applied", "tested"):
-                enr.status = "offered"                   # tested→offered (value in the A1 machine)
+                # 8b-1: route through the central machine (applied|tested → offered,
+                # [system]) — sets status + emits the transition audit (silent before).
+                from ..academy_transitions import transition as _enr_transition
+                _enr_transition(db, enr, "offered", kind="system",
+                                reason="aptitude_graded", actor="aptitude_engine")
             # payment-link email (STUB link; real Razorpay link = A6/Part-D). Keyed
             # on the graded ATTEMPT (test id): a re-grade of the same attempt cannot
             # double-send (submit is idempotent above); a fresh retake = a new test =

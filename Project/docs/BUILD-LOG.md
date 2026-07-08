@@ -2077,6 +2077,26 @@ local-verified (no deploy target, C1).
 - Staff-gate verified BOTH layers (reverse of the student gate): a STUDENT academy session →
   /admin/academy/* → 307 → staff login (middleware) AND the roster API → 401.
 
+## 2026-07-08 — 8b-1: academy enrolment transition machine + refactor the two writers through it ✅
+
+`app/academy_transitions.py::transition(db, enr, to_state, *, kind, reason, actor, ctx)` — the
+SINGLE authority for enrolment.status. Tagged edge table (system|manual); machine-enforced,
+fail-closed: not-in-table→409, a [system] edge from a manual caller→409 (so a manual move can
+NEVER reach 'active' — offered→active is system-only), a move FROM a terminal state
+(cancelled/dropped/completed)→409 via an explicit TERMINAL set check, manual moves REQUIRE a
+reason (422). `applied→tested` deliberately absent (dead vocabulary — no writer). Every successful
+move emits an `academy.enrollment.transition` audit {from,to,kind,reason,actor} via the existing
+write_audit/shared.audit_logs — the status-transition trail that did NOT exist before (finding #6).
+- Refactored the ONLY two production writers through it, behaviour UNCHANGED: grade (take.py,
+  applied|tested→offered, actor=aptitude_engine) + pay (_activate_payment, offered→active,
+  actor=payment). payment_status='paid' stays a SEPARATE axis (not routed). The pay path now
+  writes BOTH the pre-existing payment audit AND the new transition audit (added, not replaced).
+- NO new mutation surface (manual-move=8b-2, fee-waive=8b-3). NO migration (existing audit
+  mechanism; dev stays head 0040). Tests 334→342 (rejections + reason + both writers routed +
+  now-audited). Dev-probed on real RDS (audit rows appear where they didn't before).
+- PENDING flagged: NO production enrolment-CREATE path (the whole student track walks seed-created
+  enrolments).
+
 ## Pending / next steps
 
 ➡️ **The canonical, durable register of ALL outstanding/deferred items is
