@@ -77,6 +77,11 @@ SEED_NOTIFICATION_TEMPLATES: list[dict] = [
      "body": "[FOUNDER DRAFT] Hi {full_name}, we received your payment of {amount} {currency} for "
              "{course}. Your enrolment is now ACTIVE. Your receipt is attached to your student "
              "dashboard. Welcome to SPS Academy!"},
+    # 8b-3 — fee WAIVED → enrolment ACTIVE (no payment; must NOT say "payment received").
+    {"code": "academy_enrolment_waived", "channel_type": "email",
+     "subject": "[FOUNDER DRAFT] Enrolment confirmed — {course}",
+     "body": "[FOUNDER DRAFT] Hi {full_name}, the fee for {course} has been WAIVED and your "
+             "enrolment is now ACTIVE. No payment is due. Welcome to SPS Academy!"},
     # A4/FE#4b — aptitude-invite carrying the one-time /take/{token} link to the student.
     {"code": "academy_aptitude_invite", "channel_type": "email",
      "subject": "[FOUNDER DRAFT] Your SPS Academy entrance test — {course}",

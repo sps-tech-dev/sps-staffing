@@ -81,13 +81,7 @@ function ResultPanel({ e, onDownload, receiptErr }:
           <span>You pay</span><span>{formatFee(final, e.currency)}</span>
         </div>
       </div>
-      {e.payment_status !== "paid" ? (
-        <Link href={`/academy/student/pay?enrollment=${e.enrollment_id}`}
-          className="mt-4 inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold"
-          style={{ background: "#E8A020", color: "#0A1628" }}>
-          Proceed to payment <ArrowRight size={15} />
-        </Link>
-      ) : (
+      {e.payment_status === "paid" ? (
         <div className="mt-4">
           <p className="flex items-center gap-1.5 text-sm font-semibold" style={{ color: "#15803D" }}>
             <CheckCircle2 size={15} /> Paid — you&apos;re enrolled
@@ -106,6 +100,21 @@ function ResultPanel({ e, onDownload, receiptErr }:
             <p className="mt-2 text-xs" style={{ color: "#B91C1C" }}>{receiptErr.msg}</p>
           )}
         </div>
+      ) : e.payment_status === "waived" ? (
+        // 8b-3: a waived enrolment IS active (fee waived, no payment) — a distinct,
+        // honest branch. No receipt button: a waiver has none (has_receipt is
+        // correctly false), so promising one would be a lie.
+        <div className="mt-4">
+          <p className="flex items-center gap-1.5 text-sm font-semibold" style={{ color: "#15803D" }}>
+            <CheckCircle2 size={15} /> Enrolled — fee waived
+          </p>
+        </div>
+      ) : (
+        <Link href={`/academy/student/pay?enrollment=${e.enrollment_id}`}
+          className="mt-4 inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold"
+          style={{ background: "#E8A020", color: "#0A1628" }}>
+          Proceed to payment <ArrowRight size={15} />
+        </Link>
       )}
     </div>
   );

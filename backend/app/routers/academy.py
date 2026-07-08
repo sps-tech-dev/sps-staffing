@@ -690,24 +690,35 @@ def _create_or_get_payment(db, enr, ctx) -> Payment:
     return pay
 
 
+def _activate_core(db, enr, ctx, *, reason: str, actor: str,
+                   template_code: str, idempotency_key: str, email_vars: dict,
+                   recipient: str | None) -> None:
+    """The ONE entry to 'active' — shared by BOTH the payment and the waiver path.
+    Routes the status move through the 8b-1 machine (offered→active, [system]) and
+    enqueues the confirmation email (parameterized template + idempotency key). This
+    is what keeps 'active' single-entry: whether money came via payment or a waiver,
+    activation happens HERE and only here — never via a manual status-move."""
+    from ..academy_transitions import transition as _enr_transition
+    _enr_transition(db, enr, "active", kind="system", reason=reason, actor=actor, ctx=ctx)
+    if recipient:
+        enqueue(db, template_code=template_code, recipient=recipient, vars=email_vars,
+                tenant_id=enr.tenant_id, business_unit_id=BU, idempotency_key=idempotency_key)
+
+
 def _activate_payment(db, pay: Payment, enr, ctx, provider_ref: str) -> None:
-    """The SINGLE activation seam the stub confirm AND the future HMAC-verified
-    Razorpay webhook both enter. Part-D adds signature-verify + order-lookup BEFORE
-    this call and changes NOTHING after it. Marks paid, activates the enrolment,
-    renders+stores the receipt PDF, enqueues the confirmation email."""
+    """PAYMENT path — the stub confirm AND the future HMAC-verified Razorpay webhook
+    both enter here. Marks paid, renders+stores the receipt PDF, then the shared core
+    (transition + payment email). Part-D adds signature-verify BEFORE this and changes
+    NOTHING after. Behaviour is UNCHANGED by the 8b-3 core split (same Payment write,
+    same receipt, same payment_activate audit, same email — only the transition+email
+    now run inside _activate_core, at the same final state)."""
     now = dt.datetime.now(dt.timezone.utc)
     pay.status = "paid"
     pay.paid_at = now
     pay.provider_ref = provider_ref
     enr.payment_status = "paid"                            # separate axis — NOT the status machine
     enr.payment_id = pay.id
-    # 8b-1: route the status move through the central machine (offered→active,
-    # [system]) — sets status + emits the transition audit. The upstream
-    # `if enr.status != "offered": 409` guard stays (belt-and-suspenders).
-    from ..academy_transitions import transition as _enr_transition
-    _enr_transition(db, enr, "active", kind="system", reason="payment_activated",
-                    actor="payment", ctx=ctx)
-    # receipt PDF via the existing ReportLab+S3 seam
+    # receipt PDF via the existing ReportLab+S3 seam (a PAYMENT artifact — a waiver has none)
     course = db.get(Course, enr.course_id)
     student = db.get(Student, enr.student_id)
     pdf = academy_receipt_pdf.build_receipt_pdf(
@@ -721,13 +732,31 @@ def _activate_payment(db, pay: Payment, enr, ctx, provider_ref: str) -> None:
     write_audit(db, ctx, "academy.payment_activate", "payment", pay.id,
                 after={"enrollment_id": str(enr.id), "amount": float(pay.amount),
                        "provider_ref": provider_ref, "receipt_s3_key": key})
-    # confirmation email — idempotent on the PAYMENT ROW (never the enrollment)
-    if student is not None and student.email:
-        enqueue(db, template_code="academy_enrolment_active", recipient=student.email,
-                vars={"full_name": student.full_name, "course": course.title if course else "—",
-                      "amount": float(pay.amount), "currency": pay.currency},
-                tenant_id=enr.tenant_id, business_unit_id=BU,
-                idempotency_key=f"academy:payment_confirmed:{pay.id}")
+    # offered→active + confirmation email (idempotent on the PAYMENT ROW), via the shared core
+    _activate_core(db, enr, ctx, reason="payment_activated", actor="payment",
+                   template_code="academy_enrolment_active",
+                   idempotency_key=f"academy:payment_confirmed:{pay.id}",
+                   email_vars={"full_name": student.full_name if student else "—",
+                               "course": course.title if course else "—",
+                               "amount": float(pay.amount), "currency": pay.currency},
+                   recipient=student.email if student is not None else None)
+
+
+def _activate_waiver(db, enr, ctx, *, actor: str) -> None:
+    """WAIVER path — activation WITHOUT money. NO Payment row, NO receipt (a receipt
+    is a payment artifact; has_receipt correctly stays false). Sets payment_status
+    ='waived' (an existing CHECK value; NO payment_id), then the shared core
+    (offered→active + the waiver email, which must NOT claim a payment)."""
+    enr.payment_status = "waived"                          # NO Payment row, NO payment_id, NO receipt
+    course = db.get(Course, enr.course_id)
+    student = db.get(Student, enr.student_id)
+    _activate_core(db, enr, ctx, reason="fee_waived", actor=actor,
+                   template_code="academy_enrolment_waived",
+                   idempotency_key=f"academy:fee_waived:{enr.id}",
+                   email_vars={"full_name": student.full_name if student else "—",
+                               "course": course.title if course else "—",
+                               "currency": course.currency if course else "INR"},
+                   recipient=student.email if student is not None else None)
 
 
 def _payment_result(pay: Payment, enr) -> dict:
@@ -1054,3 +1083,43 @@ def move_enrollment_status(enrollment_id: uuid.UUID, body: StatusMoveIn,
                     actor=str(ctx.user_id) if ctx.user_id else "staff", ctx=ctx)
     db.commit()
     return {"enrollment_id": str(enr.id), "status": enr.status}
+
+
+# ═══════════════════════════════════════════════════════════════════
+# 8b-3 — STAFF fee-waive. Activation WITHOUT money, routed through the SAME
+# activation seam (offered→active, [system]) — NOT a manual status-move. 'active'
+# keeps exactly one entry point. A waiver creates NO Payment row and NO receipt.
+# ═══════════════════════════════════════════════════════════════════
+class WaiveIn(_BM):
+    reason: str | None = None
+
+
+@router.post("/enrollments/{enrollment_id}/waive")
+def waive_enrollment(enrollment_id: uuid.UUID, body: WaiveIn,
+                     ctx: RequestContext = Depends(require_feature("academy")),
+                     db: Session = Depends(get_db)):
+    """STAFF fee-waive → enrolment ACTIVE without payment. Staff-gated + tenant/BU-
+    scoped (reuses the 8a/8b-2 gate; an id outside → 404, no oracle). reason REQUIRED
+    (waiving a fee is discretionary — a recorded why). Precondition: enr MUST be at
+    'offered' (reached pricing, not yet paid) → else 409 (mirrors the pay precondition;
+    a second waive on an already-active enrolment 409s here — no double-waive). actor
+    = the staff user, so the waiver is attributable to a person. Emits a distinct
+    fee_waived audit IN ADDITION to the transition audit the shared core emits."""
+    _require_staff(ctx)
+    reason = (body.reason or "").strip()
+    if not reason:
+        raise _err(422, "REASON_REQUIRED", "A reason is required to waive a fee")
+    enr = db.execute(select(Enrollment).where(
+        Enrollment.id == enrollment_id, Enrollment.tenant_id == _tid(ctx),
+        Enrollment.business_unit_id == BU, Enrollment.deleted_at.is_(None))).scalar_one_or_none()
+    if enr is None:
+        raise _err(404, "NOT_FOUND", "Enrollment not found")
+    if enr.status != "offered":
+        raise _err(409, "STATUS_INVALID", "Enrollment must be at 'offered' to waive the fee")
+    actor = str(ctx.user_id) if ctx.user_id else "staff"
+    _activate_waiver(db, enr, ctx, actor=actor)
+    write_audit(db, ctx, "academy.enrolment.fee_waived", "enrollment", enr.id,
+                after={"enrollment_id": str(enr.id), "reason": reason, "actor": actor})
+    db.commit()
+    return {"enrollment_id": str(enr.id), "status": enr.status,
+            "payment_status": enr.payment_status}

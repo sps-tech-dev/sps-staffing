@@ -2113,6 +2113,32 @@ NO new mutation beyond this endpoint (fee-waive = 8b-3). NO migration (existing 
 mechanism; dev 0040). Tests 342→347 (gate + tenant isolation + happy moves w/ staff actor +
 delegation of all rejections). Dev-probed on real RDS.
 
+## 2026-07-08 — 8b-3: fee-waive (generalize the activation seam; waive endpoint; dashboard branch) ✅
+
+'active' keeps EXACTLY ONE entry point (the activation seam) — a waiver is activation WITHOUT
+money, routed through the same offered→active [system] transition, NOT a manual status-move.
+- Seam split: `_activate_core(...)` = the transition (via the 8b-1 machine) + the confirmation
+  email (parameterized template + idempotency key) — the ONE entry to 'active', shared by both
+  paths. `_activate_payment` (PAYMENT, behaviour UNCHANGED): pay→paid + payment_status='paid'
+  +payment_id + receipt PDF→S3 + payment_activate audit, THEN core(academy_enrolment_active,
+  key=academy:payment_confirmed:{pay.id}). `_activate_waiver` (WAIVER, new): NO Payment row, NO
+  receipt, payment_status='waived' (NO payment_id), THEN core(academy_enrolment_waived,
+  key=academy:fee_waived:{enr.id}).
+- `POST /academy/enrollments/{id}/waive` {reason} — staff-gated + tenant/BU-scoped (reuses the
+  8a/8b-2 gate; id outside → 404). reason REQUIRED (422). Precondition status=='offered' (else
+  409; double-waive 409s — mirrors the pay precondition). actor = the staff user → attributable.
+  Emits a distinct academy.enrolment.fee_waived audit {reason, actor} ON TOP of the core's
+  transition audit.
+- A waiver creates NO Payment row and NO receipt: has_receipt stays correctly FALSE, and the
+  FE#7 receipt endpoint 404s (coherent, not a gap). New waiver email template
+  academy_enrolment_waived — must NOT say "payment received".
+- Frontend: dashboard 'waived' branch ("✓ Enrolled — fee waived", no receipt button) — three-way
+  paid|waived|pending; fixes the latent bug where a waived enrolment showed "Proceed to payment".
+- MIGRATION 0041 (data-only — 'waived' is an existing CHECK value): seeds the waiver template via
+  the idempotent seed_notification_templates (mirrors 0037/0039/0040). Dev 0040→0041.
+- Tests 347→352 (waiver no-Payment-row + has_receipt-false coherence + payment-path-unchanged +
+  gate + tenant isolation + preconditions). Dev-probed on real RDS.
+
 ## Pending / next steps
 
 ➡️ **The canonical, durable register of ALL outstanding/deferred items is
