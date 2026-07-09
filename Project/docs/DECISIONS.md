@@ -360,3 +360,57 @@ Discovery surfaced internal inconsistencies in the architecture spec. Resolved a
   bucket-default (no SSE in app code) → locally absent, dev/prod untouched.
 - **What would change it:** re-verify by clearing the two envs and asserting the presign output is
   a `https://<bucket>.s3.<region>.amazonaws.com/...` URL (not a MinIO host).
+
+---
+
+> **Provenance (2026-07-09 doc-reconciliation):** the 9 records below were promoted from the
+> **committed record** (BUILD-LOG.md lines + commit messages + this session's settled-design
+> messages) during the SESSION_LOG backfill. The reconciliation request's `[FOUNDER PASTES THE 9
+> DECISIONS]` placeholder arrived empty, so these are **sourced-from-record, not architect-dictated
+> wording** — each WHY traces to a committed BUILD-LOG/commit line; none is inferred from code.
+> Replace/refine with your canonical wording where it differs.
+
+### 2026-07-08 — Enrolment status has ONE authority: the transition machine (recorded-from-record)
+- **Decision:** every `enrollment.status` move routes through `academy_transitions.transition()` (8b-1, `055bdbc`) — an edge table with each edge tagged `system` or `manual`, a terminal-set guard (`cancelled/dropped/completed`), and a `academy.enrollment.transition` audit per move. The two pre-existing writers (grade, pay) were refactored through it.
+- **Why:** before 8b-1 there were two ad-hoc writers + only a value-CHECK (any value→any value was possible via direct assignment), and status changes were silent. One guarded authority + a transition audit closes that.
+- **Would change if:** a new writer needs a new edge → add it to the table (tagged system/manual); never a second writer.
+
+### 2026-07-08 — `active` has exactly ONE entry point (the activation seam) (recorded-from-record)
+- **Decision:** an enrolment reaches `active` ONLY through the activation seam (`offered→active`, a `[system]` edge). A manual status-move can NEVER reach `active`; fee-waive is activation-without-money through the SAME seam (8b-3, `c543170`), not a manual move.
+- **Why:** structurally forbids a staff button from activating a non-payer; makes "how does an enrolment become active" a single answer (payment or waiver, one seam).
+- **Would change if:** a legitimate third activation path (neither payment nor waiver) is required — it must still route through the seam, not a manual move.
+
+### 2026-07-08 — Manual status-move DELEGATES legality to the machine (recorded-from-record)
+- **Decision:** `POST /academy/enrollments/{id}/status {to_state, reason}` (8b-2, `a755165`) passes `to_state` to `transition(kind="manual")` and does NOT duplicate the machine's rules; its own checks are only `to_state`-is-a-known-value (422) + tenant/BU ownership (404); `reason` required; `actor` = the staff user.
+- **Why:** the single source of truth for legality stays in `transition()`; manual moves are attributable to a person (the audit records who).
+- **Would change if:** —.
+
+### 2026-07-08 — Fee-waive creates NO Payment row and NO receipt (recorded-from-record)
+- **Decision:** a waiver (8b-3, `c543170`) sets `enrollment.payment_status='waived'` + `status='active'` via the seam, with **no Payment row** and **no receipt**; `has_receipt` stays correctly false; a distinct `academy_enrolment_waived` email template (migration 0041), never the payment one.
+- **Why:** a receipt is a payment artifact — a waiver has none; `'waived'` is an `enrollment.payment_status` value, not a `Payment.status` value (which is `created/paid/failed/refunded`).
+- **Would change if:** legal/finance requires a formal waiver document → add a waiver-doc path (still no Payment row).
+
+### 2026-07-08 — `tested` is permitted-but-unwritten; `applied→tested` is forbidden (recorded-from-record)
+- **Decision:** the machine (8b-1) permits `tested→offered` (the grade code advances a seed-set `tested`) but does NOT permit `applied→tested` — no writer performs it.
+- **Why:** design for what the code does, not the aspirational comment; a legal-but-uncalled transition is the same dead-vocabulary trap as a dead state.
+- **Would change if:** a future slice makes `tested` a real resting state → add the ingress transition AND its writer together.
+
+### 2026-07-09 — Apply is student-initiated after login, student-picks-cohort, one-live-per-course (recorded-from-record)
+- **Decision:** `POST /academy/students/me/enrollments {course_id, cohort_id}` (create-1, `259b654`) is `get_current_student`-gated + own-scoped (student_id from the SESSION, never the body); the student picks a cohort; **course-level dedup** (no LIVE enrolment; live = status NOT IN `dropped/cancelled`) is **endpoint-enforced**, NOT a new unique constraint; the pre-existing `UNIQUE(cohort_id, student_id)` race is caught as 409 (double-submit-safe).
+- **Why:** the settled design (apply-after-login); dropped/cancelled are re-appliable; a create endpoint must be double-submit-safe (the FE#6/create-1 lesson).
+- **Would change if:** the business wants staff-enrol or register-time enrolment → a separate creator, still feeding `applied`.
+
+### 2026-07-09 — Enrolment creation is UPSTREAM of the transition machine (no ∅→applied edge) (recorded-from-record)
+- **Decision:** apply does a plain INSERT at `status='applied'` and does NOT call `transition()`; the machine has no `∅→applied` edge and needs none.
+- **Why:** creation is not a transition — the machine owns `applied→onward`; adding a creation edge would conflate two concerns.
+- **Would change if:** —.
+
+### 2026-07-09 — `course_id` is exposed on the public COHORTS read, not the course DETAIL read (recorded-from-record)
+- **Decision:** `GET /public/courses/{slug}/cohorts` returns `{course_id, cohorts:[...]}` (create-2, `9644ca6`); the course DETAIL read keeps its no-id allowlist.
+- **Why:** apply needs `course_id` and no public path exposed it; a UUID isn't PII and apply re-validates published + cohort-belongs-to-course, so exposing it on the cohorts read (which already returns `cohort_id`) is consistent — while keeping the detail read's "no internal ids in the public payload" principle intact.
+- **Would change if:** —.
+
+### 2026-07-09 — Apply intent survives the auth hop via `?next` (recorded-from-record)
+- **Decision:** a logged-out "Apply now" carries the course intent as `?next` through register→login→back-to-course (create-2, `45f53c3`), open-redirect-guarded to `/academy` paths.
+- **Why:** the storefront's course-specific intent used to die at register (the course was dropped at the payload boundary); `?next` preserves it so a real applicant returns to the course to apply.
+- **Would change if:** —.

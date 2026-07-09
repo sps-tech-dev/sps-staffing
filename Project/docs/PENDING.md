@@ -181,7 +181,7 @@ Last refreshed: 2026-06-28 (after client-internal roles / owner-scoped jobs — 
 ## D. Product scope not yet built
 
 ### D1. Other verticals — Academy (Training/Internship) & Consulting (IT Services) portals
-- **What:** the Staffing vertical is built; **Academy is now built through A6 (backend, dev) + frontend surfaces #1–#4b** (2026-07-05). Consulting portal is not.
+- **What:** the Staffing vertical is built; **Academy is built through A1–A6 (backend, dev, head 0041) + the full student/admin frontend (FE#1–#8a) + the staff mutation surface (8b-1/8b-2/8b-3 + controls) + the enrolment CREATE path (create-1/create-2 — the self-serve apply loop)** (through 2026-07-09). Consulting portal is not.
 - **Why deferred:** sequencing — Staffing first.
 - **Blocks:** those product lines.
 - **Trigger:** when the standing sequence reaches them.
@@ -222,9 +222,33 @@ Last refreshed: 2026-06-28 (after client-internal roles / owner-scoped jobs — 
     `business_unit_id` eventually (latent coupling). The two student reads scope on different
     session identities (enrolments on `student_id`, notifications on `recipient==email`) — correct
     today; **reconcile trigger:** email-uniqueness weakening or a student changing email → move
-    `/me/notifications` to `student_id` (see DECISIONS 2026-07-05). Remaining academy FRONTEND
-    surfaces: **#5 result/discount · #6 pay · #7 dashboard · #8 admin roster**. Backend **A7–A10**
-    remain. Frontend has NO deploy target (see C1) — the academy frontend is local-verified only.
+    `/me/notifications` to `student_id` (see DECISIONS 2026-07-05).
+  - **STATE as of 2026-07-09 (SESSION_LOG backfill):** academy FRONTEND surfaces #1–#8a DONE;
+    the staff mutation surface (8b-1 transition machine · 8b-2 manual status-move · 8b-3 fee-waive
+    + admin controls) DONE + dev-probed; the enrolment CREATE path (create-1 apply endpoint +
+    create-2 course_id envelope + storefront apply wiring) DONE — the self-serve apply loop is
+    closed end to end (dev-green; frontend local-only per C1). **A7–A10 status vs what shipped:**
+    A7 (admin dashboard) ≈ FE#8a roster + 8b mutation surface — **missing the downloadable
+    Excel/CSV export**; A8 (teacher dashboard) = **8c below, greenfield-BLOCKED**; A9 (student
+    dashboard) ≈ FE#4/#7 — **missing attendance display + certificate PDF**; A10 (academy E2E
+    regression) = **not run**. Frontend has NO deploy target (see C1) — academy frontend
+    local-verified only.
+  - **8c — Teacher/trainer dashboard (A8) — GREENFIELD, BLOCKED (STOP-0 dig 2026-07-09):** no
+    teacher table, **no `teacher`/`trainer` role** (STAFF_ROLES has none), no teacher session —
+    "teacher" would be a staff login + a teacher-scoped VIEW. The only trainer link is
+    `Cohort.trainer_id` (soft-ref to `shared.users`, **nullable, UNVALIDATED, never set by
+    seeds** — existing cohorts are null). The four dashboard tables — `attendance`, `assignments`,
+    `assignment_submissions`, `certificates` — have **ZERO endpoints** (all net-new). **Prerequisite
+    before any teacher read is meaningful:** assign/validate `cohort.trainer_id` (a trainer-
+    assignment step; decide the role question). Then B.6 attendance + B.7 assignments/grading are
+    the read/write cluster; B.9 certificates' eligibility gate (`active` + attendance≥X% +
+    assessment passed + assignments graded) DEPENDS on B.6/B.7 existing first. **Blocks:** A8/A9-cert.
+  - **NEXT candidate — C1 frontend deploy (STOP-4, paid):** per plan D.6, academy has NO separate
+    hosting — it ships with the shared platform frontend (CloudFront + wildcard ACM). C1 is the
+    single move that makes ALL built UI (staffing F1–F7 + academy #1–#8 + create-2) user-reachable;
+    today NO frontend surface is reachable by a real user. Launch-blockers remain your inputs +
+    paid hops: A1 legal/consent copy + minors' parental consent (children's-DPDP) + A2 hCaptcha
+    keys + A3 dev-login + Part-D (real Razorpay drop-in on the `_activate_payment` seam; real SES).
 - **E2E-1 → RESOLVED 2026-07-05:** 5 staffing GETs gated (`_require_staff`); the route-smoke
   matrix (which was a silent no-op — enumerated via app.routes past the `_IncludedRouter` wrapper)
   repaired to use `app.openapi()` + a fail-closed gate-matrix (candidate/client must 403 on staff
