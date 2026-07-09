@@ -2,8 +2,8 @@
 /* Academy STUDENT login (FE surface #3) — A3 two-auth: sets the SEPARATE
  * academy_access_token cookie (distinct secret from staff). On success, lands in
  * the student portal via the backend's `home`. */
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
 import { api, ApiError } from "@/lib/api/client";
@@ -13,8 +13,15 @@ const GOLD = "#E8A020";
 const inputCls = "w-full rounded-xl border bg-white px-3.5 py-2.5 text-sm outline-none focus:border-[#E8A020]";
 const inputStyle = { borderColor: "#DDE3EC", color: "#0A1628" } as const;
 
-export default function AcademyLogin() {
+// A ?next return-redirect lets apply intent survive register→login→back-to-course.
+// Guarded to same-site academy paths only — an open-redirect must not be possible.
+function safeNext(next: string | null): string | null {
+  return next && next.startsWith("/academy") && !next.startsWith("//") ? next : null;
+}
+
+function LoginInner() {
   const router = useRouter();
+  const next = safeNext(useSearchParams().get("next"));
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -28,7 +35,7 @@ export default function AcademyLogin() {
       const res = await api<{ home?: string; full_name?: string }>(
         "/academy/auth/login",
         { method: "POST", body: JSON.stringify({ email, password }) });
-      router.push(res.home ?? "/academy/student");   // cookie is set; land in the portal
+      router.push(next ?? res.home ?? "/academy/student");   // ?next returns to the course they were applying to
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Login failed. Please try again.");
       setBusy(false);
@@ -67,4 +74,8 @@ export default function AcademyLogin() {
       </form>
     </StorefrontShell>
   );
+}
+
+export default function AcademyLogin() {
+  return <Suspense fallback={null}><LoginInner /></Suspense>;
 }

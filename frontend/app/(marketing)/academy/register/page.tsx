@@ -50,6 +50,7 @@ const inputStyle = { borderColor: "#DDE3EC", color: "#0A1628" } as const;
 function RegisterInner() {
   const params = useSearchParams();
   const courseSlug = params.get("course");
+  const next = params.get("next");   // apply intent — threaded on to login so it survives register→login→back
   const [cfg, setCfg] = useState<Config | null>(null);
   const [course, setCourse] = useState<PublicCourse | null>(null);
   const [f, setF] = useState({ ...EMPTY });
@@ -133,7 +134,8 @@ function RegisterInner() {
           <p className="mt-2 text-sm" style={{ color: "#6B7689" }}>
             We&apos;ve emailed a confirmation. Log in to take your entrance aptitude test.
           </p>
-          <Link href="/academy/login" className="mt-6 inline-flex rounded-xl px-5 py-3 text-sm font-semibold"
+          <Link href={`/academy/login${next ? `?next=${encodeURIComponent(next)}` : ""}`}
+            className="mt-6 inline-flex rounded-xl px-5 py-3 text-sm font-semibold"
             style={{ background: GOLD, color: "#0A1628" }}>Log in</Link>
         </div>
       </StorefrontShell>

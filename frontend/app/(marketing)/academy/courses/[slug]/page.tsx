@@ -2,14 +2,109 @@
 /* Public academy storefront — course detail (/academy/courses/{slug}). Renders the
  * course's real fields; null/placeholder fields fall back to neutral copy. APPLY
  * routes to surface #2 (student register) — that route 404s until #2 is built. */
-import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import { ArrowRight, Clock, BarChart3, CalendarDays } from "lucide-react";
+import { ArrowRight, Clock, BarChart3, CalendarDays, Loader2, CheckCircle2 } from "lucide-react";
 import { api, ApiError } from "@/lib/api/client";
 import { StorefrontShell, formatFee, realText, durationLabel, type PublicCourse } from "../../_lib";
 
 const GOLD = "#E8A020";
+
+type Cohort = { cohort_id: string; name: string; start_date: string | null; mode: string; status: string };
+type CohortsResp = { course_id: string; cohorts: Cohort[] };
+
+/** The apply seam. Session-aware: a logged-out visitor gets "Apply now" → register
+ *  carrying the course intent as ?next (survives register→login→back); a logged-in
+ *  student gets the cohort picker + Apply → dashboard. Apply needs course_id, which
+ *  the public cohorts read carries. */
+function ApplyPanel({ slug }: { slug: string }) {
+  const router = useRouter();
+  const [authed, setAuthed] = useState<boolean | null>(null);   // null = checking
+  const [data, setData] = useState<CohortsResp | null>(null);
+  const [picked, setPicked] = useState<string>("");
+  const [busy, setBusy] = useState(false);
+  const [state, setState] = useState<"idle" | "already" | "error">("idle");
+  const [msg, setMsg] = useState<string | null>(null);
+  const inFlight = useRef(false);
+
+  useEffect(() => {
+    let alive = true;
+    api("/academy/auth/me")
+      .then(() => { if (alive) { setAuthed(true); return api<CohortsResp>(`/academy/public/courses/${slug}/cohorts`).then((d) => alive && setData(d)); } })
+      .catch((e) => { if (alive && e instanceof ApiError && e.code === "UNAUTHENTICATED") setAuthed(false); else if (alive) setAuthed(false); });
+    return () => { alive = false; };
+  }, [slug]);
+
+  async function apply() {
+    if (inFlight.current || !picked || !data) return;   // in-flight guard: one POST per click
+    inFlight.current = true; setBusy(true); setMsg(null);
+    try {
+      await api("/academy/students/me/enrollments", { method: "POST", body: JSON.stringify({ course_id: data.course_id, cohort_id: picked }) });
+      router.push("/academy/student");                  // 201 → the new 'applied' enrolment shows on the dashboard
+    } catch (e) {
+      inFlight.current = false; setBusy(false);
+      if (e instanceof ApiError && e.code === "ALREADY_APPLIED") { setState("already"); return; }
+      setState("error"); setMsg(e instanceof ApiError ? e.message : "Couldn't apply. Please try again.");
+    }
+  }
+
+  const btn = "mt-6 flex w-full items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold";
+  const nextUrl = `/academy/courses/${slug}?apply=1`;
+
+  if (authed === null) {
+    return <div className={btn} style={{ background: "#F3F4F6", color: "#9AA6BC" }}><Loader2 size={16} className="animate-spin" /> Loading…</div>;
+  }
+  if (!authed) {
+    return (
+      <Link href={`/academy/register?course=${slug}&next=${encodeURIComponent(nextUrl)}`}
+        className={btn} style={{ background: GOLD, color: "#0A1628" }}>
+        Apply now <ArrowRight size={16} />
+      </Link>
+    );
+  }
+  if (state === "already") {
+    return (
+      <div className="mt-6 rounded-xl px-4 py-3 text-sm" style={{ background: "#F0FDF4", color: "#15803D", border: "1px solid #BBF7D0" }}>
+        <p className="flex items-center gap-1.5 font-semibold"><CheckCircle2 size={15} /> You&apos;ve already applied to this course.</p>
+        <Link href="/academy/student" className="mt-1 inline-block font-semibold underline">Go to your dashboard →</Link>
+      </div>
+    );
+  }
+  const cohorts = data?.cohorts ?? [];
+  return (
+    <div className="mt-6">
+      {cohorts.length === 0 ? (
+        <p className="rounded-xl px-4 py-3 text-sm" style={{ background: "#F8FAFC", color: "#6B7689", border: "1px solid #EAEEF3" }}>
+          No open cohorts for this course right now. Please check back soon.
+        </p>
+      ) : (
+        <>
+          <p className="mb-2 text-sm font-semibold" style={{ color: "#0A1628" }}>Choose a cohort</p>
+          <div className="space-y-2">
+            {cohorts.map((co) => (
+              <label key={co.cohort_id}
+                className="flex cursor-pointer items-center gap-3 rounded-xl border px-3.5 py-2.5"
+                style={{ borderColor: picked === co.cohort_id ? GOLD : "#DDE3EC", background: picked === co.cohort_id ? "#FFFBEB" : "#fff" }}>
+                <input type="radio" name="cohort" className="accent-[#E8A020]" checked={picked === co.cohort_id} onChange={() => setPicked(co.cohort_id)} />
+                <span className="text-sm">
+                  <span className="font-semibold" style={{ color: "#0A1628" }}>{co.name}</span>
+                  <span style={{ color: "#6B7689" }}>{co.start_date ? ` · starts ${new Date(co.start_date).toLocaleDateString()}` : ""} · {co.mode}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+          {msg && <p className="mt-2 text-xs" style={{ color: "#B91C1C" }}>{msg}</p>}
+          <button onClick={apply} disabled={!picked || busy}
+            className={btn.replace("mt-6", "mt-4") + " disabled:opacity-50"} style={{ background: GOLD, color: "#0A1628" }}>
+            {busy ? <Loader2 size={16} className="animate-spin" /> : <ArrowRight size={16} />}
+            {busy ? "Applying…" : "Apply"}
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
 
 export default function CourseDetail() {
   const { slug } = useParams<{ slug: string }>();
@@ -103,11 +198,7 @@ export default function CourseDetail() {
                 ))}
               </ul>
             )}
-            <Link href={`/academy/register?course=${course.slug}`}
-              className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold"
-              style={{ background: GOLD, color: "#0A1628" }}>
-              Apply now <ArrowRight size={16} />
-            </Link>
+            <ApplyPanel slug={course.slug} />
           </div>
         </aside>
       </div>

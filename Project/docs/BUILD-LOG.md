@@ -2197,6 +2197,25 @@ the minimal read-addition (same pattern as FE#5 course.fee / FE#7 has_receipt).
   accepts. NO migration (response-shape change on an existing read; dev 0041). Tests still 359
   (test_academy_apply updated for the envelope). Dev-probed: envelope + round-trip into apply.
 
+## 2026-07-09 — create-2 frontend: storefront cohort-select + apply wiring (the self-serve loop) ✅ (local)
+
+Closes the self-serve APPLICATION loop end to end: a real visitor goes storefront → register →
+login → back to the course → cohort → apply → dashboard, no seed. Frontend only, local-verified
+(no deploy target, C1).
+- ApplyPanel on the course detail page is SESSION-AWARE (calls /academy/auth/me): logged-out →
+  "Apply now" → register carrying the course intent as ?next; logged-in → cohort picker (from the
+  public cohorts read's {course_id, cohorts}) + Apply → POST /students/me/enrollments → 201 →
+  dashboard. 409 ALREADY_APPLIED → a clean "You've already applied" + dashboard link (not an
+  error); no cohorts → "No open cohorts" (apply disabled). In-flight useRef guard → one POST.
+- THE AUTH SEAM: ?next threads course → register → login → back-to-course so apply intent survives
+  the register→login hop (the exact thing that was broken — the course intent used to die at
+  register). Login gained ?next support (open-redirect-guarded to /academy paths, Suspense-wrapped);
+  register threads next on to its login link.
+- Verified: production build clean (55 pages, login Suspense OK); the next-survival wiring is
+  deterministic (course→register?next→login?next→push(next)=course); the full loop is functionally
+  proven against the running backend (login→/auth/me→cohorts→apply 201→dashboard; re-apply 409).
+- Depends on create-2 backend (course_id envelope on the public cohorts read, dev-green).
+
 ## Pending / next steps
 
 ➡️ **The canonical, durable register of ALL outstanding/deferred items is
