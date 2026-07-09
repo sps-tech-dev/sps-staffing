@@ -1123,3 +1123,92 @@ def waive_enrollment(enrollment_id: uuid.UUID, body: WaiveIn,
     db.commit()
     return {"enrollment_id": str(enr.id), "status": enr.status,
             "payment_status": enr.payment_status}
+
+
+# ═══════════════════════════════════════════════════════════════════
+# CREATE-1 — enrolment CREATE ("apply to a course"). The FIRST production
+# creator of an 'applied' enrolment (the machine's entry state, seed-only until
+# now). Apply is STUDENT-initiated after login, own-scoped (student_id from the
+# SESSION, never the body); the student PICKS a cohort. A plain INSERT at 'applied'
+# UPSTREAM of the transition machine — NO transition() call (no ∅→applied edge).
+# ═══════════════════════════════════════════════════════════════════
+# Applyable = a cohort accepting enrolments (not yet started, not closed). 'running'
+# has already begun (no mid-cohort join); 'completed'/'cancelled' are closed.
+_APPLYABLE_COHORT_STATUS = ("planned", "open")
+# Live enrolment = anything NOT terminal-exit. dropped/cancelled are re-appliable.
+_LIVE_EXCLUDED = ("dropped", "cancelled")
+
+
+@router.get("/public/courses/{slug}/cohorts")
+def public_course_cohorts(slug: str, request: Request, db: Session = Depends(get_db)):
+    """PUBLIC storefront read — a published course's APPLYABLE cohorts (planned/open).
+    Same published-only gate as public_course_detail (draft/unpublished → 404),
+    tenant-by-Host. Empty list when none are open (a clean state, not an error)."""
+    tenant = _public_tenant(request, db)
+    c = db.execute(select(Course).where(
+        Course.tenant_id == tenant.id, Course.business_unit_id == BU, Course.slug == slug,
+        Course.is_published.is_(True), Course.status == "active",
+        Course.deleted_at.is_(None))).scalar_one_or_none()
+    if c is None:
+        raise _err(404, "NOT_FOUND", "Course not found")
+    rows = db.execute(select(Cohort).where(
+        Cohort.tenant_id == tenant.id, Cohort.course_id == c.id, Cohort.business_unit_id == BU,
+        Cohort.deleted_at.is_(None), Cohort.status.in_(_APPLYABLE_COHORT_STATUS))
+        .order_by(Cohort.start_date.asc())).scalars().all()
+    return [{"cohort_id": str(co.id), "name": co.name,
+             "start_date": co.start_date.isoformat() if co.start_date else None,
+             "mode": co.mode, "status": co.status} for co in rows]
+
+
+class ApplyIn(_BM):
+    course_id: uuid.UUID
+    cohort_id: uuid.UUID
+
+
+@router.post("/students/me/enrollments", status_code=201)
+def apply_to_course(body: ApplyIn, student: StudentContext = Depends(get_current_student),
+                    db: Session = Depends(get_db)):
+    """STUDENT applies to a course (own-scoped: student_id from the SESSION, never
+    the body). Validates in order, each a clean 4xx: published course → cohort
+    belongs to it AND is applyable → course-level dedup (no LIVE enrolment in this
+    course) → INSERT at 'applied'. The UNIQUE(cohort_id, student_id) race is caught
+    as 409 (double-submit-safe). NO transition() — creation is upstream of the machine."""
+    tid = uuid.UUID(student.tenant_id)
+    # 1. a PUBLISHED course in-tenant ACADEMY (no applying to a draft)
+    course = db.execute(select(Course).where(
+        Course.id == body.course_id, Course.tenant_id == tid, Course.business_unit_id == BU,
+        Course.is_published.is_(True), Course.status == "active",
+        Course.deleted_at.is_(None))).scalar_one_or_none()
+    if course is None:
+        raise _err(404, "COURSE_NOT_FOUND", "Course not found or not open for applications")
+    # 2. cohort belongs to THAT course, in-tenant, and is applyable
+    cohort = db.execute(select(Cohort).where(
+        Cohort.id == body.cohort_id, Cohort.course_id == course.id, Cohort.tenant_id == tid,
+        Cohort.business_unit_id == BU, Cohort.deleted_at.is_(None),
+        Cohort.status.in_(_APPLYABLE_COHORT_STATUS))).scalar_one_or_none()
+    if cohort is None:
+        raise _err(422, "COHORT_NOT_APPLYABLE", "That cohort is not open for applications")
+    # 3. course-level dedup — no LIVE enrolment in this course (dropped/cancelled re-appliable)
+    live = db.execute(select(Enrollment.id).where(
+        Enrollment.student_id == student.student_id, Enrollment.course_id == course.id,
+        Enrollment.business_unit_id == BU, Enrollment.deleted_at.is_(None),
+        Enrollment.status.notin_(_LIVE_EXCLUDED))).first()
+    if live is not None:
+        raise _err(409, "ALREADY_APPLIED", "You already have a live application for this course")
+    # 4. plain INSERT at 'applied' (all else defaults/NULL) — upstream of the machine
+    enr = Enrollment(tenant_id=tid, business_unit_id=BU, student_id=student.student_id,
+                     course_id=course.id, cohort_id=cohort.id, status="applied",
+                     payment_status="pending")
+    db.add(enr)
+    try:
+        db.flush()
+    except IntegrityError:            # UNIQUE(cohort_id, student_id) race → 409, never a 500
+        db.rollback()
+        raise _err(409, "ALREADY_APPLIED", "You already have an application for this cohort")
+    ctx = RequestContext(tenant_id=student.tenant_id, business_unit_id=BU, user_id=None, roles=("student",))
+    write_audit(db, ctx, "academy.enrolment.apply", "enrollment", enr.id,
+                after={"enrollment_id": str(enr.id), "course_id": str(course.id), "cohort_id": str(cohort.id)})
+    db.commit()
+    return {"enrollment_id": str(enr.id), "status": enr.status, "payment_status": enr.payment_status,
+            "course": {"id": str(course.id), "title": course.title, "slug": course.slug},
+            "cohort": {"id": str(cohort.id), "name": cohort.name}}

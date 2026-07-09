@@ -48,7 +48,15 @@ Last refreshed: 2026-06-28 (after client-internal roles / owner-scoped jobs — 
 
 ---
 
-### A4b. **NO production enrolment-CREATE path (the `applied` entry state has no producer)** — added 2026-07-08 (8b-1 dig)
+### A4b. ~~NO production enrolment-CREATE path~~ **CLOSED 2026-07-09 (create-1)** — the apply endpoint is the producer
+- **RESOLVED:** `POST /academy/students/me/enrollments` (create-1) is the first production creator of an
+  'applied' enrolment; the machine's entry state now has a real producer, dev-probed to flow through
+  the full chain (apply→issue→take→grade→pay/waive) indistinguishably from a seed row.
+- **CAVEAT (slice 2, not yet built):** the STOREFRONT wiring is not done — the 'Apply now' button still
+  routes to /register (which creates a Student, not an enrolment); the register form still drops the
+  course at the payload boundary. The create path exists at the API; the storefront cohort-select +
+  apply-after-login wiring is create-slice-2. So a real applicant can't yet reach the apply endpoint
+  through the UI — that's the remaining piece.
 - **What:** grep of `app/` finds **zero `Enrollment(...)` instantiations** — enrolments exist ONLY
   via the local seed and dev probes. There is **no "student applies to a course" endpoint**. So
   the `applied` state (the entry point of the enrolment transition machine) has **no producer**,

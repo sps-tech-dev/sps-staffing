@@ -2158,6 +2158,29 @@ only, local-verified (no deploy target, C1).
 - This completes the staff academy mutation surface: 8b-1 machine + 8b-2 status-move + 8b-3
   fee-waive, now with staff UI.
 
+## 2026-07-09 — CREATE-1: enrolment CREATE (apply endpoint + public applyable-cohorts read) ✅
+
+The FIRST production creator of an 'applied' enrolment — the machine's entry state, seed-only
+until now. Closes the load-bearing PENDING gap (the whole student track had walked SEED-created
+enrolments).
+- POST /academy/students/me/enrollments {course_id, cohort_id} — get_current_student-gated,
+  OWN-SCOPED (student_id from the SESSION, never the body). Validates in order: published course
+  (404) → cohort belongs to it + applyable (422) → course-level dedup, no LIVE enrolment (409
+  ALREADY_APPLIED) → plain INSERT at status='applied' (payment_status='pending', all else NULL),
+  NO transition() (creation is upstream of the machine — no ∅→applied edge). Catches
+  UNIQUE(cohort_id,student_id) as 409 (double-submit-safe, never a 500). Emits an
+  academy.enrolment.apply audit.
+- GET /academy/public/courses/{slug}/cohorts — PUBLIC storefront read; published-only gate;
+  returns APPLYABLE cohorts ({planned, open}; running/completed/cancelled excluded); empty list
+  when none open. tenant-by-Host.
+- SETTLED: apply-after-login + student-picks-cohort + one-live-per-course. Applyable = planned+open
+  (defined here; no prior predicate). Live = status NOT IN (dropped, cancelled) → terminal re-appliable.
+- NO migration (reads + insert on existing tables; the course-level dedup is ENDPOINT-enforced,
+  NOT a new constraint; the pre-existing UNIQUE(cohort,student) is caught). Dev stays 0041.
+- Tests 352→359 (own-scoping + course-dedup w/ terminal re-apply + same-cohort double-submit +
+  validation + gate + public read). Dev-probed: the FULL chain (apply→issue→take→grade→offered→
+  pay→active+receipt) runs on the student-CREATED enrolment, indistinguishable from a seed row.
+
 ## Pending / next steps
 
 ➡️ **The canonical, durable register of ALL outstanding/deferred items is
