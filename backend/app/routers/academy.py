@@ -1155,9 +1155,14 @@ def public_course_cohorts(slug: str, request: Request, db: Session = Depends(get
         Cohort.tenant_id == tenant.id, Cohort.course_id == c.id, Cohort.business_unit_id == BU,
         Cohort.deleted_at.is_(None), Cohort.status.in_(_APPLYABLE_COHORT_STATUS))
         .order_by(Cohort.start_date.asc())).scalars().all()
-    return [{"cohort_id": str(co.id), "name": co.name,
-             "start_date": co.start_date.isoformat() if co.start_date else None,
-             "mode": co.mode, "status": co.status} for co in rows]
+    # course_id is carried here so an authenticated apply has the id it needs (the
+    # course DETAIL read keeps its no-id allowlist; a UUID is not PII, and apply
+    # re-validates published + cohort-belongs-to-course). Object shape → the empty-
+    # cohorts case still carries the id.
+    return {"course_id": str(c.id),
+            "cohorts": [{"cohort_id": str(co.id), "name": co.name,
+                         "start_date": co.start_date.isoformat() if co.start_date else None,
+                         "mode": co.mode, "status": co.status} for co in rows]}
 
 
 class ApplyIn(_BM):

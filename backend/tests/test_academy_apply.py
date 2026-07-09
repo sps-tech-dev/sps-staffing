@@ -153,7 +153,9 @@ def test_public_cohorts_read(env):
     c = TestClient(app)
     r = c.get(f"/api/academy/public/courses/{env['pub'].slug}/cohorts", headers=HOST)
     assert r.status_code == 200
-    statuses = {row["status"] for row in r.json()}
+    payload = r.json()
+    assert payload["course_id"] == str(env["pub"].id)                               # course_id carried for apply
+    statuses = {row["status"] for row in payload["cohorts"]}
     assert statuses == {"open", "planned"}                                          # NOT running/completed/cancelled
     assert c.get(f"/api/academy/public/courses/{env['draft'].slug}/cohorts", headers=HOST).status_code == 404  # unpublished
     # a published course with no applyable cohorts → empty list (clean, not an error)
@@ -163,5 +165,5 @@ def test_public_cohorts_read(env):
                 slug=f"lonely-{uuid.uuid4().hex[:8]}", fee=1, is_published=True, status="active")
     db.add(lonely); db.commit()
     r2 = c.get(f"/api/academy/public/courses/{lonely.slug}/cohorts", headers=HOST)
-    assert r2.status_code == 200 and r2.json() == []
+    assert r2.status_code == 200 and r2.json() == {"course_id": str(lonely.id), "cohorts": []}
     db.execute(delete(_C).where(_C.id == lonely.id)); db.commit()

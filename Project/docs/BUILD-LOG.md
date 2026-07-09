@@ -2181,6 +2181,22 @@ enrolments).
   validation + gate + public read). Dev-probed: the FULL chain (apply→issue→take→grade→offered→
   pay→active+receipt) runs on the student-CREATED enrolment, indistinguishable from a seed row.
 
+## 2026-07-09 — create-2 backend: course_id envelope on the public cohorts read ✅
+
+Read-shape for create-2 (storefront apply wiring) surfaced the one gap the two dev-proven
+endpoints couldn't cover: apply needs course_id, but no public/student read exposed it (the
+course-detail read's allowlist hides id; the cohorts read carried cohort_id only). Option A —
+the minimal read-addition (same pattern as FE#5 course.fee / FE#7 has_receipt).
+- GET /public/courses/{slug}/cohorts now returns `{ course_id, cohorts: [...] }` (was a bare
+  list). The endpoint already resolves the course by slug + returns cohort_id; carrying the
+  resolved course_id is consistent, not a new exposure class (UUID, not PII; apply re-validates
+  published + cohort-belongs-to-course under get_current_student). The course-DETAIL read keeps
+  its no-id allowlist. Object shape → the empty-cohorts case still carries the id, so the
+  frontend can render "no open cohorts" AND still have the id.
+- The two endpoints now compose: the course_id the storefront read hands out is the id apply
+  accepts. NO migration (response-shape change on an existing read; dev 0041). Tests still 359
+  (test_academy_apply updated for the envelope). Dev-probed: envelope + round-trip into apply.
+
 ## Pending / next steps
 
 ➡️ **The canonical, durable register of ALL outstanding/deferred items is
