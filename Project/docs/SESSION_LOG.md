@@ -143,6 +143,23 @@ echo-the-line discipline as BUILD-LOG). Backfill created 2026-07-09 from `git lo
 - **Dev-probe:** PASS (`2f5bbd0` — full chain from a real applied + dedup + double-submit + applyable filter).
 - **Docs:** BUILD-LOG CREATE-1; PENDING A4b marked CLOSED; DECISIONS (this reconciliation).
 
+## Infra / cross-domain (C1-series)
+
+### C1-1 — Cross-domain auth hardening (cookies + CORS)
+- **Commits:** (this commit) — code + terraform env; dev-probed on the live service.
+- **Shipped:** `app/cookies.py` (new — the single session-cookie seam: env-driven Domain/SameSite/
+  Secure, SameSite=None forces Secure, delete echoes Domain/Path); `routers/auth.py` + `routers/
+  academy.py` (staff + academy login/logout route through it); `main.py` (env-driven credentialed
+  CORS — explicit origins, never wildcard); `config.py` (COOKIE_DOMAIN/COOKIE_SAMESITE/
+  CORS_ALLOWED_ORIGINS); `Project/ecs.tf` + `variables.tf` (dev-shape env: `.spstechnosoft.com` /
+  none / Secure / `var.frontend_origin`). Frontend unchanged (credentials:'include' already present).
+- **Inert-when-unset:** local (envs unset) stays byte-identical (Lax/host-only/insecure, no CORS).
+- **Dev-probe:** the deploy sets the live dev task-def env (terraform apply) — the live login
+  Set-Cookie carries Domain=.spstechnosoft.com; SameSite=None; Secure; HttpOnly, the cookie
+  round-trips (login→/me 200), and a credentialed preflight from the frontend origin is allowed.
+- **Docs:** BUILD-LOG C1-1; DECISIONS 2026-07-11 (C1 staging shape); PENDING C1 slice-1 done.
+- **NO migration** (config/headers; dev 0041).
+
 ### create-2 — course_id envelope + storefront apply wiring
 - **Commits:** `9644ca6` (backend envelope) · `288ad0a` (dev probe) · `45f53c3` (frontend)
 - **Shipped:** `routers/academy.py` — `GET /public/courses/{slug}/cohorts` now returns `{course_id, cohorts:[...]}`; `test_academy_apply.py`; frontend `academy/courses/[slug]/page.tsx` (session-aware ApplyPanel), `login/page.tsx` (`?next`), `register/page.tsx` (threads `next`). NO migration.

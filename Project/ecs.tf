@@ -134,6 +134,14 @@ resource "aws_ecs_task_definition" "backend" {
         { name = "PII_KMS_KEY_ID", value = aws_kms_key.pii.arn },
         # hCaptcha public site key (non-secret). Empty → frontend uses the test key.
         { name = "HCAPTCHA_SITEKEY", value = var.hcaptcha_sitekey },
+        # C1-1 cross-domain auth (see docs/DECISIONS): a cookie from dev-api.spstechnosoft.com
+        # must reach a frontend on app-dev.spstechnosoft.com. Domain=.spstechnosoft.com +
+        # SameSite=None + Secure (HTTPS-only, which dev-api is). Local (docker-compose) leaves
+        # these unset → the same-origin Lax/host-only/insecure shape (inert-when-unset).
+        { name = "COOKIE_SECURE", value = "true" },
+        { name = "COOKIE_DOMAIN", value = ".spstechnosoft.com" },
+        { name = "COOKIE_SAMESITE", value = "none" },
+        { name = "CORS_ALLOWED_ORIGINS", value = var.frontend_origin },
       ]
       # Secrets injected from Secrets Manager (never plaintext in the task def).
       # The BACKEND connects as the least-privilege `sps_app` role (app-db secret)

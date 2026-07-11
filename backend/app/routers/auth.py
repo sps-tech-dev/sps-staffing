@@ -8,6 +8,7 @@ from ..validation import validate_email
 from sqlalchemy.orm import Session
 
 from ..config import settings
+from ..cookies import delete_session_cookie, set_session_cookie
 from ..context import RequestContext, tenant_from_host
 from ..db import get_db
 from ..deps import get_current_context
@@ -55,10 +56,8 @@ def _portal_role(memberships: list[tuple[str, list[str]]]) -> str:
 
 
 def _set_cookie(resp: Response, name: str, value: str, max_age: int) -> None:
-    resp.set_cookie(
-        key=name, value=value, max_age=max_age, httponly=True,
-        secure=settings.cookie_secure, samesite="lax", path="/",
-    )
+    # C1-1: the cross-domain-capable seam (env-driven; local shape when unset).
+    set_session_cookie(resp, name, value, max_age)
 
 
 def _build_claims(user, tenant, memberships, binding=None):
@@ -129,7 +128,7 @@ def refresh(request: Request, response: Response, db: Session = Depends(get_db))
 @router.post("/logout")
 def logout(response: Response):
     for name in ("access_token", "refresh_token"):
-        response.delete_cookie(key=name, path="/")
+        delete_session_cookie(response, name)   # C1-1: echo Domain/Path so it actually clears
     return {"ok": True}
 
 

@@ -2216,6 +2216,25 @@ login → back to the course → cohort → apply → dashboard, no seed. Fronte
   proven against the running backend (login→/auth/me→cohorts→apply 201→dashboard; re-apply 409).
 - Depends on create-2 backend (course_id envelope on the public cohorts read, dev-green).
 
+## 2026-07-11 — C1-1: cross-domain auth hardening (cookies + CORS, env-driven) ✅
+
+The code prerequisite before any frontend deploy: makes the staff + student sessions work when
+the frontend is on a DIFFERENT subdomain from the API (app-dev.spstechnosoft.com → dev-api).
+- `app/cookies.py` (NEW) — the single session-cookie seam both staff (`auth.py`) and academy
+  (`academy.py`) route through, for SET and DELETE. Env-driven: COOKIE_DOMAIN / COOKIE_SAMESITE /
+  COOKIE_SECURE. UNSET (local) = host-only + SameSite=Lax + insecure (byte-identical to pre-C1);
+  SET (dev) = Domain=.spstechnosoft.com + SameSite=None + Secure. Invariant: SameSite=None FORCES
+  Secure (a half-set config can't drop the cookie). Delete echoes Domain/Path so it clears.
+- `main.py` — credentialed CORS with EXPLICIT origins (never wildcard — browsers forbid '*' +
+  credentials), added only when CORS_ALLOWED_ORIGINS is set (inert local).
+- `Project/ecs.tf` + `variables.tf` — the dev task-def env (COOKIE_* + CORS_ALLOWED_ORIGINS =
+  var.frontend_origin, default https://app-dev.spstechnosoft.com). This slice is the FIRST to
+  change the live dev task-def env (via terraform apply), not just the image.
+- Frontend unchanged — all authed fetches already send credentials:'include'.
+- NO migration (config/headers; dev 0041). Tests 359->364 (LOCAL-UNCHANGED inert proof + dev
+  Set-Cookie shape + None-forces-Secure + credentialed-CORS-explicit-origin + containment).
+  Dev-probed on the LIVE service (Set-Cookie shape + round-trip + CORS preflight).
+
 ## Pending / next steps
 
 ➡️ **The canonical, durable register of ALL outstanding/deferred items is

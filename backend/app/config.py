@@ -30,6 +30,12 @@ class Settings(BaseSettings):
     access_ttl_seconds: int = 900       # 15 min
     refresh_ttl_seconds: int = 604800   # 7 days
     cookie_secure: bool = False         # COOKIE_SECURE — true in prod (HTTPS only)
+    # C1-1 cross-domain auth. UNSET = the same-origin-localhost shape (host-only cookie,
+    # SameSite=Lax, no CORS) — so local dev is byte-identical. SET on dev/staging so a
+    # cookie from dev-api.spstechnosoft.com reaches a frontend on app-dev.spstechnosoft.com.
+    cookie_domain: str | None = None    # COOKIE_DOMAIN — e.g. ".spstechnosoft.com"; None = host-only
+    cookie_samesite: str = "lax"        # COOKIE_SAMESITE — "none" for cross-subdomain (forces Secure)
+    cors_allowed_origins: str = ""      # CORS_ALLOWED_ORIGINS — comma-separated explicit origins; "" = no CORS
     # S3 storage bucket. Deployed tasks inject S3_BUCKET (ecs.tf); the alias fixes
     # the PENDING C5 mismatch where the field only read STORAGE_BUCKET and silently
     # fell back to this default on ECS. Default is for local/test only.

@@ -142,6 +142,17 @@ Last refreshed: 2026-06-28 (after client-internal roles / owner-scoped jobs — 
 
 ## C. Infra / deploy / multi-tenancy
 
+### C1. Frontend deploy target (STOP-4) — **slice 1 (cross-domain auth) DONE 2026-07-11**
+- **C1-slice-1 DONE (2026-07-11):** cross-domain auth hardening landed + dev-probed — cookies are
+  env-driven Domain=.spstechnosoft.com/SameSite=None/Secure on dev (Lax/host-only local), credentialed
+  CORS with an explicit allow-list. The live dev task-def now carries the cookie/CORS env. This is the
+  code prerequisite; a frontend can now be served on a sibling subdomain of dev-api.
+- **Slice 2 (hosting, STOP-4, PAID) REMAINS:** stand up the staging frontend (SSR Next — NOT static;
+  middleware+proxy need a server) on app-dev.spstechnosoft.com (Amplify / ECS-Fargate / Vercel — see
+  the C1 dig), + the GoDaddy DNS record + TLS. Pairs with A3 (dev-login) — a deployed frontend is inert
+  until dev-api mints tokens.
+- **Slice 3 REMAINS:** flip FEATURE_ACADEMY ON on the dev service (exposes the whole academy surface)
+  — deliberate, after A1 consent + A2 hCaptcha keys.
 ### C1. Wildcard subdomain routing + CloudFront + frontend deploy target (STOP-4)
 - **What:** the frontend has NO deploy target (verified locally only). Real tenant-subdomain
   routing (`*.spstechnosoft.com`), wildcard ACM cert, CloudFront, and the **Host↔JWT

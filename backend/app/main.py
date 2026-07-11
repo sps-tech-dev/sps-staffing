@@ -27,6 +27,17 @@ from .routers import academy as academy_router
 
 app = FastAPI(title="SPS Technosoft API", version="0.1.1")
 
+# C1-1 cross-domain: credentialed CORS with EXPLICIT origins (never wildcard — a
+# browser forbids '*' with credentials). UNSET (local, same-origin proxy) → no CORS
+# middleware, behaviour unchanged. Set on dev/staging → allow the frontend origin(s).
+_cors_origins = [o.strip() for o in settings.cors_allowed_origins.split(",") if o.strip()]
+if _cors_origins:
+    from fastapi.middleware.cors import CORSMiddleware
+    app.add_middleware(
+        CORSMiddleware, allow_origins=_cors_origins, allow_credentials=True,
+        allow_methods=["*"], allow_headers=["*"], expose_headers=["*"],
+    )
+
 # Tenant isolation model (see docs/DECISIONS.md): tenant_id comes from the verified
 # JWT (authoritative), set per-request by the get_current_context dependency on
 # protected routes — NOT from a global Host-parsing middleware. The Host↔session

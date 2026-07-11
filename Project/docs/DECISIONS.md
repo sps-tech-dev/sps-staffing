@@ -414,3 +414,16 @@ Discovery surfaced internal inconsistencies in the architecture spec. Resolved a
 - **Decision:** a logged-out "Apply now" carries the course intent as `?next` through register→login→back-to-course (create-2, `45f53c3`), open-redirect-guarded to `/academy` paths.
 - **Why:** the storefront's course-specific intent used to die at register (the course was dropped at the payload boundary); `?next` preserves it so a real applicant returns to the course to apply.
 - **Would change if:** —.
+
+### 2026-07-11 — C1 is a STAGING deploy pointed at dev-api; cross-domain cookies env-gated
+- **Decision:** the first frontend deploy (C1) is a STAGING frontend (`app-dev.spstechnosoft.com`)
+  pointed at the existing `dev-api` — NOT a new prod frontend+api. Cross-subdomain auth uses cookies
+  with `Domain=.spstechnosoft.com`, `SameSite=None`, `Secure`, driven by env (COOKIE_DOMAIN/
+  COOKIE_SAMESITE/COOKIE_SECURE) so LOCAL dev stays `Lax`/host-only/insecure (inert-when-unset).
+  CORS is credentialed with an EXPLICIT allow-list (`CORS_ALLOWED_ORIGINS`), never wildcard.
+- **Why:** one environment exists (dev); a staging frontend on a sibling subdomain exercises the
+  real cross-domain cookie/CORS path without standing up prod. The env gate keeps the same-origin
+  localhost loop unchanged. `SameSite=None` requires `Secure` (browser rule) — forced in code.
+- **Would change if:** a true prod environment is stood up → add its origin to the allow-list and a
+  prod cookie domain; if the frontend is served same-origin behind the API's domain (a proxy),
+  the cross-domain cookie shape could revert to host-only there.

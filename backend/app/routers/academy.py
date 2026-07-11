@@ -342,6 +342,7 @@ from sqlalchemy.exc import IntegrityError  # noqa: E402
 from pydantic import BaseModel as _BM  # noqa: E402  (grouped A3 block)
 
 from ..academy_deps import ACADEMY_COOKIE, StudentContext, get_current_student  # noqa: E402
+from ..cookies import delete_session_cookie, set_session_cookie  # noqa: E402
 from ..captcha import verify_captcha  # noqa: E402
 from ..crypto import blind_index  # noqa: E402
 from ..models import Consent  # noqa: E402
@@ -391,8 +392,7 @@ def academy_login(body: AcademyLoginIn, request: Request, response: Response,
     token = create_academy_token({"sub": str(st.id), "tenant_id": str(tenant.id),
                                   "kind": "academy_student", "role": "student",
                                   "email": st.email, "student_id": st.student_id})
-    response.set_cookie(key=ACADEMY_COOKIE, value=token, max_age=settings.access_ttl_seconds,
-                        httponly=True, secure=settings.cookie_secure, samesite="lax", path="/")
+    set_session_cookie(response, ACADEMY_COOKIE, token, settings.access_ttl_seconds)  # C1-1 seam
     return {"student_id": str(st.id), "email": st.email, "full_name": st.full_name,
             "home": "/academy/student"}
 
@@ -409,7 +409,7 @@ def academy_me(student: StudentContext = Depends(get_current_student),
 
 @router.post("/auth/logout")
 def academy_logout(response: Response):
-    response.delete_cookie(key=ACADEMY_COOKIE, path="/")
+    delete_session_cookie(response, ACADEMY_COOKIE)   # C1-1: echo Domain/Path so it clears
     return {"ok": True}
 
 

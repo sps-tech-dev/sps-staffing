@@ -18,6 +18,12 @@ variable "environment" {
   description = "Deployment environment (dev/staging/prod)"
 }
 
+variable "frontend_origin" {
+  type        = string
+  description = "C1-1: the allowed frontend origin for credentialed CORS (the staging frontend pointed at dev-api). Explicit — never wildcard."
+  default     = "https://app-dev.spstechnosoft.com"
+}
+
 variable "container_port" {
   type        = number
   description = "Port the ECS Fargate container listens on (ALB → ECS)"
